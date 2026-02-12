@@ -1,0 +1,27 @@
+export const TRANSFER_STATES = [
+  'QUOTE_CREATED',
+  'TRANSFER_CREATED',
+  'AWAITING_FUNDING',
+  'FUNDING_CONFIRMED',
+  'PAYOUT_INITIATED',
+  'PAYOUT_COMPLETED',
+  'PAYOUT_FAILED',
+  'PAYOUT_REVIEW_REQUIRED'
+] as const;
+
+export type TransferState = (typeof TRANSFER_STATES)[number];
+
+const allowedTransitions: Record<TransferState, TransferState[]> = {
+  QUOTE_CREATED: ['TRANSFER_CREATED'],
+  TRANSFER_CREATED: ['AWAITING_FUNDING'],
+  AWAITING_FUNDING: ['FUNDING_CONFIRMED', 'PAYOUT_REVIEW_REQUIRED'],
+  FUNDING_CONFIRMED: ['PAYOUT_INITIATED', 'PAYOUT_REVIEW_REQUIRED'],
+  PAYOUT_INITIATED: ['PAYOUT_COMPLETED', 'PAYOUT_FAILED', 'PAYOUT_REVIEW_REQUIRED'],
+  PAYOUT_COMPLETED: [],
+  PAYOUT_FAILED: ['PAYOUT_REVIEW_REQUIRED'],
+  PAYOUT_REVIEW_REQUIRED: []
+};
+
+export function canTransition(from: TransferState, to: TransferState): boolean {
+  return allowedTransitions[from].includes(to);
+}

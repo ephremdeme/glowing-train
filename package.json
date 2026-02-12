@@ -1,0 +1,20 @@
+{
+  "name": "cryptopay-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.5",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "lint": "corepack pnpm -r --filter './packages/**' --if-present lint",
+    "typecheck": "corepack pnpm -r --filter './packages/**' --if-present typecheck",
+    "test": "corepack pnpm -r --filter './packages/**' --if-present test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}
