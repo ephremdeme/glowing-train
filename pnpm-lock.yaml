@@ -21,6 +21,8 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.11)
 
+  packages/adapters: {}
+
   packages/config:
     dependencies:
       zod:
@@ -69,6 +71,15 @@ importers:
       zod:
         specifier: ^3.24.1
         version: 3.25.76
+
+  services/payout-orchestrator:
+    dependencies:
+      '@cryptopay/adapters':
+        specifier: workspace:*
+        version: link:../../packages/adapters
+      '@cryptopay/db':
+        specifier: workspace:*
+        version: link:../../packages/db
 
 packages:
 
