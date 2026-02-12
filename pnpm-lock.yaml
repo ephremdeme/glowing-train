@@ -60,6 +60,15 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
 
+  services/ledger-service:
+    dependencies:
+      '@cryptopay/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@cryptopay/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+
   services/offshore-collector:
     dependencies:
       '@cryptopay/db':
