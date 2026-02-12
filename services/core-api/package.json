@@ -1,0 +1,19 @@
+{
+  "name": "@cryptopay/core-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cryptopay/db": "workspace:*",
+    "@cryptopay/domain": "workspace:*",
+    "zod": "^3.24.1"
+  }
+}

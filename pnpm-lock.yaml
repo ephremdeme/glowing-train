@@ -46,6 +46,18 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
 
+  services/core-api:
+    dependencies:
+      '@cryptopay/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@cryptopay/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+
 packages:
 
   '@esbuild/aix-ppc64@0.21.5':
