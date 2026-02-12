@@ -90,6 +90,12 @@ importers:
         specifier: workspace:*
         version: link:../../packages/db
 
+  services/reconciliation-worker:
+    dependencies:
+      '@cryptopay/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+
 packages:
 
   '@esbuild/aix-ppc64@0.21.5':
