@@ -68,18 +68,28 @@ corepack pnpm --filter @cryptopay/ops-cli dev transfers list --api-url http://lo
 - Telebirr remains feature-flagged off for MVP (`PAYOUT_TELEBIRR_ENABLED=false`).
 - Customer auth is in scope in this stage (`customer-auth` service + `core-api` `/v1/auth/*` proxy).
 
-## Frontend validation
+## Frontend Validation
 ```bash
 corepack pnpm --filter @cryptopay/web typecheck
 corepack pnpm --filter @cryptopay/web test:e2e
 ```
 
-## Frontend feature routes
-- Sender flow: `http://localhost:3000/`
+## Frontend multipage routes
+- Landing: `http://localhost:3000/`
+- Signup: `http://localhost:3000/signup`
+- Login: `http://localhost:3000/login`
+- Quote: `http://localhost:3000/quote`
+- Transfer: `http://localhost:3000/transfer`
 - Transfer history: `http://localhost:3000/history`
 - Printable receipt: `http://localhost:3000/receipts/<transferId>`
+- Status: `http://localhost:3000/transfers/<transferId>`
+
+## Wallet + UI env flags
+- `NEXT_PUBLIC_WALLET_MODE=real|mock` (`mock` used by `dev:e2e`)
+- `NEXT_PUBLIC_SOLANA_CLUSTER=mainnet-beta|devnet|testnet`
+- `NEXT_PUBLIC_TELEBIRR_ENABLED=false` (MVP default)
 
 ## Playwright MCP notes
 - Configure `~/.codex/config.toml` with Playwright MCP command.
 - Restart Codex desktop after config updates to reload MCP servers.
-- If MCP is still unavailable in-session, use repo Playwright tests as fallback for validation.
+- If MCP is unavailable in-session, use repo Playwright tests as fallback.

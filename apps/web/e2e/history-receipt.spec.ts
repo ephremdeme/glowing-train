@@ -1,8 +1,18 @@
 import { expect, test } from '@playwright/test';
 
-test('history page and printable receipt render from customer transfer APIs', async ({ page }) => {
+test('history table links to printable receipt', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('cryptopay:web:access-token', 'customer-access-token');
+    localStorage.setItem(
+      'cryptopay:web:auth-session',
+      JSON.stringify({
+        token: 'customer-access-token',
+        customerId: 'cust_1',
+        fullName: 'Diaspora Sender',
+        countryCode: 'US',
+        lastSyncedAt: new Date().toISOString()
+      })
+    );
   });
 
   await page.route('**/api/client/transfers?**', async (route) => {
@@ -74,7 +84,7 @@ test('history page and printable receipt render from customer transfer APIs', as
           payoutId: 'pay_hist_1',
           method: 'bank',
           amountEtb: 20860,
-          status: 'PAYOUT_INITIATED',
+          status: 'PAYOUT_COMPLETED',
           providerReference: 'provider-hist',
           updatedAt: new Date().toISOString()
         },
@@ -90,12 +100,11 @@ test('history page and printable receipt render from customer transfer APIs', as
   });
 
   await page.goto('/history');
-  await expect(page.getByText('Sender Transfer History')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Transfer history' })).toBeVisible();
   await expect(page.getByText('tr_hist_001')).toBeVisible();
 
   await page.getByRole('link', { name: 'Receipt' }).click();
   await expect(page).toHaveURL(/\/receipts\/tr_hist_001/);
   await expect(page.getByText('CryptoPay Transfer Receipt')).toBeVisible();
-  await expect(page.getByText('Transfer ID')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Print receipt' })).toBeVisible();
 });

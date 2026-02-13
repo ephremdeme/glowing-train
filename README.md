@@ -31,31 +31,35 @@ corepack pnpm dev:web
 
 Open [http://localhost:3000](http://localhost:3000).
 
-### 5. Use new sender pages
+## Sender Journey (Multipage)
+- Landing: [http://localhost:3000](http://localhost:3000)
+- Signup: [http://localhost:3000/signup](http://localhost:3000/signup)
+- Login: [http://localhost:3000/login](http://localhost:3000/login)
+- Quote: [http://localhost:3000/quote](http://localhost:3000/quote)
+- Transfer + Wallet Connect: [http://localhost:3000/transfer](http://localhost:3000/transfer)
 - History: [http://localhost:3000/history](http://localhost:3000/history)
+- Status: `http://localhost:3000/transfers/<transferId>`
 - Receipt: `http://localhost:3000/receipts/<transferId>`
 
 ## Frontend Environment Variables
 - `WEB_CORE_API_URL` default `http://localhost:3001`
 - `WEB_OFFSHORE_COLLECTOR_URL` default `http://localhost:3002`
-- `WEB_OPS_READ_TOKEN` required for transfer status polling route (`/api/client/transfers/:id`)
+- `WEB_OPS_READ_TOKEN` optional ops token (legacy route support)
 - `NEXT_PUBLIC_TELEBIRR_ENABLED` keep `false` for MVP
+- `NEXT_PUBLIC_SOLANA_CLUSTER` default `mainnet-beta`
+- `NEXT_PUBLIC_WALLET_MODE`:
+  - `real` uses injected EVM wallet + Solana wallet adapter
+  - `mock` simulates wallet state (recommended for e2e)
 
-## Frontend E2E
+## Frontend Validation
 ```bash
 corepack pnpm --filter @cryptopay/web typecheck
 corepack pnpm --filter @cryptopay/web test:e2e
 ```
 
-## Playwright MCP Setup
-1. Ensure `~/.codex/config.toml` includes:
-```toml
-[mcp_servers.playwright]
-command = "/opt/homebrew/bin/playwright-mcp"
-args = []
-```
-2. Restart Codex desktop so MCP servers reload.
-3. If MCP still does not appear, continue with local Playwright CLI (`pnpm --filter @cryptopay/web test:e2e`) for browser validation.
+## Playwright MCP Notes
+1. Configure `~/.codex/config.toml` with Playwright MCP and restart Codex desktop.
+2. If MCP is unavailable in-session, run local Playwright e2e as fallback.
 
 ## MVP Guardrails
 - Non-custodial only: sender uses their own wallet.

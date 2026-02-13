@@ -3,8 +3,14 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useEffect, useMemo, useState } from 'react';
+import { AlertCircle } from 'lucide-react';
+import { RouteGuard } from '@/components/route-guard';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { TransferDetailPayload, UiTransferStatus } from '@/lib/contracts';
-import { ACCESS_TOKEN_KEY } from '@/lib/session';
+import { readAccessToken } from '@/lib/session';
 
 type TransferStatusResponse = TransferDetailPayload & {
   backendStatus: string;
@@ -27,38 +33,36 @@ export default function TransferStatusPage({ params }: { params: { transferId: s
     let active = true;
 
     const poll = async (): Promise<void> => {
-      try {
-        const token = window.localStorage.getItem(ACCESS_TOKEN_KEY) ?? '';
-        if (!token) {
-          setError('Sign in first to track transfer status.');
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch(`/api/client/transfers/${params.transferId}`, {
-          cache: 'no-store',
-          headers: {
-            authorization: `Bearer ${token}`
-          }
-        });
-        const payload = (await response.json()) as TransferStatusResponse | { error?: { message?: string } };
-        if (!active) return;
-
-        if (!response.ok || !('transfer' in payload)) {
-          const message = 'error' in payload ? payload.error?.message : undefined;
-          setError(message ?? 'Unable to load transfer status.');
-          setLoading(false);
-          return;
-        }
-
-        setData(payload);
-        setError(null);
+      const token = readAccessToken();
+      if (!token) {
+        setError('Sign in first to track transfer status.');
         setLoading(false);
-      } catch {
-        if (!active) return;
-        setError('Status request failed.');
-        setLoading(false);
+        return;
       }
+
+      const response = await fetch(`/api/client/transfers/${params.transferId}`, {
+        cache: 'no-store',
+        headers: {
+          authorization: `Bearer ${token}`
+        }
+      });
+
+      const payload = (await response.json().catch(() => ({ error: { message: 'Invalid response.' } }))) as
+        | TransferStatusResponse
+        | { error?: { message?: string } };
+
+      if (!active) return;
+
+      if (!response.ok || !('transfer' in payload)) {
+        const message = 'error' in payload ? payload.error?.message : null;
+        setError(message ?? 'Unable to load transfer status.');
+        setLoading(false);
+        return;
+      }
+
+      setData(payload);
+      setError(null);
+      setLoading(false);
     };
 
     void poll();
@@ -75,52 +79,101 @@ export default function TransferStatusPage({ params }: { params: { transferId: s
   const idx = useMemo(() => (data ? flowIndex(data.uiStatus) : -1), [data]);
 
   return (
-    <main className="app-root">
-      <section className="hero">
-        <p className="eyebrow">Transfer Tracking</p>
-        <h1>{params.transferId}</h1>
-        <p>Status polling every 5 seconds.</p>
-        <div className="row">
-          <Link href="/">Back to sender flow</Link>
-          <Link href={`/receipts/${params.transferId}` as Route}>Printable receipt</Link>
-        </div>
-      </section>
+    <RouteGuard requireAuth>
+      <div className="grid gap-6">
+        <section className="grid gap-3 rounded-3xl border border-border/70 bg-card/70 p-6 shadow-panel md:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Transfer Status</p>
+          <h1 className="break-all text-3xl font-semibold tracking-tight md:text-4xl">{params.transferId}</h1>
+          <p className="text-sm text-muted-foreground">Live polling interval: 5 seconds.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href={'/history' as Route}>Back to history</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href={`/receipts/${params.transferId}` as Route}>Printable receipt</Link>
+            </Button>
+          </div>
+        </section>
 
-      <section className="panel">
-        {loading ? <p>Loading transfer status...</p> : null}
-        {error ? <p className="message">{error}</p> : null}
+        {loading ? <p className="text-sm text-muted-foreground">Loading transfer status...</p> : null}
+
+        {error ? (
+          <Alert variant="destructive">
+            <AlertTitle>Unable to load status</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
 
         {data ? (
           <>
-            <p><strong>Backend status:</strong> {data.backendStatus}</p>
-            <p><strong>UI status:</strong> {data.uiStatus}</p>
-            <p><strong>Payout status:</strong> {data.payout?.status ?? 'n/a'}</p>
-            <p><strong>Last update:</strong> {new Date(data.transitions[data.transitions.length - 1]?.occurredAt ?? data.transfer.createdAt).toLocaleString()}</p>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">Current state</CardTitle>
+                <CardDescription>Mapped sender-facing state with backend status details.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-2 text-sm">
+                <p>
+                  <strong>Backend status:</strong> {data.backendStatus}
+                </p>
+                <p>
+                  <strong>UI status:</strong> {data.uiStatus}
+                </p>
+                <p>
+                  <strong>Payout status:</strong> {data.payout?.status ?? 'n/a'}
+                </p>
+                <p>
+                  <strong>Last update:</strong>{' '}
+                  {new Date(data.transitions[data.transitions.length - 1]?.occurredAt ?? data.transfer.createdAt).toLocaleString()}
+                </p>
+              </CardContent>
+            </Card>
 
-            {data.uiStatus === 'FAILED' ? <p className="message">Transfer requires manual review or failed payout.</p> : null}
+            {data.uiStatus === 'FAILED' ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Manual review required</AlertTitle>
+                <AlertDescription>This transfer is in a failed or review-required state.</AlertDescription>
+              </Alert>
+            ) : null}
 
-            <ol className="timeline" aria-label="Transfer timeline">
-              {FLOW.map((step, index) => (
-                <li key={step} data-active={idx >= index ? 'true' : 'false'}>
-                  {step}
-                </li>
-              ))}
-            </ol>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">Progress timeline</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ol className="grid gap-2 md:grid-cols-6" aria-label="Transfer timeline">
+                  {FLOW.map((step, index) => (
+                    <li key={step}>
+                      <Badge variant={idx >= index ? 'success' : 'outline'} className="w-full justify-center py-2">
+                        {step}
+                      </Badge>
+                    </li>
+                  ))}
+                </ol>
+              </CardContent>
+            </Card>
 
-            <div className="stack">
-              <h2>Transition history</h2>
-              {data.transitions.length === 0 ? <p className="hint">No transitions yet.</p> : null}
-              {data.transitions.map((item, index) => (
-                <div className="history-row" key={`${item.toState}-${index}`}>
-                  <span>{item.fromState ?? '-'}</span>
-                  <span>{item.toState}</span>
-                  <span>{new Date(item.occurredAt).toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">Transition history</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                {data.transitions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No transitions yet.</p>
+                ) : (
+                  data.transitions.map((item, index) => (
+                    <div key={`${item.toState}-${index}`} className="grid gap-1 rounded-2xl border border-border/70 bg-muted/30 px-4 py-3 text-sm md:grid-cols-3">
+                      <span className="text-muted-foreground">{item.fromState ?? '-'}</span>
+                      <span className="font-medium">{item.toState}</span>
+                      <span className="text-muted-foreground">{new Date(item.occurredAt).toLocaleString()}</span>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
           </>
         ) : null}
-      </section>
-    </main>
+      </div>
+    </RouteGuard>
   );
 }

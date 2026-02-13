@@ -1,6 +1,77 @@
 import { expect, test } from '@playwright/test';
 
-test('quote to transfer to status polling happy path', async ({ page }) => {
+function mockTransferDetail(status: 'AWAITING_FUNDING' | 'PAYOUT_COMPLETED') {
+  const uiStatus = status === 'PAYOUT_COMPLETED' ? 'PAID' : 'AWAITING_DEPOSIT';
+  return {
+    backendStatus: status,
+    uiStatus,
+    transfer: {
+      transferId: 'tr_test_001',
+      quoteId: 'q_test_001',
+      senderId: 'cust_test_001',
+      recipientId: 'rcp_test_001',
+      chain: 'base',
+      token: 'USDC',
+      sendAmountUsd: 100,
+      status,
+      createdAt: new Date(Date.now() - 10_000).toISOString(),
+      depositAddress: 'dep_test_001',
+      depositMemo: null
+    },
+    quote: {
+      quoteId: 'q_test_001',
+      fxRateUsdToEtb: 140,
+      feeUsd: 1,
+      recipientAmountEtb: 13860,
+      expiresAt: new Date(Date.now() + 300_000).toISOString()
+    },
+    recipient: {
+      recipientId: 'rcp_test_001',
+      fullName: 'Abebe Kebede',
+      bankAccountName: 'Abebe Kebede',
+      bankAccountNumber: '1002003004005',
+      bankCode: 'CBE',
+      phoneE164: null
+    },
+    funding:
+      status === 'PAYOUT_COMPLETED'
+        ? {
+            eventId: 'evt_1',
+            txHash: '0x1',
+            amountUsd: 100,
+            confirmedAt: new Date(Date.now() - 8_000).toISOString()
+          }
+        : null,
+    payout:
+      status === 'PAYOUT_COMPLETED'
+        ? {
+            payoutId: 'pay_1',
+            method: 'bank',
+            amountEtb: 13860,
+            status: 'PAYOUT_COMPLETED',
+            providerReference: 'provider-1',
+            updatedAt: new Date().toISOString()
+          }
+        : null,
+    transitions:
+      status === 'PAYOUT_COMPLETED'
+        ? [
+            {
+              fromState: 'AWAITING_FUNDING',
+              toState: 'FUNDING_CONFIRMED',
+              occurredAt: new Date(Date.now() - 8_000).toISOString()
+            },
+            {
+              fromState: 'PAYOUT_INITIATED',
+              toState: 'PAYOUT_COMPLETED',
+              occurredAt: new Date().toISOString()
+            }
+          ]
+        : []
+  };
+}
+
+test('multipage happy path: signup -> login -> quote -> transfer -> status -> history', async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on('console', (msg) => {
     if (msg.type() === 'error') {
@@ -8,7 +79,7 @@ test('quote to transfer to status polling happy path', async ({ page }) => {
     }
   });
 
-  let statusCalls = 0;
+  let transferStatusCalls = 0;
 
   await page.route('**/api/client/auth/register', async (route) => {
     await route.fulfill({
@@ -19,13 +90,23 @@ test('quote to transfer to status polling happy path', async ({ page }) => {
           customerId: 'cust_test_001',
           fullName: 'Diaspora Sender',
           countryCode: 'US'
-        },
+        }
+      })
+    });
+  });
+
+  await page.route('**/api/client/auth/login/password', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
         session: {
-          sessionId: 'csn_test_001',
-          accessToken: 'customer-access-token',
-          refreshToken: 'refresh-token',
-          csrfToken: 'csrf-token',
-          expiresAt: new Date(Date.now() + 3600_000).toISOString()
+          accessToken: 'customer-access-token'
+        },
+        customer: {
+          customerId: 'cust_test_001',
+          fullName: 'Diaspora Sender',
+          countryCode: 'US'
         }
       })
     });
@@ -46,6 +127,23 @@ test('quote to transfer to status polling happy path', async ({ page }) => {
           reasonCode: null,
           lastReviewedAt: new Date().toISOString()
         }
+      })
+    });
+  });
+
+  await page.route('**/api/client/quotes', async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        quoteId: 'q_test_001',
+        chain: 'base',
+        token: 'USDC',
+        sendAmountUsd: 100,
+        feeUsd: 1,
+        fxRateUsdToEtb: 140,
+        recipientAmountEtb: 13860,
+        expiresAt: new Date(Date.now() + 300_000).toISOString()
       })
     });
   });
@@ -105,29 +203,33 @@ test('quote to transfer to status polling happy path', async ({ page }) => {
     });
   });
 
-  await page.route('**/api/client/quotes', async (route) => {
-    await route.fulfill({
-      status: 201,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        quoteId: 'q_test_001',
-        chain: 'base',
-        token: 'USDC',
-        sendAmountUsd: 100,
-        feeUsd: 1,
-        fxRateUsdToEtb: 140,
-        recipientAmountEtb: 13860,
-        expiresAt: new Date(Date.now() + 300_000).toISOString()
-      })
-    });
-  });
+  await page.route('**/api/client/transfers**', async (route, request) => {
+    if (request.url().includes('/api/client/transfers/tr_test_001')) {
+      await route.fallback();
+      return;
+    }
 
-  await page.route('**/api/client/transfers', async (route, request) => {
     if (request.method() === 'GET') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ items: [], count: 0 })
+        body: JSON.stringify({
+          items: [
+            {
+              transferId: 'tr_test_001',
+              quoteId: 'q_test_001',
+              recipientId: 'rcp_test_001',
+              recipientName: 'Abebe Kebede',
+              chain: 'base',
+              token: 'USDC',
+              sendAmountUsd: 100,
+              status: 'PAYOUT_COMPLETED',
+              depositAddress: 'dep_test_001',
+              createdAt: new Date().toISOString()
+            }
+          ],
+          count: 1
+        })
       });
       return;
     }
@@ -154,133 +256,48 @@ test('quote to transfer to status polling happy path', async ({ page }) => {
   });
 
   await page.route('**/api/client/transfers/tr_test_001', async (route) => {
-    statusCalls += 1;
-
-    if (statusCalls === 1) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          backendStatus: 'AWAITING_FUNDING',
-          uiStatus: 'AWAITING_DEPOSIT',
-          transfer: {
-            transferId: 'tr_test_001',
-            quoteId: 'q_test_001',
-            senderId: 'cust_test_001',
-            recipientId: 'rcp_test_001',
-            chain: 'base',
-            token: 'USDC',
-            sendAmountUsd: 100,
-            status: 'AWAITING_FUNDING',
-            createdAt: new Date().toISOString(),
-            depositAddress: 'dep_test_001',
-            depositMemo: null
-          },
-          quote: {
-            quoteId: 'q_test_001',
-            fxRateUsdToEtb: 140,
-            feeUsd: 1,
-            recipientAmountEtb: 13860,
-            expiresAt: new Date(Date.now() + 300_000).toISOString()
-          },
-          recipient: {
-            recipientId: 'rcp_test_001',
-            fullName: 'Abebe Kebede',
-            bankAccountName: 'Abebe Kebede',
-            bankAccountNumber: '1002003004005',
-            bankCode: 'CBE',
-            phoneE164: null
-          },
-          funding: null,
-          payout: null,
-          transitions: []
-        })
-      });
-      return;
-    }
-
+    transferStatusCalls += 1;
+    const payload = transferStatusCalls > 1 ? mockTransferDetail('PAYOUT_COMPLETED') : mockTransferDetail('AWAITING_FUNDING');
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        backendStatus: 'PAYOUT_COMPLETED',
-        uiStatus: 'PAID',
-        transfer: {
-          transferId: 'tr_test_001',
-          quoteId: 'q_test_001',
-          senderId: 'cust_test_001',
-          recipientId: 'rcp_test_001',
-          chain: 'base',
-          token: 'USDC',
-          sendAmountUsd: 100,
-          status: 'PAYOUT_COMPLETED',
-          createdAt: new Date(Date.now() - 10000).toISOString(),
-          depositAddress: 'dep_test_001',
-          depositMemo: null
-        },
-        quote: {
-          quoteId: 'q_test_001',
-          fxRateUsdToEtb: 140,
-          feeUsd: 1,
-          recipientAmountEtb: 13860,
-          expiresAt: new Date(Date.now() + 300_000).toISOString()
-        },
-        recipient: {
-          recipientId: 'rcp_test_001',
-          fullName: 'Abebe Kebede',
-          bankAccountName: 'Abebe Kebede',
-          bankAccountNumber: '1002003004005',
-          bankCode: 'CBE',
-          phoneE164: null
-        },
-        funding: {
-          eventId: 'evt_1',
-          txHash: '0x1',
-          amountUsd: 100,
-          confirmedAt: new Date(Date.now() - 8000).toISOString()
-        },
-        payout: {
-          payoutId: 'pay_1',
-          method: 'bank',
-          amountEtb: 13860,
-          status: 'PAYOUT_INITIATED',
-          providerReference: 'provider-1',
-          updatedAt: new Date().toISOString()
-        },
-        transitions: [
-          {
-            fromState: 'AWAITING_FUNDING',
-            toState: 'FUNDING_CONFIRMED',
-            occurredAt: new Date(Date.now() - 8000).toISOString()
-          },
-          {
-            fromState: 'PAYOUT_INITIATED',
-            toState: 'PAYOUT_COMPLETED',
-            occurredAt: new Date().toISOString()
-          }
-        ]
-      })
+      body: JSON.stringify(payload)
     });
   });
 
   await page.goto('/');
 
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page.getByText('Sender KYC: approved')).toBeVisible();
+  await page.getByRole('link', { name: 'Start with signup' }).click();
+  await expect(page).toHaveURL(/\/signup/);
 
-  await page.getByRole('button', { name: 'Save recipient' }).click();
-  await expect(page.getByText(/Recipient saved/)).toBeVisible();
+  await page.getByLabel('Full name').fill('Diaspora Sender');
+  await page.getByLabel('Country code').fill('US');
+  await page.getByLabel('Email').fill('sender@example.com');
+  await page.getByLabel('Password').fill('password123');
+  await page.getByRole('button', { name: 'Continue to login' }).click();
 
+  await expect(page).toHaveURL(/\/login/);
+  await page.getByLabel('Password').fill('password123');
+  await page.getByRole('button', { name: 'Continue to quote' }).click();
+
+  await expect(page).toHaveURL('/quote');
   await page.getByRole('button', { name: 'Lock quote' }).click();
-  await expect(page.getByText(/Quote locked until/)).toBeVisible();
+  await expect(page.getByText('Quote locked. Continue to transfer setup.')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Continue to transfer' }).click();
+  await expect(page).toHaveURL('/transfer');
 
   await page.getByRole('button', { name: 'Create transfer' }).click();
-  await expect(page.getByText('Transfer ID: tr_test_001')).toBeVisible();
-  await expect(page.getByText('dep_test_001')).toBeVisible();
+  await expect(page.getByText('Deposit instructions')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open Coinbase Wallet' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Track transfer status' }).click();
   await expect(page).toHaveURL(/\/transfers\/tr_test_001/);
   await expect(page.getByText('UI status: PAID')).toBeVisible({ timeout: 12_000 });
+
+  await page.getByRole('navigation').getByRole('link', { name: 'History' }).click();
+  await expect(page).toHaveURL('/history');
+  await expect(page.getByText('tr_test_001')).toBeVisible();
 
   expect(consoleErrors).toEqual([]);
 });

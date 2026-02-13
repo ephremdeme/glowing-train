@@ -211,3 +211,26 @@ export interface StatusPayload {
     occurredAt: string | null;
   }>;
 }
+
+export interface AuthSessionState {
+  token: string;
+  customerId: string | null;
+  fullName: string | null;
+  countryCode: string | null;
+  lastSyncedAt: string;
+}
+
+export interface WalletConnectionState {
+  chain: 'base' | 'solana';
+  connected: boolean;
+  address: string | null;
+  connectorName: string | null;
+}
+
+export interface FlowDraftState {
+  recipientId: string | null;
+  recipient: RecipientDetail | null;
+  quote: QuoteSummary | null;
+  transfer: TransferSummary | null;
+  updatedAt: string;
+}

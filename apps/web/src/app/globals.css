@@ -1,275 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-  --bg: #f5f6f2;
-  --bg-accent: #e7eadf;
-  --ink: #121212;
-  --ink-soft: #4b4b4b;
-  --line: #cfd4c4;
-  --brand: #0e7a54;
-  --danger: #9f2020;
+  --background: 165 36% 96%;
+  --foreground: 213 38% 18%;
+  --muted: 165 20% 92%;
+  --muted-foreground: 214 18% 40%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 213 38% 18%;
+  --card: 0 0% 100%;
+  --card-foreground: 213 38% 18%;
+  --border: 168 20% 82%;
+  --input: 168 20% 82%;
+  --primary: 190 86% 34%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 25 92% 54%;
+  --secondary-foreground: 0 0% 100%;
+  --accent: 152 51% 41%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 75% 56%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 190 86% 34%;
+  --radius: 1rem;
 }
 
 * {
-  box-sizing: border-box;
+  @apply border-border;
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
-  margin: 0;
-  color: var(--ink);
-  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
-  background:
-    radial-gradient(1200px 400px at 15% -10%, #dce8cd, transparent 60%),
-    radial-gradient(1100px 500px at 95% 0%, #e5ded0, transparent 55%),
-    var(--bg);
+  @apply bg-background text-foreground antialiased;
+  background-image:
+    radial-gradient(circle at 10% -12%, rgba(20, 184, 166, 0.2), transparent 34%),
+    radial-gradient(circle at 92% 2%, rgba(251, 146, 60, 0.2), transparent 30%),
+    linear-gradient(118deg, rgba(238, 252, 248, 0.95), rgba(232, 248, 243, 0.92) 46%, rgba(254, 247, 236, 0.94));
+  font-family: var(--font-display), ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
 }
 
-a {
-  color: inherit;
+main {
+  min-height: calc(100dvh - 4.5rem);
 }
 
-h1,
-h2 {
-  margin: 0;
-  line-height: 1.1;
+code,
+kbd,
+pre {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-p {
-  margin: 0;
+.wallet-adapter-button {
+  @apply h-10 rounded-full border border-border bg-card px-4 text-sm font-medium text-foreground transition hover:bg-muted;
 }
 
-input,
-select,
-button {
-  font: inherit;
+.wallet-adapter-modal-wrapper {
+  @apply rounded-2xl border border-border bg-card text-foreground;
 }
 
-input,
-select {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.62rem 0.75rem;
-  background: #fff;
-}
-
-button {
-  border: 1px solid var(--ink);
-  background: var(--ink);
-  color: #fff;
-  border-radius: 999px;
-  padding: 0.65rem 0.9rem;
-  cursor: pointer;
-}
-
-button[disabled] {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-main.app-root {
-  max-width: 1160px;
-  margin: 0 auto;
-  padding: 2rem 1rem 3rem;
-  display: grid;
-  gap: 1rem;
-}
-
-.hero {
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: linear-gradient(165deg, #f8fbf2, #eef0e8);
-  padding: 1.2rem;
-  display: grid;
-  gap: 0.75rem;
-}
-
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.76rem;
-  color: var(--ink-soft);
-}
-
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.chips span {
-  border: 1px dashed var(--line);
-  border-radius: 999px;
-  padding: 0.35rem 0.6rem;
-  font-size: 0.86rem;
-}
-
-.grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.panel {
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: #fdfefb;
-  padding: 1rem;
-  display: grid;
-  gap: 0.8rem;
-}
-
-.stack {
-  display: grid;
-  gap: 0.65rem;
-}
-
-.toggle {
-  display: inline-flex;
-  gap: 0.5rem;
-}
-
-.toggle button[aria-selected='true'] {
-  background: var(--brand);
-  border-color: var(--brand);
-}
-
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.blocker {
-  border: 1px dashed #d39b9b;
-  background: #fff8f2;
-  border-radius: 12px;
-  padding: 0.75rem;
-  display: grid;
-  gap: 0.55rem;
-}
-
-.inline-check {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.inline-check input {
-  width: auto;
-}
-
-.hint {
-  color: var(--ink-soft);
-  font-size: 0.92rem;
-}
-
-.instructions code {
-  display: inline-block;
-  padding: 0.24rem 0.45rem;
-  border-radius: 8px;
-  background: #f0f4e8;
-  border: 1px solid var(--line);
-  font-family: "IBM Plex Mono", "SF Mono", Menlo, monospace;
-  font-size: 0.9rem;
-}
-
-.meta {
-  display: grid;
-  gap: 0.35rem;
-  color: var(--ink-soft);
-  font-size: 0.93rem;
-}
-
-.message {
-  border: 1px solid #d7b1b1;
-  background: #fff5f5;
-  color: var(--danger);
-  border-radius: 12px;
-  padding: 0.75rem;
-}
-
-.history-row {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 0.5rem;
-  border-top: 1px solid var(--line);
-  padding-top: 0.6rem;
-  font-size: 0.93rem;
-}
-
-.timeline {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.5rem;
-}
-
-.timeline li {
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #f5f8ee;
-  color: var(--ink-soft);
-}
-
-.timeline li[data-active='true'] {
-  border-color: var(--brand);
-  color: var(--ink);
-  background: #edf8f3;
-}
-
-.receipt-card {
-  background: #fff;
-}
-
-.receipt-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem 1rem;
-}
-
-.receipt-grid p {
-  display: grid;
-  gap: 0.15rem;
-}
-
-.print-root h3 {
-  margin: 0.2rem 0;
-}
-
-@media (max-width: 900px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-
-  .history-row {
-    grid-template-columns: 1fr;
-  }
-
-  .receipt-grid {
-    grid-template-columns: 1fr;
-  }
+.wallet-adapter-modal-title {
+  @apply text-foreground;
 }
 
 @media print {
   body {
-    background: #fff;
+    background: white !important;
+    color: black !important;
   }
 
-  .no-print {
+  header,
+  .receipt-actions,
+  .wallet-adapter-modal-wrapper {
     display: none !important;
   }
 
-  .print-root {
-    max-width: 100%;
-    margin: 0;
-    padding: 0;
+  .receipt-root {
+    display: block !important;
   }
 
-  .print-root .panel {
-    border: 0;
-    border-radius: 0;
-    padding: 0;
+  .receipt-print-card {
+    border: 1px solid #d1d5db !important;
+    box-shadow: none !important;
+    background: white !important;
+    border-radius: 0 !important;
   }
 }
