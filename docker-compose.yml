@@ -30,6 +30,133 @@ services:
     volumes:
       - redis_data:/data
 
+  core-api:
+    image: node:22-alpine
+    container_name: cryptopay-core-api
+    working_dir: /workspace
+    env_file:
+      - .env
+    environment:
+      APP_REGION: ethiopia
+    command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/core-api dev"]
+    volumes:
+      - ./:/workspace
+    ports:
+      - '3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      customer-auth:
+        condition: service_started
+
+  customer-auth:
+    image: node:22-alpine
+    container_name: cryptopay-customer-auth
+    working_dir: /workspace
+    env_file:
+      - .env
+    environment:
+      APP_REGION: ethiopia
+    command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/customer-auth dev"]
+    volumes:
+      - ./:/workspace
+    ports:
+      - '3005:3005'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  offshore-collector:
+    image: node:22-alpine
+    container_name: cryptopay-offshore-collector
+    working_dir: /workspace
+    env_file:
+      - .env
+    environment:
+      APP_REGION: offshore
+    command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/offshore-collector dev"]
+    volumes:
+      - ./:/workspace
+    ports:
+      - '3002:3002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  payout-orchestrator:
+    image: node:22-alpine
+    container_name: cryptopay-payout-orchestrator
+    working_dir: /workspace
+    env_file:
+      - .env
+    environment:
+      APP_REGION: ethiopia
+    command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/payout-orchestrator dev"]
+    volumes:
+      - ./:/workspace
+    ports:
+      - '3003:3003'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  reconciliation-worker:
+    image: node:22-alpine
+    container_name: cryptopay-reconciliation-worker
+    working_dir: /workspace
+    env_file:
+      - .env
+    environment:
+      APP_REGION: ethiopia
+    command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/reconciliation-worker dev"]
+    volumes:
+      - ./:/workspace
+    ports:
+      - '3004:3004'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  base-watcher:
+    image: golang:1.22-alpine
+    container_name: cryptopay-base-watcher
+    working_dir: /workspace/workers/base-watcher
+    env_file:
+      - .env
+    command: ["sh", "-lc", "go run ./cmd/main.go"]
+    volumes:
+      - ./:/workspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+      core-api:
+        condition: service_started
+
+  solana-watcher:
+    image: golang:1.22-alpine
+    container_name: cryptopay-solana-watcher
+    working_dir: /workspace/workers/solana-watcher
+    env_file:
+      - .env
+    command: ["sh", "-lc", "go run ./cmd/main.go"]
+    volumes:
+      - ./:/workspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+      core-api:
+        condition: service_started
+
 volumes:
   postgres_data:
   redis_data:

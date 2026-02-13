@@ -24,11 +24,15 @@ export class TransferService {
   constructor(private readonly repository: TransferRepositoryPort) {}
 
   async createTransfer(input: CreateTransferInput, now: Date = new Date()): Promise<TransferCreationResult> {
-    if (input.senderKycStatus !== 'approved' || input.receiverKycStatus !== 'approved') {
+    const receiverProfile = await this.repository.findReceiverKycProfile(input.receiverId);
+    const effectiveReceiverKycStatus = receiverProfile?.kycStatus ?? input.receiverKycStatus;
+    const effectiveReceiverNationalIdVerified = receiverProfile?.nationalIdVerified ?? input.receiverNationalIdVerified;
+
+    if (input.senderKycStatus !== 'approved' || effectiveReceiverKycStatus !== 'approved') {
       throw new TransferValidationError('Sender and receiver KYC must be approved.');
     }
 
-    if (!input.receiverNationalIdVerified) {
+    if (!effectiveReceiverNationalIdVerified) {
       throw new TransferValidationError('Receiver National ID must be verified before transfer creation.');
     }
 
@@ -71,8 +75,8 @@ export class TransferService {
         senderId: input.senderId,
         receiverId: input.receiverId,
         senderKycStatus: input.senderKycStatus,
-        receiverKycStatus: input.receiverKycStatus,
-        receiverNationalIdVerified: input.receiverNationalIdVerified,
+        receiverKycStatus: effectiveReceiverKycStatus,
+        receiverNationalIdVerified: effectiveReceiverNationalIdVerified,
         chain: quote.chain,
         token: quote.token,
         sendAmountUsd: quote.sendAmountUsd,

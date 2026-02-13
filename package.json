@@ -7,9 +7,16 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "lint": "corepack pnpm -r --filter './packages/**' --if-present lint",
-    "typecheck": "corepack pnpm -r --filter './packages/**' --if-present typecheck",
-    "test": "corepack pnpm -r --filter './packages/**' --if-present test"
+    "lint": "corepack pnpm -r --if-present lint",
+    "typecheck": "corepack pnpm -r --if-present typecheck",
+    "test": "corepack pnpm -r --workspace-concurrency=1 --if-present test",
+    "dev:core-api": "corepack pnpm --filter @cryptopay/core-api dev",
+    "dev:customer-auth": "corepack pnpm --filter @cryptopay/customer-auth dev",
+    "dev:offshore-collector": "corepack pnpm --filter @cryptopay/offshore-collector dev",
+    "dev:payout-orchestrator": "corepack pnpm --filter @cryptopay/payout-orchestrator dev",
+    "dev:reconciliation-worker": "corepack pnpm --filter @cryptopay/reconciliation-worker dev",
+    "check:ethiopia-boundary": "node scripts/check-ethiopia-boundary.mjs",
+    "go:test": "mkdir -p .cache/go-build-base .cache/go-build-solana && GOCACHE=$(pwd)/.cache/go-build-base go -C workers/base-watcher test ./... && GOCACHE=$(pwd)/.cache/go-build-solana go -C workers/solana-watcher test ./..."
   },
   "devDependencies": {
     "@types/node": "^22.13.4",

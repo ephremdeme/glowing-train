@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - feat/**
+      - codex/**
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cryptopay
+          POSTGRES_PASSWORD: cryptopay
+          POSTGRES_DB: cryptopay
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U cryptopay -d cryptopay"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      NODE_ENV: test
+      APP_REGION: offshore
+      DATABASE_URL: postgres://cryptopay:cryptopay@localhost:55432/cryptopay
+      REDIS_URL: redis://localhost:6379
+      ETHIOPIA_SERVICES_CRYPTO_DISABLED: 'true'
+      AUTH_JWT_SECRET: test-jwt-secret
+      AUTH_JWT_ISSUER: cryptopay-internal
+      AUTH_JWT_AUDIENCE: cryptopay-services
+      WATCHER_CALLBACK_SECRET: test-callback-secret
+      WATCHER_CALLBACK_MAX_AGE_MS: '300000'
+      PAYOUT_ORCHESTRATOR_URL: http://localhost:3003
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.5 --activate
+
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Ethiopia boundary check
+        run: corepack pnpm check:ethiopia-boundary
+
+      - name: Lint
+        run: corepack pnpm -w lint
+
+      - name: Typecheck
+        run: corepack pnpm -w typecheck
+
+      - name: Test
+        run: corepack pnpm -w test
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Go watcher tests
+        run: |
+          go test ./workers/base-watcher/...
+          go test ./workers/solana-watcher/...

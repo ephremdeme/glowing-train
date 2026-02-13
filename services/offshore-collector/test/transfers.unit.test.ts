@@ -27,6 +27,10 @@ class InMemoryTransferRepository implements TransferRepositoryPort {
     return null;
   }
 
+  async findReceiverKycProfile(): Promise<null> {
+    return null;
+  }
+
   async findIdempotency(key: string): Promise<IdempotencyRecord | null> {
     return this.idempotency.get(key) ?? null;
   }

@@ -1,0 +1,531 @@
+openapi: 3.0.3
+info:
+  title: CryptoPay Core API
+  version: 1.0.0
+servers:
+  - url: http://localhost:3001
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    IdempotencyKey:
+      name: idempotency-key
+      in: header
+      required: true
+      schema:
+        type: string
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            requestId:
+              type: string
+            details:
+              nullable: true
+    CreateQuoteRequest:
+      type: object
+      required: [chain, token, sendAmountUsd, fxRateUsdToEtb, feeUsd]
+      properties:
+        chain:
+          type: string
+          enum: [base, solana]
+        token:
+          type: string
+          enum: [USDC, USDT]
+        sendAmountUsd:
+          type: number
+          minimum: 0
+        fxRateUsdToEtb:
+          type: number
+          minimum: 0
+        feeUsd:
+          type: number
+          minimum: 0
+        expiresInSeconds:
+          type: integer
+          minimum: 1
+          maximum: 1800
+    FundingConfirmedRequest:
+      type: object
+      required: [eventId, chain, token, txHash, logIndex, depositAddress, amountUsd, confirmedAt]
+      properties:
+        eventId: { type: string }
+        chain:
+          type: string
+          enum: [base, solana]
+        token:
+          type: string
+          enum: [USDC, USDT]
+        txHash: { type: string }
+        logIndex: { type: integer, minimum: 0 }
+        depositAddress: { type: string }
+        amountUsd: { type: number, minimum: 0 }
+        confirmedAt:
+          type: string
+          format: date-time
+paths:
+  /healthz:
+    get:
+      responses:
+        '200':
+          description: OK
+  /readyz:
+    get:
+      responses:
+        '200':
+          description: Ready
+  /v1/quotes:
+    post:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQuoteRequest'
+      responses:
+        '201':
+          description: Quote created
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/quotes/{quoteId}:
+    get:
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Quote
+        '404':
+          description: Not found
+  /internal/v1/funding-confirmed:
+    post:
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: x-callback-timestamp
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: x-callback-signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FundingConfirmedRequest'
+      responses:
+        '202':
+          description: Accepted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /internal/v1/ops/transfers:
+    get:
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Transfer list
+  /internal/v1/ops/transfers/{transferId}:
+    get:
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transfer details
+        '404':
+          description: Not found
+  /internal/v1/ops/sla/breaches:
+    get:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: SLA breaches
+  /internal/v1/ops/payouts/{transferId}/retry:
+    post:
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Retry response proxied from orchestrator
+        '403':
+          description: Forbidden
+  /internal/v1/ops/transfers/{transferId}/mark-reviewed:
+    post:
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Reviewed marker added
+        '403':
+          description: Forbidden
+  /internal/v1/ops/reconciliation/runs/{runId}:
+    get:
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reconciliation run details
+  /internal/v1/ops/reconciliation/issues:
+    get:
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Reconciliation issues list
+  /internal/v1/ops/reconciliation/run:
+    post:
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                outputPath:
+                  type: string
+      responses:
+        '202':
+          description: Reconciliation run queued
+  /internal/v1/ops/jobs/retention/run:
+    post:
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Retention job completed
+  /internal/v1/ops/jobs/key-verification/run:
+    post:
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Key verification completed
+  /internal/v1/kyc/receivers/upsert:
+    post:
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [receiverId, kycStatus, nationalIdVerified, reason]
+              properties:
+                receiverId:
+                  type: string
+                kycStatus:
+                  type: string
+                  enum: [approved, pending, rejected]
+                nationalIdVerified:
+                  type: boolean
+                nationalId:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Receiver KYC profile upserted
+  /internal/v1/kyc/receivers/{receiverId}:
+    get:
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: receiverId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Receiver KYC profile
+        '404':
+          description: Not found
+  /v1/auth/register:
+    post:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Customer registered
+  /v1/auth/login/password:
+    post:
+      responses:
+        '200':
+          description: Password login success
+  /v1/auth/login/magic-link/request:
+    post:
+      responses:
+        '202':
+          description: Magic-link challenge accepted
+  /v1/auth/login/magic-link/verify:
+    post:
+      responses:
+        '200':
+          description: Magic-link login success
+  /v1/auth/login/phone/request-otp:
+    post:
+      responses:
+        '202':
+          description: OTP challenge accepted
+  /v1/auth/login/phone/verify-otp:
+    post:
+      responses:
+        '200':
+          description: OTP login success
+  /v1/auth/oauth/google/start:
+    get:
+      responses:
+        '200':
+          description: Google OAuth start payload
+  /v1/auth/oauth/google/callback:
+    get:
+      responses:
+        '200':
+          description: Google OAuth callback resolved
+  /v1/auth/mfa/totp/setup:
+    post:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: TOTP setup secret issued
+  /v1/auth/mfa/totp/enable:
+    post:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: TOTP enabled
+  /v1/auth/mfa/totp/disable:
+    post:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: TOTP disabled
+  /v1/auth/refresh:
+    post:
+      responses:
+        '200':
+          description: Session refreshed
+  /v1/auth/logout:
+    post:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Session logged out
+  /v1/auth/logout-all:
+    post:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All sessions logged out
+  /v1/me:
+    get:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Customer profile
+    patch:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Customer profile updated
+  /v1/recipients:
+    get:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Recipient list
+    post:
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Recipient created
+  /v1/recipients/{recipientId}:
+    get:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Recipient details
+    patch:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Recipient updated
+    delete:
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Recipient deleted
+  /v1/kyc/sender/status:
+    get:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sender KYC status
+  /v1/kyc/sender/sumsub-token:
+    post:
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sumsub session token payload
+  /internal/v1/kyc/sender/sumsub/webhook:
+    post:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Sender KYC webhook accepted
+  /v1/transfers:
+    post:
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Transfer created

@@ -3,6 +3,7 @@ import type {
   DepositRouteRecord,
   IdempotencyRecord,
   QuoteSnapshot,
+  ReceiverKycProfileSnapshot,
   TransferRepositoryPort,
   TransferCreationResult,
   TransferRecord
@@ -66,6 +67,45 @@ export class TransferRepository implements TransferRepositoryPort {
     }
 
     return mapQuote(result.rows[0] as DbRow);
+  }
+
+  async findReceiverKycProfile(receiverId: string): Promise<ReceiverKycProfileSnapshot | null> {
+    try {
+      const result = await this.pool.query(
+        `
+        select receiver_id, kyc_status, national_id_verified
+        from receiver_kyc_profile
+        where receiver_id = $1
+        limit 1
+        `,
+        [receiverId]
+      );
+
+      const row = result.rows[0] as
+        | {
+            receiver_id: string;
+            kyc_status: ReceiverKycProfileSnapshot['kycStatus'];
+            national_id_verified: boolean;
+          }
+        | undefined;
+
+      if (!row) {
+        return null;
+      }
+
+      return {
+        receiverId: row.receiver_id,
+        kycStatus: row.kyc_status,
+        nationalIdVerified: row.national_id_verified
+      };
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code === '42P01') {
+        return null;
+      }
+
+      throw error;
+    }
   }
 
   async findIdempotency(key: string): Promise<IdempotencyRecord | null> {
@@ -191,6 +231,6 @@ export class TransferRepository implements TransferRepositoryPort {
   }
 
   async clearTransferDataForTests(): Promise<void> {
-    await this.pool.query('truncate table deposit_routes, transfers, idempotency_record restart identity');
+    await this.pool.query('truncate table deposit_routes, transfers, idempotency_record cascade');
   }
 }

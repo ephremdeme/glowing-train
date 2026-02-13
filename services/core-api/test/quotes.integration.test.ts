@@ -33,7 +33,7 @@ describe('quotes integration', () => {
   });
 
   beforeEach(async () => {
-    await getPool().query('truncate table quotes');
+    await getPool().query('truncate table quotes cascade');
   });
 
   afterAll(async () => {

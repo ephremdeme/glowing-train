@@ -9,5 +9,8 @@
   "scripts": {
     "lint": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "prom-client": "^15.1.3"
   }
 }

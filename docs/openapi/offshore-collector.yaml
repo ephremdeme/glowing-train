@@ -1,0 +1,81 @@
+openapi: 3.0.3
+info:
+  title: CryptoPay Offshore Collector API
+  version: 1.0.0
+servers:
+  - url: http://localhost:3002
+components:
+  parameters:
+    IdempotencyKey:
+      name: idempotency-key
+      in: header
+      required: true
+      schema:
+        type: string
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            requestId: { type: string }
+            details: {}
+    CreateTransferRequest:
+      type: object
+      required:
+        [quoteId, senderId, receiverId, senderKycStatus, receiverKycStatus, receiverNationalIdVerified, idempotencyKey]
+      properties:
+        quoteId: { type: string }
+        senderId: { type: string }
+        receiverId: { type: string }
+        senderKycStatus:
+          type: string
+          enum: [approved, pending, rejected]
+        receiverKycStatus:
+          type: string
+          enum: [approved, pending, rejected]
+        receiverNationalIdVerified:
+          type: boolean
+        idempotencyKey:
+          type: string
+paths:
+  /healthz:
+    get:
+      responses:
+        '200':
+          description: OK
+  /readyz:
+    get:
+      responses:
+        '200':
+          description: Ready
+  /v1/transfers:
+    post:
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransferRequest'
+      responses:
+        '201':
+          description: Transfer created
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Idempotency conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

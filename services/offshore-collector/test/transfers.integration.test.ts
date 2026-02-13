@@ -79,6 +79,18 @@ async function ensureTables(): Promise<void> {
   await pool.query(
     'create unique index if not exists idx_deposit_routes_chain_token_address on deposit_routes(chain, token, deposit_address)'
   );
+
+  await pool.query(`
+    create table if not exists receiver_kyc_profile (
+      receiver_id text primary key,
+      kyc_status text not null check (kyc_status in ('approved', 'pending', 'rejected')),
+      national_id_verified boolean not null default false,
+      national_id_hash text,
+      national_id_encrypted jsonb,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `);
 }
 
 async function seedQuote(params?: { quoteId?: string; expiresAt?: string; chain?: 'base' | 'solana'; token?: 'USDC' | 'USDT' }): Promise<string> {
@@ -126,6 +138,7 @@ describe('transfer creation integration', () => {
   beforeEach(async () => {
     await getPool().query('truncate table quotes cascade');
     await repository.clearTransferDataForTests();
+    await getPool().query('truncate table receiver_kyc_profile');
   });
 
   afterAll(async () => {
@@ -248,5 +261,28 @@ describe('transfer creation integration', () => {
         new Date('2026-02-12T00:00:01.000Z')
       )
     ).rejects.toBeInstanceOf(QuoteExpiredError);
+  });
+
+  it('uses receiver kyc profile over client-provided verification flags', async () => {
+    const quoteId = await seedQuote({ quoteId: 'q_profile_override' });
+
+    await getPool().query(
+      `
+      insert into receiver_kyc_profile (receiver_id, kyc_status, national_id_verified)
+      values ('receiver_profile_1', 'pending', false)
+      `
+    );
+
+    await expect(
+      service.createTransfer({
+        quoteId,
+        senderId: 'sender_1',
+        receiverId: 'receiver_profile_1',
+        senderKycStatus: 'approved',
+        receiverKycStatus: 'approved',
+        receiverNationalIdVerified: true,
+        idempotencyKey: 'idem-transfer-007'
+      })
+    ).rejects.toBeInstanceOf(TransferValidationError);
   });
 });
