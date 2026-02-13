@@ -21,7 +21,7 @@ corepack pnpm --filter @cryptopay/db migrate
 
 ## Run all HTTP services in Docker
 ```bash
-docker compose up -d customer-auth core-api offshore-collector payout-orchestrator reconciliation-worker base-watcher solana-watcher
+docker compose up -d customer-auth core-api offshore-collector payout-orchestrator reconciliation-worker base-watcher solana-watcher web
 ```
 
 ## Run services on host (alternative)
@@ -31,6 +31,7 @@ corepack pnpm dev:customer-auth
 corepack pnpm dev:offshore-collector
 corepack pnpm dev:payout-orchestrator
 corepack pnpm dev:reconciliation-worker
+corepack pnpm dev:web
 ```
 
 ## Service endpoints
@@ -39,6 +40,7 @@ corepack pnpm dev:reconciliation-worker
 - Payout Orchestrator: `http://localhost:3003`
 - Reconciliation Worker: `http://localhost:3004`
 - Customer Auth (internal): `http://localhost:3005`
+- Web Client: `http://localhost:3000`
 
 Each service exposes:
 - `GET /healthz`
@@ -65,3 +67,19 @@ corepack pnpm --filter @cryptopay/ops-cli dev transfers list --api-url http://lo
 - Keep `ETHIOPIA_SERVICES_CRYPTO_DISABLED=true` for Ethiopia-side processes.
 - Telebirr remains feature-flagged off for MVP (`PAYOUT_TELEBIRR_ENABLED=false`).
 - Customer auth is in scope in this stage (`customer-auth` service + `core-api` `/v1/auth/*` proxy).
+
+## Frontend validation
+```bash
+corepack pnpm --filter @cryptopay/web typecheck
+corepack pnpm --filter @cryptopay/web test:e2e
+```
+
+## Frontend feature routes
+- Sender flow: `http://localhost:3000/`
+- Transfer history: `http://localhost:3000/history`
+- Printable receipt: `http://localhost:3000/receipts/<transferId>`
+
+## Playwright MCP notes
+- Configure `~/.codex/config.toml` with Playwright MCP command.
+- Restart Codex desktop after config updates to reload MCP servers.
+- If MCP is still unavailable in-session, use repo Playwright tests as fallback for validation.

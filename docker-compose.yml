@@ -157,6 +157,25 @@ services:
       core-api:
         condition: service_started
 
+  web:
+    image: node:22-alpine
+    container_name: cryptopay-web
+    working_dir: /workspace
+    env_file:
+      - .env
+    environment:
+      PORT: 3000
+      WEB_CORE_API_URL: http://core-api:3001
+      WEB_OFFSHORE_COLLECTOR_URL: http://offshore-collector:3002
+    command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/web dev -- --hostname 0.0.0.0 --port 3000"]
+    volumes:
+      - ./:/workspace
+    ports:
+      - '3000:3000'
+    depends_on:
+      core-api:
+        condition: service_started
+
 volumes:
   postgres_data:
   redis_data:

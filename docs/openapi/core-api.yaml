@@ -490,6 +490,32 @@ paths:
     patch:
       security:
         - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                bankAccountName:
+                  type: string
+                bankAccountNumber:
+                  type: string
+                bankCode:
+                  type: string
+                phoneE164:
+                  type: string
+                countryCode:
+                  type: string
+                nationalId:
+                  type: string
+                nationalIdVerified:
+                  type: boolean
+                kycStatus:
+                  type: string
+                  enum: [approved, pending, rejected]
       responses:
         '200':
           description: Recipient updated
@@ -521,6 +547,25 @@ paths:
         '202':
           description: Sender KYC webhook accepted
   /v1/transfers:
+    get:
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Sender transfer history
     post:
       security:
         - bearerAuth: []
@@ -529,3 +574,18 @@ paths:
       responses:
         '201':
           description: Transfer created
+  /v1/transfers/{transferId}:
+    get:
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sender transfer detail for receipt/status
+        '404':
+          description: Not found

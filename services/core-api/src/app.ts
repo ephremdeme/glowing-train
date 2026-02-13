@@ -144,7 +144,10 @@ const recipientUpdateSchema = z.object({
   bankAccountNumber: z.string().min(4).optional(),
   bankCode: z.string().min(1).optional(),
   phoneE164: z.string().min(8).max(20).optional(),
-  countryCode: z.string().min(2).max(3).optional()
+  countryCode: z.string().min(2).max(3).optional(),
+  nationalId: z.string().min(4).optional(),
+  nationalIdVerified: z.boolean().optional(),
+  kycStatus: z.enum(['approved', 'pending', 'rejected']).optional()
 });
 
 const senderKycWebhookSchema = z.object({
@@ -157,6 +160,11 @@ const senderKycWebhookSchema = z.object({
 const transferCreateSchema = z.object({
   quoteId: z.string().min(1),
   recipientId: z.string().min(1)
+});
+
+const transferListQuerySchema = z.object({
+  status: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional()
 });
 
 const meUpdateSchema = z
@@ -1394,6 +1402,73 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
       });
     }
 
+    let receiverKyc:
+      | {
+          kycStatus: 'approved' | 'pending' | 'rejected';
+          nationalIdVerified: boolean;
+        }
+      | null = null;
+
+    const hasReceiverKycUpdate =
+      parsed.data.kycStatus !== undefined || parsed.data.nationalIdVerified !== undefined || parsed.data.nationalId !== undefined;
+
+    if (hasReceiverKycUpdate) {
+      const existingKyc = await getPool().query(
+        `
+        select kyc_status, national_id_verified
+        from receiver_kyc_profile
+        where recipient_id = $1 or receiver_id = $1
+        limit 1
+        `,
+        [recipientId]
+      );
+      const existingKycRow = existingKyc.rows[0] as
+        | {
+            kyc_status: 'approved' | 'pending' | 'rejected';
+            national_id_verified: boolean;
+          }
+        | undefined;
+
+      const profile = await receiverKycService.upsert({
+        receiverId: recipientId,
+        kycStatus: parsed.data.kycStatus ?? existingKycRow?.kyc_status ?? 'pending',
+        nationalIdVerified: parsed.data.nationalIdVerified ?? existingKycRow?.national_id_verified ?? false,
+        ...(parsed.data.nationalId ? { nationalIdPlaintext: parsed.data.nationalId } : {})
+      });
+
+      await getPool().query('update receiver_kyc_profile set recipient_id = $2, updated_at = now() where receiver_id = $1', [
+        recipientId,
+        recipientId
+      ]);
+
+      receiverKyc = {
+        kycStatus: profile.kycStatus,
+        nationalIdVerified: profile.nationalIdVerified
+      };
+    } else {
+      const existingKyc = await getPool().query(
+        `
+        select kyc_status, national_id_verified
+        from receiver_kyc_profile
+        where recipient_id = $1 or receiver_id = $1
+        limit 1
+        `,
+        [recipientId]
+      );
+      const existingKycRow = existingKyc.rows[0] as
+        | {
+            kyc_status: 'approved' | 'pending' | 'rejected';
+            national_id_verified: boolean;
+          }
+        | undefined;
+      if (existingKycRow) {
+        receiverKyc = {
+          kycStatus: existingKycRow.kyc_status,
+          nationalIdVerified: existingKycRow.national_id_verified
+        };
+      }
+    }
+
     await auditService.append({
       actorType: 'customer',
       actorId: claims.sub,
@@ -1401,6 +1476,20 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
       entityType: 'recipient',
       entityId: recipientId
     });
+
+    if (hasReceiverKycUpdate) {
+      await auditService.append({
+        actorType: 'customer',
+        actorId: claims.sub,
+        action: 'recipient_kyc_updated',
+        entityType: 'receiver_kyc_profile',
+        entityId: recipientId,
+        metadata: {
+          kycStatus: receiverKyc?.kycStatus ?? null,
+          nationalIdVerified: receiverKyc?.nationalIdVerified ?? null
+        }
+      });
+    }
 
     return reply.send({
       recipientId: row.recipient_id,
@@ -1411,6 +1500,7 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
       phoneE164: row.phone_e164,
       countryCode: row.country_code,
       status: row.status,
+      receiverKyc,
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString()
     });
@@ -1654,6 +1744,265 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     });
 
     return reply.status(response.status).send(response.body);
+  });
+
+  app.get('/v1/transfers', async (request, reply) => {
+    let claims: AuthClaims;
+    try {
+      claims = toCustomerClaims(request);
+    } catch (error) {
+      return deny({
+        request,
+        reply,
+        code: 'UNAUTHORIZED',
+        message: (error as Error).message,
+        status: 401
+      });
+    }
+
+    const parsed = transferListQuerySchema.safeParse(request.query ?? {});
+    if (!parsed.success) {
+      return deny({
+        request,
+        reply,
+        code: 'INVALID_QUERY',
+        message: parsed.error.issues[0]?.message ?? 'Invalid query.',
+        status: 400,
+        details: parsed.error.issues
+      });
+    }
+
+    const limit = parsed.data.limit ?? 20;
+    const status = parsed.data.status ?? null;
+
+    const rows = await getPool().query(
+      `
+      select
+        t.transfer_id,
+        t.quote_id,
+        t.receiver_id as recipient_id,
+        r.full_name as recipient_name,
+        t.chain,
+        t.token,
+        t.send_amount_usd,
+        t.status,
+        dr.deposit_address,
+        t.created_at
+      from transfers t
+      left join recipient r on r.recipient_id = t.receiver_id
+      left join deposit_routes dr on dr.transfer_id = t.transfer_id and dr.status = 'active'
+      where t.sender_id = $1
+        and ($2::text is null or t.status = $2)
+      order by t.created_at desc
+      limit $3
+      `,
+      [claims.sub, status, limit]
+    );
+
+    return reply.send({
+      items: rows.rows.map((row) => ({
+        transferId: row.transfer_id as string,
+        quoteId: row.quote_id as string,
+        recipientId: row.recipient_id as string,
+        recipientName: (row.recipient_name as string | null) ?? null,
+        chain: row.chain as string,
+        token: row.token as string,
+        sendAmountUsd: Number(row.send_amount_usd),
+        status: row.status as string,
+        depositAddress: (row.deposit_address as string | null) ?? null,
+        createdAt: (row.created_at as Date).toISOString()
+      })),
+      count: rows.rowCount ?? 0
+    });
+  });
+
+  app.get('/v1/transfers/:transferId', async (request, reply) => {
+    let claims: AuthClaims;
+    try {
+      claims = toCustomerClaims(request);
+    } catch (error) {
+      return deny({
+        request,
+        reply,
+        code: 'UNAUTHORIZED',
+        message: (error as Error).message,
+        status: 401
+      });
+    }
+
+    const transferId = (request.params as { transferId: string }).transferId;
+    const transferResult = await getPool().query(
+      `
+      select
+        t.transfer_id,
+        t.quote_id,
+        t.sender_id,
+        t.receiver_id as recipient_id,
+        t.chain,
+        t.token,
+        t.send_amount_usd,
+        t.status,
+        t.created_at,
+        q.fx_rate_usd_to_etb,
+        q.fee_usd,
+        q.recipient_amount_etb,
+        q.expires_at,
+        r.full_name as recipient_name,
+        r.bank_account_name,
+        r.bank_account_number,
+        r.bank_code,
+        r.phone_e164,
+        dr.deposit_address,
+        dr.deposit_memo
+      from transfers t
+      join quotes q on q.quote_id = t.quote_id
+      left join recipient r on r.recipient_id = t.receiver_id
+      left join deposit_routes dr on dr.transfer_id = t.transfer_id and dr.status = 'active'
+      where t.transfer_id = $1
+        and t.sender_id = $2
+      limit 1
+      `,
+      [transferId, claims.sub]
+    );
+
+    const transfer = transferResult.rows[0] as
+      | {
+          transfer_id: string;
+          quote_id: string;
+          sender_id: string;
+          recipient_id: string;
+          chain: string;
+          token: string;
+          send_amount_usd: string;
+          status: string;
+          created_at: Date;
+          fx_rate_usd_to_etb: string;
+          fee_usd: string;
+          recipient_amount_etb: string;
+          expires_at: Date;
+          recipient_name: string | null;
+          bank_account_name: string | null;
+          bank_account_number: string | null;
+          bank_code: string | null;
+          phone_e164: string | null;
+          deposit_address: string | null;
+          deposit_memo: string | null;
+        }
+      | undefined;
+
+    if (!transfer) {
+      return deny({
+        request,
+        reply,
+        code: 'TRANSFER_NOT_FOUND',
+        message: 'Transfer not found.',
+        status: 404
+      });
+    }
+
+    const transitionsResult = await getPool().query(
+      `
+      select from_state, to_state, occurred_at
+      from transfer_transition
+      where transfer_id = $1
+      order by id asc
+      `,
+      [transferId]
+    );
+
+    const fundingResult = await getPool().query(
+      `
+      select event_id, tx_hash, amount_usd, confirmed_at
+      from onchain_funding_event
+      where transfer_id = $1
+      limit 1
+      `,
+      [transferId]
+    );
+
+    const payoutResult = await getPool().query(
+      `
+      select payout_id, method, amount_etb, status, provider_reference, updated_at
+      from payout_instruction
+      where transfer_id = $1
+      limit 1
+      `,
+      [transferId]
+    );
+
+    const funding = fundingResult.rows[0] as
+      | {
+          event_id: string;
+          tx_hash: string;
+          amount_usd: string;
+          confirmed_at: Date;
+        }
+      | undefined;
+
+    const payout = payoutResult.rows[0] as
+      | {
+          payout_id: string;
+          method: string;
+          amount_etb: string;
+          status: string;
+          provider_reference: string | null;
+          updated_at: Date;
+        }
+      | undefined;
+
+    return reply.send({
+      transfer: {
+        transferId: transfer.transfer_id,
+        quoteId: transfer.quote_id,
+        senderId: transfer.sender_id,
+        recipientId: transfer.recipient_id,
+        chain: transfer.chain,
+        token: transfer.token,
+        sendAmountUsd: Number(transfer.send_amount_usd),
+        status: transfer.status,
+        createdAt: transfer.created_at.toISOString(),
+        depositAddress: transfer.deposit_address,
+        depositMemo: transfer.deposit_memo
+      },
+      quote: {
+        quoteId: transfer.quote_id,
+        fxRateUsdToEtb: Number(transfer.fx_rate_usd_to_etb),
+        feeUsd: Number(transfer.fee_usd),
+        recipientAmountEtb: Number(transfer.recipient_amount_etb),
+        expiresAt: transfer.expires_at.toISOString()
+      },
+      recipient: {
+        recipientId: transfer.recipient_id,
+        fullName: transfer.recipient_name,
+        bankAccountName: transfer.bank_account_name,
+        bankAccountNumber: transfer.bank_account_number,
+        bankCode: transfer.bank_code,
+        phoneE164: transfer.phone_e164
+      },
+      funding: funding
+        ? {
+            eventId: funding.event_id,
+            txHash: funding.tx_hash,
+            amountUsd: Number(funding.amount_usd),
+            confirmedAt: funding.confirmed_at.toISOString()
+          }
+        : null,
+      payout: payout
+        ? {
+            payoutId: payout.payout_id,
+            method: payout.method,
+            amountEtb: Number(payout.amount_etb),
+            status: payout.status,
+            providerReference: payout.provider_reference,
+            updatedAt: payout.updated_at.toISOString()
+          }
+        : null,
+      transitions: transitionsResult.rows.map((row) => ({
+        fromState: (row.from_state as string | null) ?? null,
+        toState: row.to_state as string,
+        occurredAt: (row.occurred_at as Date).toISOString()
+      }))
+    });
   });
 
   app.post('/v1/transfers', async (request, reply) => {
