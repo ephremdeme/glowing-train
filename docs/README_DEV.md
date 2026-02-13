@@ -83,11 +83,21 @@ corepack pnpm --filter @cryptopay/web test:e2e
 - Transfer history: `http://localhost:3000/history`
 - Printable receipt: `http://localhost:3000/receipts/<transferId>`
 - Status: `http://localhost:3000/transfers/<transferId>`
+- Google OAuth callback: `http://localhost:3000/auth/google/callback`
+
+## Landing converter behavior
+- Landing computes an indicative ETB estimate from env-configured rate and fee.
+- `Lock real quote` creates a real quote via web BFF and stores quote draft.
+- If unauthenticated, user is routed to signup/login with `next=/transfer`.
 
 ## Wallet + UI env flags
 - `NEXT_PUBLIC_WALLET_MODE=real|mock` (`mock` used by `dev:e2e`)
 - `NEXT_PUBLIC_SOLANA_CLUSTER=mainnet-beta|devnet|testnet`
 - `NEXT_PUBLIC_TELEBIRR_ENABLED=false` (MVP default)
+- `NEXT_PUBLIC_LANDING_USDC_ETB_RATE=140`
+- `NEXT_PUBLIC_LANDING_USDT_ETB_RATE=140`
+- `NEXT_PUBLIC_LANDING_FEE_USD=1`
+- `GOOGLE_OAUTH_REDIRECT_URL=http://localhost:3000/auth/google/callback`
 
 ## Playwright MCP notes
 - Configure `~/.codex/config.toml` with Playwright MCP command.

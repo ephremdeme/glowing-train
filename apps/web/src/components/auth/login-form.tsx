@@ -10,14 +10,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { clearFlowDraft } from '@/lib/flow-state';
-import { readApiMessage } from '@/lib/client-api';
+import { normalizeNextPath, readApiMessage, startGoogleOAuth } from '@/lib/client-api';
 import { writeAuthSession } from '@/lib/session';
 import type { MePayload } from '@/lib/contracts';
 
-export function LoginForm({ prefillEmail = '' }: { prefillEmail?: string }) {
+export function LoginForm({ prefillEmail = '', nextPath = '/quote' }: { prefillEmail?: string; nextPath?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [form, setForm] = useState({
     email: prefillEmail,
@@ -70,10 +70,22 @@ export function LoginForm({ prefillEmail = '' }: { prefillEmail?: string }) {
         countryCode: mePayload.countryCode,
         lastSyncedAt: new Date().toISOString()
       });
-      clearFlowDraft();
-      router.push('/quote' as Route);
+      router.push(normalizeNextPath(nextPath, '/quote') as Route);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onGoogle(): Promise<void> {
+    setMessage(null);
+    setGoogleBusy(true);
+    try {
+      const result = await startGoogleOAuth(normalizeNextPath(nextPath, '/quote'));
+      if (!result.ok) {
+        setMessage(result.message);
+      }
+    } finally {
+      setGoogleBusy(false);
     }
   }
 
@@ -113,6 +125,10 @@ export function LoginForm({ prefillEmail = '' }: { prefillEmail?: string }) {
           <Button type="submit" disabled={busy}>
             {busy ? 'Signing in...' : 'Continue to quote'}
             <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+
+          <Button type="button" variant="outline" onClick={onGoogle} disabled={googleBusy || busy}>
+            {googleBusy ? 'Connecting to Google...' : 'Continue with Google'}
           </Button>
         </form>
       </CardContent>

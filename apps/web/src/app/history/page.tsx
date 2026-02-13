@@ -62,7 +62,6 @@ export default function HistoryPage() {
     <RouteGuard requireAuth>
       <div className="grid gap-6">
         <section className="grid gap-3 rounded-3xl border border-border/70 bg-card/70 p-6 shadow-panel md:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Step 6</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Transfer history</h1>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
             Review your sender transfers, then open receipt or status pages for a full audit trail.

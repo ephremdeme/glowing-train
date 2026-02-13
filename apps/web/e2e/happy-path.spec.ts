@@ -267,7 +267,7 @@ test('multipage happy path: signup -> login -> quote -> transfer -> status -> hi
 
   await page.goto('/');
 
-  await page.getByRole('link', { name: 'Start with signup' }).click();
+  await page.getByRole('link', { name: 'Create account' }).click();
   await expect(page).toHaveURL(/\/signup/);
 
   await page.getByLabel('Full name').fill('Diaspora Sender');
@@ -288,7 +288,7 @@ test('multipage happy path: signup -> login -> quote -> transfer -> status -> hi
   await expect(page).toHaveURL('/transfer');
 
   await page.getByRole('button', { name: 'Create transfer' }).click();
-  await expect(page.getByText('Deposit instructions')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Deposit instructions' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Open Coinbase Wallet' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Track transfer status' }).click();

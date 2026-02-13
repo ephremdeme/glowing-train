@@ -10,13 +10,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { clearFlowDraft } from '@/lib/flow-state';
 import { clearAuthSession } from '@/lib/session';
-import { readApiMessage } from '@/lib/client-api';
+import { normalizeNextPath, readApiMessage, startGoogleOAuth } from '@/lib/client-api';
 
-export function SignupForm() {
+export function SignupForm({ nextPath = '/quote' }: { nextPath?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [form, setForm] = useState({
     fullName: '',
@@ -46,11 +46,26 @@ export function SignupForm() {
       }
 
       clearAuthSession();
-      clearFlowDraft();
-      const query = new URLSearchParams({ email: form.email }).toString();
+      const query = new URLSearchParams({
+        email: form.email,
+        next: normalizeNextPath(nextPath, '/quote')
+      }).toString();
       router.push(`/login?${query}` as Route);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onGoogle(): Promise<void> {
+    setMessage(null);
+    setGoogleBusy(true);
+    try {
+      const result = await startGoogleOAuth(normalizeNextPath(nextPath, '/quote'));
+      if (!result.ok) {
+        setMessage(result.message);
+      }
+    } finally {
+      setGoogleBusy(false);
     }
   }
 
@@ -113,6 +128,10 @@ export function SignupForm() {
           <Button type="submit" disabled={busy}>
             {busy ? 'Creating account...' : 'Continue to login'}
             <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+
+          <Button type="button" variant="outline" onClick={onGoogle} disabled={googleBusy || busy}>
+            {googleBusy ? 'Connecting to Google...' : 'Continue with Google'}
           </Button>
         </form>
       </CardContent>

@@ -4,7 +4,6 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogOut, ShieldCheck } from 'lucide-react';
-import { FlowProgress } from '@/components/flow-progress';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -21,7 +20,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const session = readAuthSession();
-  const showProgress = !pathname.startsWith('/signup') && !pathname.startsWith('/login');
   const navLinks: Array<{ href: Route; label: string }> = [
     { href: '/quote' as Route, label: 'Quote' },
     { href: '/transfer' as Route, label: 'Transfer' },
@@ -87,10 +85,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className="container pb-12 pt-8">
-        <div className="grid gap-6">
-          {showProgress ? <FlowProgress /> : null}
-          {children}
-        </div>
+        <div className="grid gap-6">{children}</div>
       </main>
     </div>
   );

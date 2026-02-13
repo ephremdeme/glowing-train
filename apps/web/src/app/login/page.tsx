@@ -11,26 +11,27 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get('email') ?? '';
+  const nextPath = searchParams.get('next') ?? '/quote';
 
   useEffect(() => {
     if (readAccessToken()) {
-      router.replace('/quote' as Route);
+      router.replace(nextPath as Route);
     }
-  }, [router]);
+  }, [nextPath, router]);
 
   return (
     <div className="grid gap-6">
       <div className="grid gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">Welcome back</h1>
-        <p className="text-muted-foreground">Sign in to continue from quote to transfer funding.</p>
+        <p className="text-muted-foreground">Sign in to continue with your latest transfer setup.</p>
         <p className="text-sm text-muted-foreground">
           Need an account?{' '}
-          <Link href={'/signup' as Route} className="text-primary hover:underline">
+          <Link href={`/signup?next=${encodeURIComponent(nextPath)}` as Route} className="text-primary hover:underline">
             Create one now
           </Link>
         </p>
       </div>
-      <LoginForm prefillEmail={email} />
+      <LoginForm prefillEmail={email} nextPath={nextPath} />
     </div>
   );
 }

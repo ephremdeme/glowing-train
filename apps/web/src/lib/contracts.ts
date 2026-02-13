@@ -234,3 +234,27 @@ export interface FlowDraftState {
   transfer: TransferSummary | null;
   updatedAt: string;
 }
+
+export interface LandingEstimateInput {
+  chain: 'base' | 'solana';
+  token: 'USDC' | 'USDT';
+  sendAmountUsd: number;
+}
+
+export interface LandingEstimateResult {
+  feeUsd: number;
+  netUsd: number;
+  fxRateUsdToEtb: number;
+  recipientAmountEtb: number;
+}
+
+export interface GoogleOAuthStartPayload {
+  challengeId: string;
+  state: string;
+  authUrl: string;
+}
+
+export interface GoogleOAuthCallbackPayload {
+  customer: CustomerPayload;
+  session: SessionPayload;
+}

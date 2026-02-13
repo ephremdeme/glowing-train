@@ -144,7 +144,6 @@ export default function QuotePage() {
     <RouteGuard requireAuth>
       <div className="grid gap-6">
         <section className="grid gap-3 rounded-3xl border border-border/70 bg-card/70 p-6 shadow-panel md:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Step 4</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Lock your quote</h1>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
             Choose chain and token, lock your USD to ETB terms, and proceed to transfer setup. Transfer limit is $2,000.

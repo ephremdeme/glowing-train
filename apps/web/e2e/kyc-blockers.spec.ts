@@ -215,5 +215,5 @@ test('receiver blocker prevents transfer until recipient KYC remediation succeed
   await expect(page.getByRole('button', { name: 'Create transfer' })).toBeEnabled();
 
   await page.getByRole('button', { name: 'Create transfer' }).click();
-  await expect(page.getByText('Deposit instructions')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Deposit instructions' })).toBeVisible();
 });
