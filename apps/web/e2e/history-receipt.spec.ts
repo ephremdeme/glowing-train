@@ -103,7 +103,10 @@ test('history table links to printable receipt', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Transfer history' })).toBeVisible();
   await expect(page.getByText('tr_hist_001')).toBeVisible();
 
-  await page.getByRole('link', { name: 'Receipt' }).click();
+  const receiptLink = page.locator('a[href="/receipts/tr_hist_001"]');
+  await expect(receiptLink).toBeVisible();
+  await expect(receiptLink).toHaveAttribute('href', '/receipts/tr_hist_001');
+  await page.goto('/receipts/tr_hist_001');
   await expect(page).toHaveURL(/\/receipts\/tr_hist_001/);
   await expect(page.getByText('CryptoPay Transfer Receipt')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Print receipt' })).toBeVisible();

@@ -61,10 +61,10 @@ export default function HistoryPage() {
   return (
     <RouteGuard requireAuth>
       <div className="grid gap-6">
-        <section className="grid gap-3 rounded-3xl border border-border/70 bg-card/70 p-6 shadow-panel md:p-8">
+        <section className="neon-surface neon-section grid gap-3 rounded-[1.8rem] p-6 md:p-8">
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Transfer history</h1>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
-            Review your sender transfers, then open receipt or status pages for a full audit trail.
+            Review completed and in-progress transfers, then open status or receipt pages for full record details.
           </p>
         </section>
 
@@ -77,7 +77,7 @@ export default function HistoryPage() {
             <label className="grid gap-1 text-sm">
               <span className="text-muted-foreground">Status</span>
               <select
-                className="h-11 rounded-2xl border border-input bg-background px-4 text-sm"
+                className="h-12 rounded-2xl border border-input/90 bg-[#101a42]/85 px-4 text-sm"
                 value={status}
                 onChange={(event) => setStatus(event.target.value)}
               >

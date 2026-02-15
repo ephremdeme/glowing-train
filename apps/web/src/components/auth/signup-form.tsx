@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, ArrowRight } from 'lucide-react';
+import { AlertCircle, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -133,6 +133,11 @@ export function SignupForm({ nextPath = '/quote' }: { nextPath?: string }) {
           <Button type="button" variant="outline" onClick={onGoogle} disabled={googleBusy || busy}>
             {googleBusy ? 'Connecting to Google...' : 'Continue with Google'}
           </Button>
+
+          <div className="flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-accent">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Google sign-in skips extra password login after callback.
+          </div>
         </form>
       </CardContent>
       {message ? (

@@ -248,6 +248,15 @@ export interface LandingEstimateResult {
   recipientAmountEtb: number;
 }
 
+export interface QuoteWidgetVisualState {
+  busy: boolean;
+  highlightedField: 'send' | 'receive' | 'rate' | null;
+}
+
+export type StatusChipVariant = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+
+export type IllustrationVariant = 'wallet-funding' | 'bank-payout';
+
 export interface GoogleOAuthStartPayload {
   challengeId: string;
   state: string;

@@ -61,13 +61,13 @@ export default function GoogleAuthCallbackPage() {
 
   return (
     <div className="mx-auto grid w-full max-w-lg gap-4">
-      <Card>
+      <Card className="neon-section">
         <CardHeader>
           <CardTitle className="text-2xl">Google sign-in</CardTitle>
-          <CardDescription>We are securely confirming your account session.</CardDescription>
+          <CardDescription>Securing your session and loading your sender workspace.</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
           {message}
         </CardContent>
       </Card>

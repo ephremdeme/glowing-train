@@ -143,10 +143,10 @@ export default function QuotePage() {
   return (
     <RouteGuard requireAuth>
       <div className="grid gap-6">
-        <section className="grid gap-3 rounded-3xl border border-border/70 bg-card/70 p-6 shadow-panel md:p-8">
+        <section className="neon-surface neon-section grid gap-3 rounded-[1.8rem] p-6 md:p-8">
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Lock your quote</h1>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
-            Choose chain and token, lock your USD to ETB terms, and proceed to transfer setup. Transfer limit is $2,000.
+            Pick route and token, lock your USD to ETB terms, then continue to recipient and transfer setup.
           </p>
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">USDC / USDT</Badge>
@@ -155,10 +155,10 @@ export default function QuotePage() {
           </div>
         </section>
 
-        <Card>
+        <Card className="neon-section">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
-              {senderApproved ? <ShieldCheck className="h-5 w-5 text-emerald-600" /> : <ShieldAlert className="h-5 w-5 text-amber-600" />}
+              {senderApproved ? <ShieldCheck className="h-5 w-5 text-emerald-300" /> : <ShieldAlert className="h-5 w-5 text-amber-200" />}
               Sender KYC status
             </CardTitle>
             <CardDescription>Transfer creation requires sender and receiver verification.</CardDescription>

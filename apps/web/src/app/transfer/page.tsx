@@ -128,10 +128,10 @@ export default function TransferPage() {
   return (
     <RouteGuard requireAuth requireQuote>
       <div className="grid gap-6">
-        <section className="grid gap-3 rounded-3xl border border-border/70 bg-card/70 p-6 shadow-panel md:p-8">
+        <section className="neon-surface neon-section grid gap-3 rounded-[1.8rem] p-6 md:p-8">
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Create transfer and fund from wallet</h1>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
-            Keep custody of your funds. We only provide the destination route and track payout progress in ETB.
+            Keep custody of your funds. We provide destination route, bank payout orchestration, and status tracking.
           </p>
           <div className="flex flex-wrap gap-2">
             <Badge variant="outline">Cap: $2,000</Badge>

@@ -1,4 +1,4 @@
-import type { UiTransferStatus } from './contracts';
+import type { StatusChipVariant, UiTransferStatus } from './contracts';
 
 export function mapToUiStatus(backendStatus: string, payoutStatus: string | null): UiTransferStatus {
   if (backendStatus === 'TRANSFER_CREATED') return 'CREATED';
@@ -10,4 +10,12 @@ export function mapToUiStatus(backendStatus: string, payoutStatus: string | null
   if (backendStatus === 'PAYOUT_COMPLETED') return 'PAID';
   if (backendStatus === 'PAYOUT_FAILED' || backendStatus === 'PAYOUT_REVIEW_REQUIRED') return 'FAILED';
   return 'CREATED';
+}
+
+export function toStatusChipVariant(status: UiTransferStatus): StatusChipVariant {
+  if (status === 'PAID') return 'success';
+  if (status === 'FAILED') return 'danger';
+  if (status === 'PAYOUT_PENDING' || status === 'CONFIRMING') return 'warning';
+  if (status === 'SETTLED') return 'info';
+  return 'neutral';
 }

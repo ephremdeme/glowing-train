@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, UserRoundCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -98,6 +98,7 @@ export function RecipientSection({ token, initialRecipientId = null, onRecipient
 
   useEffect(() => {
     void loadRecipients();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -107,6 +108,7 @@ export function RecipientSection({ token, initialRecipientId = null, onRecipient
       return;
     }
     void loadRecipientDetail(selectedRecipientId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRecipientId]);
 
   async function onCreateRecipient(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -181,7 +183,7 @@ export function RecipientSection({ token, initialRecipientId = null, onRecipient
         <CardDescription>Bank payout destination in Ethiopia. Crypto remains offshore-only.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
-        <form className="grid gap-3" onSubmit={onCreateRecipient}>
+        <form className="grid gap-3 rounded-2xl border border-border/70 bg-muted/20 p-4" onSubmit={onCreateRecipient}>
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="recipientName">Full name</Label>
@@ -241,7 +243,7 @@ export function RecipientSection({ token, initialRecipientId = null, onRecipient
           <Label htmlFor="recipientSelector">Select recipient</Label>
           <select
             id="recipientSelector"
-            className="h-11 rounded-2xl border border-input bg-background/70 px-4 text-sm"
+            className="h-12 rounded-2xl border border-input/90 bg-[#101a42]/85 px-4 text-sm"
             value={selectedRecipientId}
             onChange={(event) => setSelectedRecipientId(event.target.value)}
           >
@@ -255,8 +257,8 @@ export function RecipientSection({ token, initialRecipientId = null, onRecipient
         </div>
 
         {selectedRecipient ? (
-          <div className="rounded-2xl border border-border/70 bg-muted/30 p-3 text-sm">
-            <div className="mb-2 flex items-center justify-between">
+          <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 text-sm">
+            <div className="mb-2 flex items-center justify-between gap-2">
               <p className="font-medium">{label}</p>
               <Badge variant={receiverApproved ? 'success' : 'warning'}>
                 {receiverApproved ? 'Receiver KYC Approved' : 'Receiver KYC Pending'}
@@ -267,8 +269,8 @@ export function RecipientSection({ token, initialRecipientId = null, onRecipient
         ) : null}
 
         {!receiverApproved && selectedRecipient ? (
-          <div className="grid gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
-            <div className="flex items-center gap-2 text-amber-700">
+          <div className="grid gap-3 rounded-2xl border border-amber-300/35 bg-amber-300/12 p-4">
+            <div className="flex items-center gap-2 text-amber-100">
               <CheckCircle2 className="h-4 w-4" />
               Receiver must pass KYC before transfer creation.
             </div>
@@ -286,7 +288,7 @@ export function RecipientSection({ token, initialRecipientId = null, onRecipient
                 <Label htmlFor="kycStatus">KYC status</Label>
                 <select
                   id="kycStatus"
-                  className="h-11 rounded-2xl border border-input bg-background/70 px-4 text-sm"
+                  className="h-12 rounded-2xl border border-input/90 bg-[#101a42]/85 px-4 text-sm"
                   value={kycForm.kycStatus}
                   onChange={(event) =>
                     setKycForm((prev) => ({ ...prev, kycStatus: event.target.value as 'approved' | 'pending' | 'rejected' }))
@@ -312,6 +314,14 @@ export function RecipientSection({ token, initialRecipientId = null, onRecipient
               Apply receiver KYC update
             </Button>
           </div>
+        ) : null}
+
+        {receiverApproved && selectedRecipient ? (
+          <Alert>
+            <UserRoundCheck className="h-4 w-4" />
+            <AlertTitle>Receiver is verified</AlertTitle>
+            <AlertDescription>Transfer creation is now available for this recipient.</AlertDescription>
+          </Alert>
         ) : null}
 
         {message ? (

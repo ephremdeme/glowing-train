@@ -3,26 +3,26 @@
 @tailwind utilities;
 
 :root {
-  --background: 165 36% 96%;
-  --foreground: 213 38% 18%;
-  --muted: 165 20% 92%;
-  --muted-foreground: 214 18% 40%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 213 38% 18%;
-  --card: 0 0% 100%;
-  --card-foreground: 213 38% 18%;
-  --border: 168 20% 82%;
-  --input: 168 20% 82%;
-  --primary: 190 86% 34%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 25 92% 54%;
-  --secondary-foreground: 0 0% 100%;
-  --accent: 152 51% 41%;
-  --accent-foreground: 0 0% 100%;
-  --destructive: 0 75% 56%;
+  --background: 225 57% 9%;
+  --foreground: 213 100% 97%;
+  --muted: 223 38% 16%;
+  --muted-foreground: 215 24% 74%;
+  --popover: 224 53% 12%;
+  --popover-foreground: 214 100% 97%;
+  --card: 224 52% 13%;
+  --card-foreground: 214 100% 98%;
+  --border: 216 36% 28%;
+  --input: 216 36% 30%;
+  --primary: 186 98% 57%;
+  --primary-foreground: 223 61% 10%;
+  --secondary: 44 100% 62%;
+  --secondary-foreground: 224 60% 10%;
+  --accent: 93 92% 60%;
+  --accent-foreground: 224 56% 10%;
+  --destructive: 0 84% 63%;
   --destructive-foreground: 0 0% 100%;
-  --ring: 190 86% 34%;
-  --radius: 1rem;
+  --ring: 186 98% 57%;
+  --radius: 1.15rem;
 }
 
 * {
@@ -37,14 +37,34 @@ body {
 body {
   @apply bg-background text-foreground antialiased;
   background-image:
-    radial-gradient(circle at 10% -12%, rgba(20, 184, 166, 0.2), transparent 34%),
-    radial-gradient(circle at 92% 2%, rgba(251, 146, 60, 0.2), transparent 30%),
-    linear-gradient(118deg, rgba(238, 252, 248, 0.95), rgba(232, 248, 243, 0.92) 46%, rgba(254, 247, 236, 0.94));
+    radial-gradient(circle at 9% -12%, rgba(35, 197, 255, 0.24), transparent 42%),
+    radial-gradient(circle at 92% -8%, rgba(171, 253, 73, 0.2), transparent 38%),
+    radial-gradient(circle at 52% 115%, rgba(251, 191, 36, 0.15), transparent 36%),
+    linear-gradient(180deg, #0a1028 0%, #070b1d 52%, #040611 100%);
   font-family: var(--font-display), ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.2;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 28px 28px;
 }
 
 main {
   min-height: calc(100dvh - 4.5rem);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.02em;
 }
 
 code,
@@ -53,8 +73,43 @@ pre {
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+a,
+button,
+input,
+select,
+textarea {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-0;
+}
+
+select {
+  @apply text-foreground;
+}
+
+.neon-surface {
+  background: linear-gradient(160deg, rgba(25, 37, 78, 0.85), rgba(13, 20, 47, 0.82));
+  border: 1px solid rgba(136, 162, 242, 0.24);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 24px 52px -34px rgba(1, 4, 17, 0.95),
+    0 0 0 1px rgba(56, 189, 248, 0.08);
+  backdrop-filter: blur(14px);
+}
+
+.neon-section {
+  animation: fade-up 420ms ease-out both;
+}
+
+.lift-hover {
+  transition: transform 260ms ease, box-shadow 260ms ease;
+}
+
+.lift-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 24px 44px -32px rgba(56, 189, 248, 0.5);
+}
+
 .wallet-adapter-button {
-  @apply h-10 rounded-full border border-border bg-card px-4 text-sm font-medium text-foreground transition hover:bg-muted;
+  @apply h-11 rounded-2xl border border-primary/40 bg-primary/15 px-4 text-sm font-semibold text-primary transition hover:bg-primary/20;
 }
 
 .wallet-adapter-modal-wrapper {
@@ -65,10 +120,24 @@ pre {
   @apply text-foreground;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @media print {
   body {
     background: white !important;
     color: black !important;
+  }
+
+  body::before {
+    display: none !important;
   }
 
   header,

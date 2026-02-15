@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
+import { Sora, JetBrains_Mono } from 'next/font/google';
 import { AppShell } from '@/components/app-shell';
 import { WalletProvider } from '@/components/wallet/wallet-provider';
 import './globals.css';
 
-const fontDisplay = Space_Grotesk({
+const fontDisplay = Sora({
   subsets: ['latin'],
   variable: '--font-display'
 });

@@ -10,6 +10,13 @@ function currencyUsd(value: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 }
 
+function statusVariant(status: string): 'success' | 'warning' | 'destructive' | 'outline' {
+  if (status === 'PAYOUT_COMPLETED') return 'success';
+  if (status === 'PAYOUT_FAILED') return 'destructive';
+  if (status === 'AWAITING_FUNDING' || status === 'PAYOUT_INITIATED') return 'warning';
+  return 'outline';
+}
+
 export function HistoryTable({ items }: { items: TransferHistoryItem[] }) {
   return (
     <Card>
@@ -34,18 +41,20 @@ export function HistoryTable({ items }: { items: TransferHistoryItem[] }) {
               </thead>
               <tbody>
                 {items.map((item) => (
-                  <tr key={item.transferId} className="border-b border-border/40">
-                    <td className="px-3 py-3">{item.transferId}</td>
+                  <tr key={item.transferId} className="border-b border-border/40 transition hover:bg-muted/30">
+                    <td className="px-3 py-3 font-medium">{item.transferId}</td>
                     <td className="px-3 py-3">
-                      <Badge variant="outline">{item.chain.toUpperCase()} / {item.token}</Badge>
+                      <Badge variant="outline">
+                        {item.chain.toUpperCase()} / {item.token}
+                      </Badge>
                     </td>
                     <td className="px-3 py-3">{currencyUsd(item.sendAmountUsd)}</td>
                     <td className="px-3 py-3">
-                      <Badge variant="secondary">{item.status}</Badge>
+                      <Badge variant={statusVariant(item.status)}>{item.status}</Badge>
                     </td>
                     <td className="px-3 py-3 text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</td>
                     <td className="px-3 py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <Link href={`/transfers/${item.transferId}` as Route} className="text-primary hover:underline">
                           Status
                         </Link>

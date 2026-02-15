@@ -32,7 +32,7 @@ export function DepositInstructions({ transfer, onMessage }: { transfer: Transfe
   }
 
   return (
-    <Card className="border-primary/20">
+    <Card className="border-primary/35">
       <CardHeader>
         <CardTitle className="text-xl">Deposit instructions</CardTitle>
         <CardDescription>Send from your own wallet. No custodial key handling.</CardDescription>

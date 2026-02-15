@@ -5,8 +5,8 @@ import { cn } from '@/lib/utils';
 const alertVariants = cva('relative w-full rounded-2xl border px-4 py-3 text-sm', {
   variants: {
     variant: {
-      default: 'border-border/80 bg-muted/30 text-foreground',
-      destructive: 'border-destructive/40 bg-destructive/10 text-destructive'
+      default: 'border-primary/30 bg-primary/10 text-foreground',
+      destructive: 'border-destructive/40 bg-destructive/10 text-destructive-foreground'
     }
   },
   defaultVariants: {
@@ -20,7 +20,7 @@ const Alert = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivEleme
 Alert.displayName = 'Alert';
 
 const AlertTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(({ className, ...props }, ref) => (
-  <h5 ref={ref} className={cn('mb-1 font-semibold leading-none tracking-tight', className)} {...props} />
+  <h5 ref={ref} className={cn('mb-1 font-semibold leading-none tracking-tight text-foreground', className)} {...props} />
 ));
 AlertTitle.displayName = 'AlertTitle';
 

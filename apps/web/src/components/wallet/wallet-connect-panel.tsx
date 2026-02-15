@@ -48,7 +48,7 @@ function MockWalletPanel({ chain, onStateChange }: WalletConnectPanelProps) {
   }, [address, chain, connected, onStateChange]);
 
   return (
-    <Card className="border-primary/20 bg-card/70">
+    <Card className="border-primary/30">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Wallet className="h-4 w-4 text-primary" />
@@ -61,7 +61,7 @@ function MockWalletPanel({ chain, onStateChange }: WalletConnectPanelProps) {
             `NEXT_PUBLIC_WALLET_MODE=mock` is enabled. Connection state is simulated for testing and demos.
           </AlertDescription>
         </Alert>
-        <div className="flex items-center justify-between rounded-2xl border border-border/80 bg-muted/30 px-3 py-2">
+        <div className="flex items-center justify-between rounded-2xl border border-border/80 bg-muted/40 px-3 py-2">
           <span className="text-sm text-muted-foreground">{shortenAddress(address)}</span>
           <Badge variant={connected ? 'success' : 'outline'}>{connected ? 'Connected' : 'Disconnected'}</Badge>
         </div>
@@ -134,7 +134,7 @@ function RealBaseWalletPanel({ onStateChange }: Pick<WalletConnectPanelProps, 'o
   }
 
   return (
-    <Card className="border-primary/20 bg-card/70">
+    <Card className="border-primary/30">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Wallet className="h-4 w-4 text-primary" />
@@ -148,7 +148,7 @@ function RealBaseWalletPanel({ onStateChange }: Pick<WalletConnectPanelProps, 'o
           </Alert>
         ) : null}
 
-        <div className="flex items-center justify-between rounded-2xl border border-border/80 bg-muted/30 px-3 py-2">
+        <div className="flex items-center justify-between rounded-2xl border border-border/80 bg-muted/40 px-3 py-2">
           <span className="text-sm text-muted-foreground">{shortenAddress(address)}</span>
           <Badge variant={address ? 'success' : 'outline'}>{address ? 'Connected' : 'Disconnected'}</Badge>
         </div>
@@ -181,7 +181,7 @@ function RealSolanaWalletPanel({ onStateChange }: Pick<WalletConnectPanelProps, 
   }, [connected, onStateChange, publicKey, wallet?.adapter?.name]);
 
   return (
-    <Card className="border-secondary/30 bg-card/70">
+    <Card className="border-secondary/30">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Wallet className="h-4 w-4 text-secondary" />
@@ -189,11 +189,11 @@ function RealSolanaWalletPanel({ onStateChange }: Pick<WalletConnectPanelProps, 
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex items-center justify-between rounded-2xl border border-border/80 bg-muted/30 px-3 py-2">
+        <div className="flex items-center justify-between rounded-2xl border border-border/80 bg-muted/40 px-3 py-2">
           <span className="text-sm text-muted-foreground">{shortenAddress(publicKey?.toBase58() ?? null)}</span>
           <Badge variant={connected ? 'success' : 'outline'}>{connected ? 'Connected' : 'Disconnected'}</Badge>
         </div>
-        <WalletMultiButton className={cn('!h-10 !rounded-full !px-5 !text-sm !font-semibold')} />
+        <WalletMultiButton className={cn('!h-11 !rounded-2xl !px-5 !text-sm !font-semibold')} />
       </CardContent>
     </Card>
   );
