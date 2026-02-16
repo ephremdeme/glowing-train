@@ -470,11 +470,13 @@ export default function HomePage() {
       {/* ── TESTIMONIALS ── */}
       <TestimonialsSection />
 
-      {/* ── FAQ ── */}
-      <FaqSection />
-
-      {/* ── RATE ALERT ── */}
-      <RateAlertSection />
+      {/* ── FAQ & RATE ALERT (2-Col) ── */}
+      <section className="grid items-start gap-10 lg:grid-cols-2 lg:gap-16">
+        <FaqSection />
+        <div className="sticky top-24">
+          <RateAlertSection />
+        </div>
+      </section>
 
       {/* ── CTA ── */}
       {!hasSession ? (
