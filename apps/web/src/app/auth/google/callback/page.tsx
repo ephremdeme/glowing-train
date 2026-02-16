@@ -1,7 +1,7 @@
 'use client';
 
 import type { Route } from 'next';
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -11,6 +11,14 @@ import type { GoogleOAuthCallbackPayload } from '@/lib/contracts';
 import { writeAuthSession } from '@/lib/session';
 
 export default function GoogleAuthCallbackPage() {
+  return (
+    <Suspense>
+      <GoogleAuthCallbackContent />
+    </Suspense>
+  );
+}
+
+function GoogleAuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const once = useRef(false);
@@ -61,10 +69,10 @@ export default function GoogleAuthCallbackPage() {
 
   return (
     <div className="mx-auto grid w-full max-w-lg gap-4">
-      <Card className="neon-section">
+      <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Google sign-in</CardTitle>
-          <CardDescription>Securing your session and loading your sender workspace.</CardDescription>
+          <CardDescription>Securing your session and loading your account.</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center gap-3 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
