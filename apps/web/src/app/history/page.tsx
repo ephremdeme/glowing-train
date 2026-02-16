@@ -1,109 +1,129 @@
 'use client';
 
+import Link from 'next/link';
+import type { Route } from 'next';
 import { useEffect, useState } from 'react';
+import { Clock, Filter, History } from 'lucide-react';
 import { RouteGuard } from '@/components/route-guard';
-import { HistoryTable } from '@/components/history/history-table';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { TransferHistoryItem } from '@/lib/contracts';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { readApiMessage } from '@/lib/client-api';
 import { readAccessToken } from '@/lib/session';
+import { toStatusChipVariant } from '@/lib/status';
+import type { StatusChipVariant, TransferHistoryItem, UiTransferStatus } from '@/lib/contracts';
 
-interface ApiErrorShape {
-  error?: { message?: string };
+function badgeVariant(variant: StatusChipVariant): 'outline' | 'warning' | 'success' | 'destructive' | 'secondary' {
+  if (variant === 'success') return 'success';
+  if (variant === 'danger') return 'destructive';
+  if (variant === 'warning') return 'warning';
+  if (variant === 'info') return 'secondary';
+  return 'outline';
 }
 
+const ALL_STATUSES: UiTransferStatus[] = ['CREATED', 'AWAITING_DEPOSIT', 'CONFIRMING', 'SETTLED', 'PAYOUT_PENDING', 'PAID', 'FAILED'];
+
 export default function HistoryPage() {
-  const [items, setItems] = useState<TransferHistoryItem[]>([]);
-  const [status, setStatus] = useState('');
+  const token = readAccessToken()!;
+  const [rows, setRows] = useState<TransferHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  async function loadHistory(nextStatus: string): Promise<void> {
-    const token = readAccessToken();
-    if (!token) {
-      setError('Sign in first to view transfer history.');
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    const query = new URLSearchParams({ limit: '50' });
-    if (nextStatus) query.set('status', nextStatus);
-
-    const response = await fetch(`/api/client/transfers?${query.toString()}`, {
-      headers: {
-        authorization: `Bearer ${token}`
-      }
-    });
-
-    const payload = (await response.json().catch(() => ({ error: { message: 'Invalid response.' } }))) as
-      | { items?: TransferHistoryItem[] }
-      | ApiErrorShape;
-
-    if (!response.ok || !('items' in payload)) {
-      const message = 'error' in payload ? payload.error?.message : null;
-      setError(message ?? 'Unable to load transfer history.');
-      setItems([]);
-      setLoading(false);
-      return;
-    }
-
-    setItems(payload.items ?? []);
-    setError(null);
-    setLoading(false);
-  }
+  const [filter, setFilter] = useState<UiTransferStatus | 'ALL'>('ALL');
 
   useEffect(() => {
-    void loadHistory(status);
-  }, [status]);
+    (async () => {
+      try {
+        const res = await fetch('/api/client/transfers', {
+          headers: { authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          setError(readApiMessage(body, 'Failed to load transfers.'));
+          setLoading(false);
+          return;
+        }
+        const data = (await res.json()) as { transfers: TransferHistoryItem[] };
+        setRows(data.transfers ?? []);
+      } catch {
+        setError('Network error.');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [token]);
+
+  const filtered = filter === 'ALL' ? rows : rows.filter((r) => r.status === filter);
 
   return (
-    <RouteGuard requireAuth>
+    <RouteGuard>
       <div className="grid gap-6">
-        <section className="neon-surface neon-section grid gap-3 rounded-[1.8rem] p-6 md:p-8">
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Transfer history</h1>
-          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
-            Review completed and in-progress transfers, then open status or receipt pages for full record details.
-          </p>
+        {/* Page header */}
+        <section className="grid gap-2">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+              <History className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Transfer history</h1>
+              <p className="text-sm text-muted-foreground">All past and active transfers.</p>
+            </div>
+          </div>
         </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Filters</CardTitle>
-            <CardDescription>Use status filter to narrow down recent transfers.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap items-center gap-3">
-            <label className="grid gap-1 text-sm">
-              <span className="text-muted-foreground">Status</span>
-              <select
-                className="h-12 rounded-2xl border border-input/90 bg-[#101a42]/85 px-4 text-sm"
-                value={status}
-                onChange={(event) => setStatus(event.target.value)}
-              >
-                <option value="">All</option>
-                <option value="TRANSFER_CREATED">TRANSFER_CREATED</option>
-                <option value="AWAITING_FUNDING">AWAITING_FUNDING</option>
-                <option value="FUNDING_CONFIRMED">FUNDING_CONFIRMED</option>
-                <option value="PAYOUT_INITIATED">PAYOUT_INITIATED</option>
-                <option value="PAYOUT_COMPLETED">PAYOUT_COMPLETED</option>
-                <option value="PAYOUT_FAILED">PAYOUT_FAILED</option>
-              </select>
-            </label>
-            <Badge variant="outline">Bank payout only in MVP</Badge>
-          </CardContent>
-        </Card>
+        {/* Filters */}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant={filter === 'ALL' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('ALL')}
+          >
+            <Filter className="mr-1.5 h-3.5 w-3.5" />
+            All
+          </Button>
+          {ALL_STATUSES.map((s) => (
+            <Button
+              key={s}
+              variant={filter === s ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setFilter(s)}
+            >
+              {s}
+            </Button>
+          ))}
+        </div>
 
-        {loading ? <p className="text-sm text-muted-foreground">Loading history...</p> : null}
+        {loading && <p className="text-sm text-muted-foreground">Loading...</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
-        {error ? (
-          <Alert variant="destructive">
-            <AlertTitle>History load failed</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
+        {/* Transfer list */}
+        {!loading && filtered.length === 0 && (
+          <Card>
+            <CardContent className="p-8 text-center text-muted-foreground">
+              No transfers found.
+            </CardContent>
+          </Card>
+        )}
 
-        {!loading && !error ? <HistoryTable items={items} /> : null}
+        <div className="grid gap-3">
+          {filtered.map((row) => (
+            <Link key={row.transferId} href={`/transfers/${row.transferId}` as Route}>
+              <Card className="lift-hover cursor-pointer transition">
+                <CardContent className="flex flex-wrap items-center gap-4 p-5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted/40 text-muted-foreground">
+                    <Clock className="h-4 w-4" />
+                  </div>
+                  <div className="grid min-w-0 flex-1 gap-0.5">
+                    <p className="truncate text-sm font-semibold">{row.transferId}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {row.sendAmountUsd} USD → {row.chain}/{row.token} • {new Date(row.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <Badge variant={badgeVariant(toStatusChipVariant(row.status as UiTransferStatus))}>{row.status}</Badge>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
       </div>
     </RouteGuard>
   );

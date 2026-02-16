@@ -42,7 +42,9 @@ const config: Config = {
         card: {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))'
-        }
+        },
+        success: 'hsl(var(--success))',
+        warning: 'hsl(var(--warning))'
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -50,13 +52,9 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)'
       },
       boxShadow: {
-        glow: '0 0 0 1px rgba(58, 224, 255, 0.16), 0 22px 56px -30px rgba(58, 224, 255, 0.65)',
-        panel: '0 34px 70px -42px rgba(0, 0, 0, 0.9)',
-        neon: '0 0 0 1px rgba(132, 204, 22, 0.2), 0 16px 36px -20px rgba(132, 204, 22, 0.6)'
-      },
-      backgroundImage: {
-        'hero-grid':
-          'radial-gradient(circle at 8% -15%, rgba(56, 189, 248, 0.24), transparent 40%), radial-gradient(circle at 96% 0%, rgba(132, 204, 22, 0.19), transparent 34%), linear-gradient(160deg, rgba(17, 29, 67, 0.93), rgba(8, 14, 37, 0.94) 58%, rgba(4, 8, 24, 0.96))'
+        soft: '0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.06)',
+        card: '0 2px 8px -2px rgba(0,0,0,0.08), 0 1px 2px -1px rgba(0,0,0,0.04)',
+        elevated: '0 8px 24px -8px rgba(0,0,0,0.1)'
       },
       keyframes: {
         'fade-up': {
@@ -67,15 +65,26 @@ const config: Config = {
           '0%, 100%': { transform: 'translateY(0px)' },
           '50%': { transform: 'translateY(-6px)' }
         },
-        'pulse-glow': {
-          '0%, 100%': { boxShadow: '0 0 0 1px rgba(56, 189, 248, 0.2), 0 0 0 rgba(56, 189, 248, 0)' },
-          '50%': { boxShadow: '0 0 0 1px rgba(56, 189, 248, 0.4), 0 0 28px rgba(56, 189, 248, 0.35)' }
+        'confetti-pop': {
+          '0%': { opacity: '0', transform: 'scale(0.5)' },
+          '60%': { opacity: '1', transform: 'scale(1.1)' },
+          '100%': { opacity: '1', transform: 'scale(1)' }
+        },
+        'flow-pulse': {
+          '0%, 100%': { opacity: '0.4' },
+          '50%': { opacity: '1' }
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' }
         }
       },
       animation: {
-        'fade-up': 'fade-up 480ms ease-out both',
-        floaty: 'floaty 4.8s ease-in-out infinite',
-        'pulse-glow': 'pulse-glow 2.6s ease-in-out infinite'
+        'fade-up': 'fade-up 520ms cubic-bezier(0.22, 1, 0.36, 1) both',
+        floaty: 'floaty 5s ease-in-out infinite',
+        'confetti-pop': 'confetti-pop 600ms cubic-bezier(0.34, 1.56, 0.64, 1) both',
+        'flow-pulse': 'flow-pulse 2s ease-in-out infinite',
+        shimmer: 'shimmer 3s ease-in-out infinite'
       }
     }
   },

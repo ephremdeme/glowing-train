@@ -3,26 +3,28 @@
 @tailwind utilities;
 
 :root {
-  --background: 225 57% 9%;
-  --foreground: 213 100% 97%;
-  --muted: 223 38% 16%;
-  --muted-foreground: 215 24% 74%;
-  --popover: 224 53% 12%;
-  --popover-foreground: 214 100% 97%;
-  --card: 224 52% 13%;
-  --card-foreground: 214 100% 98%;
-  --border: 216 36% 28%;
-  --input: 216 36% 30%;
-  --primary: 186 98% 57%;
-  --primary-foreground: 223 61% 10%;
-  --secondary: 44 100% 62%;
-  --secondary-foreground: 224 60% 10%;
-  --accent: 93 92% 60%;
-  --accent-foreground: 224 56% 10%;
-  --destructive: 0 84% 63%;
+  --background: 0 0% 100%;
+  --foreground: 224 71% 4%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 224 71% 4%;
+  --card: 0 0% 100%;
+  --card-foreground: 224 71% 4%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --primary: 239 84% 67%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 224 71% 4%;
+  --accent: 220 14% 96%;
+  --accent-foreground: 224 71% 4%;
+  --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --ring: 186 98% 57%;
-  --radius: 1.15rem;
+  --ring: 239 84% 67%;
+  --radius: 0.75rem;
+  --success: 142 71% 45%;
+  --warning: 38 92% 50%;
 }
 
 * {
@@ -36,120 +38,85 @@ body {
 
 body {
   @apply bg-background text-foreground antialiased;
-  background-image:
-    radial-gradient(circle at 9% -12%, rgba(35, 197, 255, 0.24), transparent 42%),
-    radial-gradient(circle at 92% -8%, rgba(171, 253, 73, 0.2), transparent 38%),
-    radial-gradient(circle at 52% 115%, rgba(251, 191, 36, 0.15), transparent 36%),
-    linear-gradient(180deg, #0a1028 0%, #070b1d 52%, #040611 100%);
   font-family: var(--font-display), ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
-}
-
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.2;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 28px 28px;
 }
 
 main {
   min-height: calc(100dvh - 4.5rem);
 }
 
-h1,
-h2,
-h3,
-h4 {
-  letter-spacing: -0.02em;
+h1, h2, h3, h4 {
+  letter-spacing: -0.025em;
 }
 
-code,
-kbd,
-pre {
+code, kbd, pre {
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-a,
-button,
-input,
-select,
-textarea {
-  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-0;
+a, button, input, select, textarea {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2;
 }
 
 select {
   @apply text-foreground;
 }
 
-.neon-surface {
-  background: linear-gradient(160deg, rgba(25, 37, 78, 0.85), rgba(13, 20, 47, 0.82));
-  border: 1px solid rgba(136, 162, 242, 0.24);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    0 24px 52px -34px rgba(1, 4, 17, 0.95),
-    0 0 0 1px rgba(56, 189, 248, 0.08);
-  backdrop-filter: blur(14px);
+/* ── Staggered reveal ── */
+.stagger-reveal {
+  animation: fade-up 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+.stagger-1 { animation-delay: 80ms; }
+.stagger-2 { animation-delay: 160ms; }
+.stagger-3 { animation-delay: 240ms; }
+.stagger-4 { animation-delay: 320ms; }
+.stagger-5 { animation-delay: 420ms; }
 
-.neon-section {
-  animation: fade-up 420ms ease-out both;
-}
-
+/* ── Card lift hover ── */
 .lift-hover {
-  transition: transform 260ms ease, box-shadow 260ms ease;
+  transition: transform 280ms ease, box-shadow 280ms ease;
 }
-
 .lift-hover:hover {
   transform: translateY(-3px);
-  box-shadow: 0 24px 44px -32px rgba(56, 189, 248, 0.5);
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.12);
 }
 
+/* ── Celebration burst ── */
+.celebration-burst {
+  animation: confetti-pop 600ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── Wallet adapter overrides ── */
 .wallet-adapter-button {
-  @apply h-11 rounded-2xl border border-primary/40 bg-primary/15 px-4 text-sm font-semibold text-primary transition hover:bg-primary/20;
+  @apply h-11 rounded-lg border border-border bg-white px-4 text-sm font-medium text-foreground transition hover:bg-muted;
 }
-
 .wallet-adapter-modal-wrapper {
-  @apply rounded-2xl border border-border bg-card text-foreground;
+  @apply rounded-xl border border-border bg-white text-foreground;
 }
-
 .wallet-adapter-modal-title {
   @apply text-foreground;
 }
 
+/* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
   }
 }
 
+/* ── Print ── */
 @media print {
   body {
     background: white !important;
     color: black !important;
   }
-
-  body::before {
+  header, .receipt-actions, .wallet-adapter-modal-wrapper {
     display: none !important;
   }
-
-  header,
-  .receipt-actions,
-  .wallet-adapter-modal-wrapper {
-    display: none !important;
-  }
-
   .receipt-root {
     display: block !important;
   }
-
   .receipt-print-card {
     border: 1px solid #d1d5db !important;
     box-shadow: none !important;

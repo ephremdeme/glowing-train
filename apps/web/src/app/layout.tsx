@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import { Sora, JetBrains_Mono } from 'next/font/google';
+import { Outfit, JetBrains_Mono } from 'next/font/google';
 import { AppShell } from '@/components/app-shell';
 import { WalletProvider } from '@/components/wallet/wallet-provider';
 import './globals.css';
 
-const fontDisplay = Sora({
+const fontDisplay = Outfit({
   subsets: ['latin'],
   variable: '--font-display'
 });

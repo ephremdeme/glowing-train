@@ -72,7 +72,7 @@ export default function ReceiptPage({ params }: { params: { transferId: string }
   return (
     <RouteGuard requireAuth>
       <div className="grid gap-6 receipt-root">
-        <section className="receipt-actions neon-surface grid gap-3 rounded-[1.8rem] p-6 md:p-8">
+        <section className="receipt-actions grid gap-3 rounded-xl border border-border bg-muted/30 p-6 md:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Printable Receipt</p>
           <h1 className="break-all text-3xl font-semibold tracking-tight md:text-4xl">{params.transferId}</h1>
           <div className="flex flex-wrap gap-2">

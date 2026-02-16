@@ -3,8 +3,10 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ExternalLink } from 'lucide-react';
 import { RouteGuard } from '@/components/route-guard';
+import { FlowProgress } from '@/components/flow-progress';
+import { StatusCelebrationScene } from '@/components/illustrations/status-celebration-scene';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,13 +19,6 @@ type TransferStatusResponse = TransferDetailPayload & {
   backendStatus: string;
   uiStatus: UiTransferStatus;
 };
-
-const FLOW: UiTransferStatus[] = ['CREATED', 'AWAITING_DEPOSIT', 'CONFIRMING', 'SETTLED', 'PAYOUT_PENDING', 'PAID'];
-
-function flowIndex(status: UiTransferStatus): number {
-  if (status === 'FAILED') return -1;
-  return FLOW.indexOf(status);
-}
 
 function badgeVariant(variant: StatusChipVariant): 'outline' | 'warning' | 'success' | 'destructive' | 'secondary' {
   if (variant === 'success') return 'success';
@@ -85,22 +80,29 @@ export default function TransferStatusPage({ params }: { params: { transferId: s
     };
   }, [params.transferId]);
 
-  const idx = useMemo(() => (data ? flowIndex(data.uiStatus) : -1), [data]);
-
   return (
     <RouteGuard requireAuth>
       <div className="grid gap-6">
-        <section className="neon-surface neon-section grid gap-3 rounded-[1.8rem] p-6 md:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Transfer Status</p>
-          <h1 className="break-all text-3xl font-semibold tracking-tight md:text-4xl">{params.transferId}</h1>
-          <p className="text-sm text-muted-foreground">Live polling interval: 5 seconds.</p>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href={'/history' as Route}>Back to history</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href={`/receipts/${params.transferId}` as Route}>Printable receipt</Link>
-            </Button>
+        {/* Page header */}
+        <section>
+          <div className="grid gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">Transfer Status</p>
+            <h1 className="break-all text-2xl font-bold tracking-tight">{params.transferId}</h1>
+            <p className="text-sm text-muted-foreground">Auto-refreshing every 5 seconds.</p>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link href={'/history' as Route}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to history
+                </Link>
+              </Button>
+              <Button asChild size="sm">
+                <Link href={`/receipts/${params.transferId}` as Route}>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Printable receipt
+                </Link>
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -115,25 +117,48 @@ export default function TransferStatusPage({ params }: { params: { transferId: s
 
         {data ? (
           <>
+            {/* Status illustration */}
+            <StatusCelebrationScene status={data.uiStatus} className="h-[100px] md:h-[120px]" />
+
+            {/* Flow progress timeline */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-xl">Current state</CardTitle>
+                <CardTitle className="text-lg">Progress timeline</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <FlowProgress status={data.uiStatus} />
+              </CardContent>
+            </Card>
+
+            {/* Current state */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Current state</CardTitle>
                 <CardDescription>Mapped sender-facing state with backend status details.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-2 text-sm">
-                <p>
-                  <strong>Backend status:</strong> {data.backendStatus}
-                </p>
-                <p>
-                  <strong>UI status:</strong> {data.uiStatus}
-                </p>
-                <p>
-                  <strong>Payout status:</strong> {data.payout?.status ?? 'n/a'}
-                </p>
-                <p>
-                  <strong>Last update:</strong>{' '}
-                  {new Date(data.transitions[data.transitions.length - 1]?.occurredAt ?? data.transfer.createdAt).toLocaleString()}
-                </p>
+              <CardContent className="grid gap-3 text-sm">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Backend status</p>
+                    <p className="font-medium">{data.backendStatus}</p>
+                  </div>
+                  <div className="grid gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">UI status</p>
+                    <p className="font-medium">UI status: {data.uiStatus}</p>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Payout status</p>
+                    <p className="font-medium">{data.payout?.status ?? 'n/a'}</p>
+                  </div>
+                  <div className="grid gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Last update</p>
+                    <p className="font-medium">
+                      {new Date(data.transitions[data.transitions.length - 1]?.occurredAt ?? data.transfer.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
                 <div className="pt-1">
                   <Badge variant={badgeVariant(toStatusChipVariant(data.uiStatus))}>{data.uiStatus}</Badge>
                 </div>
@@ -148,34 +173,18 @@ export default function TransferStatusPage({ params }: { params: { transferId: s
               </Alert>
             ) : null}
 
+            {/* Transition history */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-xl">Progress timeline</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ol className="grid gap-2 md:grid-cols-6" aria-label="Transfer timeline">
-                  {FLOW.map((step, index) => (
-                    <li key={step}>
-                      <Badge variant={idx >= index ? 'success' : 'outline'} className="w-full justify-center py-2">
-                        {step}
-                      </Badge>
-                    </li>
-                  ))}
-                </ol>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-xl">Transition history</CardTitle>
+                <CardTitle className="text-lg">Transition history</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-2">
                 {data.transitions.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No transitions yet.</p>
                 ) : (
                   data.transitions.map((item, index) => (
-                    <div key={`${item.toState}-${index}`} className="grid gap-1 rounded-2xl border border-border/70 bg-muted/25 px-4 py-3 text-sm md:grid-cols-3">
-                      <span className="text-muted-foreground">{item.fromState ?? '-'}</span>
+                    <div key={`${item.toState}-${index}`} className="grid gap-1 rounded-xl border border-border/50 bg-muted/15 px-4 py-3 text-sm md:grid-cols-3">
+                      <span className="text-muted-foreground">{item.fromState ?? '—'}</span>
                       <span className="font-medium">{item.toState}</span>
                       <span className="text-muted-foreground">{new Date(item.occurredAt).toLocaleString()}</span>
                     </div>
