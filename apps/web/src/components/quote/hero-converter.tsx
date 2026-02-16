@@ -162,17 +162,34 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
                 onBlur={() => setState((prev) => ({ ...prev, highlightedField: null }))}
                 onChange={(event) => handleUsdChange(Number(event.target.value) || 0)}
               />
-              {/* Currency dropdown inline */}
-              <select
-                aria-label="Select currency"
-                className="h-10 shrink-0 appearance-none rounded-full border border-border/60 bg-white px-4 pr-8 text-sm font-semibold text-foreground shadow-sm focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
-                value={form.token}
-                onChange={(e) => setForm((prev) => ({ ...prev, token: e.target.value as 'USDC' | 'USDT' }))}
-                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
-              >
-                <option value="USDC">USDC</option>
-                <option value="USDT">USDT</option>
-              </select>
+              {/* Currency dropdown with Icon */}
+              <div className="relative shrink-0">
+                {form.token === 'USDC' ? (
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full text-blue-500 pointer-events-none">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fillOpacity="0.2"/>
+                      <path d="M12.83 15.93H11.17V15H10.5C9.67 15 9 14.33 9 13.5V10.5C9 9.67 9.67 9 10.5 9H13V8H9V6.07H10.67V5H13.33V5.93H14C14.83 5.93 15.5 6.6 15.5 7.43V10.43C15.5 11.27 14.83 11.93 14 11.93H11.5V13H15.5V15.93H12.83V15.93ZM10.5 11.93H13.5V10H10.5V11.93ZM11 7V9H14V7.43C14 7.2 13.8 7 13.57 7H11Z" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full text-emerald-500 pointer-events-none">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fillOpacity="0.2"/>
+                      <path d="M10.5 7H14.5V17H10.5V7ZM7 7H18V5H7V7Z" transform="translate(0, 1) scale(0.9) translate(1,0)" />
+                    </svg>
+                  </div>
+                )}
+                <select
+                  aria-label="Select currency"
+                  className="h-10 appearance-none rounded-full border border-border/60 bg-white pl-10 pr-8 text-sm font-semibold text-foreground shadow-sm focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  value={form.token}
+                  onChange={(e) => setForm((prev) => ({ ...prev, token: e.target.value as 'USDC' | 'USDT' }))}
+                  style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
+                >
+                  <option value="USDC">USDC</option>
+                  <option value="USDT">USDT</option>
+                </select>
+              </div>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">USD · Max $2,000</p>
           </div>
@@ -207,8 +224,17 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
                 onBlur={() => setState((prev) => ({ ...prev, highlightedField: null }))}
                 onChange={(event) => handleEtbChange(Number(event.target.value) || 0)}
               />
-              <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-border/60 bg-white px-4 py-2 shadow-sm">
-                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-[9px] font-bold text-green-700">₿</div>
+              <div className="flex shrink-0 items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-2 shadow-sm">
+                <div className="relative h-5 w-5 overflow-hidden rounded-full border border-border/20">
+                  <svg viewBox="0 0 1200 600" className="h-full w-full object-cover">
+                    <rect width="1200" height="200" fill="#078930"/>
+                    <rect y="200" width="1200" height="200" fill="#FCDD09"/>
+                    <rect y="400" width="1200" height="200" fill="#DA121A"/>
+                    <circle cx="600" cy="300" r="200" fill="#0F47AF"/>
+                    <path d="M600 300L650 450L500 350H700L550 450L600 300Z" fill="#FCDD09" transform="scale(0.8) translate(150, 50)" opacity="0.9"/> 
+                    {/* Simplified star */}
+                  </svg>
+                </div>
                 <span className="text-sm font-semibold text-foreground">ETB</span>
               </div>
             </div>
