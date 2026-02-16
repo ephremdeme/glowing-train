@@ -2,13 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ArrowRightLeft, DollarSign } from 'lucide-react';
+import type { Route } from 'next';
+import { useRouter } from 'next/navigation';
+import { ArrowDownUp, Building2, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { readApiMessage } from '@/lib/client-api';
 import type { QuoteSummary } from '@/lib/contracts';
 
@@ -17,15 +15,14 @@ interface QuoteFormProps {
   initialQuote?: QuoteSummary | null;
   onQuoteCreated: (quote: QuoteSummary) => void;
   disabled?: boolean;
+  isAuthenticated?: boolean;
 }
 
-function currencyEtb(value: number): string {
-  return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(value);
-}
-
-export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled }: QuoteFormProps) {
+export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAuthenticated = true }: QuoteFormProps) {
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<'usd' | 'etb'>('usd');
   const [form, setForm] = useState({
     chain: initialQuote?.chain ?? ('base' as 'base' | 'solana'),
     token: initialQuote?.token ?? ('USDC' as 'USDC' | 'USDT'),
@@ -38,13 +35,31 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled }: Quo
   const preview = useMemo(() => {
     const recipientAmountEtb = (form.sendAmountUsd - form.feeUsd) * form.fxRateUsdToEtb;
     return {
-      recipientAmountEtb,
+      recipientAmountEtb: Math.max(recipientAmountEtb, 0),
       netUsd: form.sendAmountUsd - form.feeUsd
     };
   }, [form]);
 
+  function handleUsdChange(value: number) {
+    setEditingField('usd');
+    setForm((prev) => ({ ...prev, sendAmountUsd: value }));
+  }
+
+  function handleEtbChange(etbValue: number) {
+    setEditingField('etb');
+    const rate = form.fxRateUsdToEtb;
+    const usdAmount = rate > 0 ? Number((etbValue / rate + form.feeUsd).toFixed(2)) : 0;
+    setForm((prev) => ({ ...prev, sendAmountUsd: Math.min(usdAmount, 2000) }));
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+
+    if (!isAuthenticated) {
+      router.push('/login?next=/quote' as Route);
+      return;
+    }
+
     setBusy(true);
     setMessage(null);
 
@@ -74,115 +89,153 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled }: Quo
   }
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader>
-        <CardTitle className="text-xl">Create quote</CardTitle>
-        <CardDescription>Lock chain/token route and payout estimate before transfer.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="grid gap-5" onSubmit={onSubmit}>
-          <div className="grid gap-3 rounded-2xl border border-primary/25 bg-[#0c153a] p-4">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="chain">Chain</Label>
-                <select
-                  id="chain"
-                  className="h-12 rounded-2xl border border-input/90 bg-[#101a42]/85 px-4 text-sm"
-                  value={form.chain}
-                  onChange={(event) => setForm((prev) => ({ ...prev, chain: event.target.value as 'base' | 'solana' }))}
-                >
-                  <option value="base">Base</option>
-                  <option value="solana">Solana</option>
-                </select>
-              </div>
+    <div className="rounded-2xl border border-border/50 bg-white p-6 shadow-lg sm:p-8">
+      <h3 className="mb-5 text-xl font-semibold text-foreground">Create quote</h3>
 
-              <div className="grid gap-2">
-                <Label htmlFor="token">Token</Label>
-                <select
-                  id="token"
-                  className="h-12 rounded-2xl border border-input/90 bg-[#101a42]/85 px-4 text-sm"
-                  value={form.token}
-                  onChange={(event) => setForm((prev) => ({ ...prev, token: event.target.value as 'USDC' | 'USDT' }))}
-                >
-                  <option value="USDC">USDC</option>
-                  <option value="USDT">USDT</option>
-                </select>
-              </div>
-            </div>
+      <form className="grid gap-5" onSubmit={onSubmit}>
+        {/* ── Network toggle ── */}
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Network
+          </span>
+          <div className="flex rounded-xl border border-border/60 bg-slate-50/60 p-0.5">
+            {(['base', 'solana'] as const).map((c) => (
+              <button
+                type="button"
+                key={c}
+                onClick={() => setForm((prev) => ({ ...prev, chain: c }))}
+                className={`rounded-lg px-3.5 py-2 text-xs font-semibold capitalize transition-all ${
+                  form.chain === c
+                    ? 'bg-white text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
 
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="sendAmountUsd">Send amount USD</Label>
-                <Input
-                  id="sendAmountUsd"
-                  type="number"
-                  min={1}
-                  max={2000}
-                  step={0.01}
-                  value={form.sendAmountUsd}
-                  onChange={(event) => setForm((prev) => ({ ...prev, sendAmountUsd: Number(event.target.value) }))}
-                />
-                <p className="text-xs text-muted-foreground">MVP cap is $2,000 per transfer.</p>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="feeUsd">Fee USD</Label>
-                <Input
-                  id="feeUsd"
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={form.feeUsd}
-                  onChange={(event) => setForm((prev) => ({ ...prev, feeUsd: Number(event.target.value) }))}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="fxRateUsdToEtb">FX rate USD to ETB</Label>
-              <Input
-                id="fxRateUsdToEtb"
+        {/* ── YOU PAY ── */}
+        <div>
+          <label htmlFor="sendAmountUsd" className="mb-2.5 block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+            You pay
+          </label>
+          <div className="rounded-xl border border-border/60 bg-slate-50/60 p-4 transition-colors focus-within:border-primary/30 focus-within:bg-white">
+            <div className="flex items-center justify-between gap-3">
+              <input
+                id="sendAmountUsd"
                 type="number"
+                className="w-full min-w-0 bg-transparent text-2xl font-bold text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
                 min={1}
-                step={0.0001}
-                value={form.fxRateUsdToEtb}
-                onChange={(event) => setForm((prev) => ({ ...prev, fxRateUsdToEtb: Number(event.target.value) }))}
+                max={2000}
+                step={0.01}
+                value={form.sendAmountUsd}
+                onChange={(event) => handleUsdChange(Number(event.target.value))}
+                placeholder="100.00"
               />
+              {/* Currency dropdown inline-right */}
+              <select
+                aria-label="Select currency"
+                className="h-10 shrink-0 appearance-none rounded-full border border-border/60 bg-white px-4 pr-8 text-sm font-semibold text-foreground shadow-sm focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                value={form.token}
+                onChange={(e) => setForm((prev) => ({ ...prev, token: e.target.value as 'USDC' | 'USDT' }))}
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}
+              >
+                <option value="USDC">USDC</option>
+                <option value="USDT">USDT</option>
+              </select>
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">USD · Max $2,000 per transfer</p>
+          </div>
+        </div>
 
-            <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-accent/35 bg-accent/10 px-4 py-2 text-sm font-semibold text-accent">
-              <ArrowRightLeft className="h-4 w-4" />
-              1 USD = {form.fxRateUsdToEtb.toFixed(2)} ETB
+        {/* Rate badge */}
+        <div className="flex items-center justify-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white px-4 py-1.5 shadow-sm">
+            <ArrowDownUp className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-semibold text-foreground">1 USD = {form.fxRateUsdToEtb.toFixed(2)} ETB</span>
+          </div>
+        </div>
+
+        {/* ── THEY RECEIVE ── */}
+        <div>
+          <span className="mb-2.5 block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+            They receive
+          </span>
+          <div className="rounded-xl border border-border/60 bg-slate-50/60 p-4 transition-colors focus-within:border-primary/30 focus-within:bg-white">
+            <div className="flex items-center justify-between gap-3">
+              <input
+                type="number"
+                className="w-full min-w-0 bg-transparent text-2xl font-bold text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                min={0}
+                step={1}
+                value={Math.round(preview.recipientAmountEtb)}
+                onChange={(event) => handleEtbChange(Number(event.target.value) || 0)}
+                placeholder="13,860"
+              />
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-border/60 bg-white px-4 py-2 shadow-sm">
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-[9px] font-bold text-green-700">₿</div>
+                <span className="text-sm font-semibold text-foreground">ETB</span>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">ETB · Bank payout</p>
+          </div>
+        </div>
+
+        {/* Payment method */}
+        <div>
+          <span className="mb-2.5 block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Payment method
+          </span>
+          <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-slate-50/60 px-4 py-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+              <Building2 className="h-4 w-4 text-primary" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">Bank transfer</p>
+              <p className="text-xs text-muted-foreground">Direct to Ethiopian bank account</p>
             </div>
           </div>
+        </div>
 
-          <div className="grid gap-3 rounded-2xl border border-border/70 bg-muted/30 p-4 text-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline">{form.chain.toUpperCase()}</Badge>
-              <Badge variant="outline">{form.token}</Badge>
+        {/* Fee breakdown */}
+        <div className="rounded-xl border border-border/60 bg-slate-50/40 px-4 py-3">
+          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Total fee quote</p>
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                Processing fees
+                <Info className="h-3.5 w-3.5 text-muted-foreground/50" />
+              </span>
+              <span className="text-sm font-medium text-foreground">${form.feeUsd.toFixed(2)}</span>
             </div>
-            <p className="inline-flex items-center gap-2 text-muted-foreground">
-              <DollarSign className="h-4 w-4 text-primary" />
-              Net send USD: <strong className="text-foreground">{preview.netUsd.toFixed(2)}</strong>
-            </p>
-            <p>
-              Estimated recipient amount: <strong className="text-foreground">{currencyEtb(preview.recipientAmountEtb)}</strong>
-            </p>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                Estimated on-chain fees
+                <Info className="h-3.5 w-3.5 text-muted-foreground/50" />
+              </span>
+              <span className="text-sm font-medium text-foreground">$0.00</span>
+            </div>
           </div>
+        </div>
 
-          <Button type="submit" disabled={busy || disabled || form.sendAmountUsd <= 0 || form.sendAmountUsd > 2000}>
-            {busy ? 'Locking quote...' : 'Lock quote'}
-          </Button>
-        </form>
-      </CardContent>
-      <CardFooter className="grid gap-2 text-sm text-muted-foreground">
-        {message ? (
-          <Alert>
-            <AlertTitle>Quote update</AlertTitle>
-            <AlertDescription>{message}</AlertDescription>
-          </Alert>
-        ) : null}
-      </CardFooter>
-    </Card>
+        <Button
+          type="submit"
+          size="lg"
+          disabled={busy || disabled || form.sendAmountUsd <= 0 || form.sendAmountUsd > 2000}
+          className="mt-1"
+        >
+          {!isAuthenticated ? 'Sign in to lock quote' : busy ? 'Locking quote...' : 'Lock quote'}
+        </Button>
+      </form>
+
+      {message ? (
+        <Alert className="mt-5">
+          <AlertTitle>Quote update</AlertTitle>
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
+      ) : null}
+    </div>
   );
 }

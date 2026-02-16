@@ -2,232 +2,148 @@
 
 import Link from 'next/link';
 import type { Route } from 'next';
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, RotateCw, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  ArrowRight,
+  CheckCircle,
+  XCircle
+} from 'lucide-react';
 import { QuoteForm } from '@/components/quote/quote-form';
-import { RouteGuard } from '@/components/route-guard';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { readApiMessage } from '@/lib/client-api';
-import type { MePayload, QuoteSummary } from '@/lib/contracts';
-import { patchFlowDraft, readFlowDraft } from '@/lib/flow-state';
+import type { QuoteSummary } from '@/lib/contracts';
 import { readAccessToken } from '@/lib/session';
+import { patchFlowDraft, readFlowDraft } from '@/lib/flow-state';
+
+type KycStatus = 'APPROVED' | 'PENDING' | 'REJECTED' | 'NOT_STARTED';
+
+function currencyEtb(value: number): string {
+  return new Intl.NumberFormat('en-ET', {
+    style: 'currency',
+    currency: 'ETB'
+  }).format(value);
+}
 
 export default function QuotePage() {
-  const [token, setToken] = useState('');
-  const [profile, setProfile] = useState<MePayload | null>(null);
+  const router = useRouter();
+  const [kycStatus, setKycStatus] = useState<KycStatus>('NOT_STARTED');
+  const [kycError, setKycError] = useState<string | null>(null);
   const [quote, setQuote] = useState<QuoteSummary | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [kycBusy, setKycBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    const nextToken = readAccessToken();
-    setToken(nextToken);
     const draft = readFlowDraft();
-    setQuote(draft.quote);
+    if (draft?.quote) {
+      setQuote(draft.quote);
+    }
+
+    const token = readAccessToken();
+    if (!token) return;
+    setIsAuthenticated(true);
+
+    (async () => {
+      const response = await fetch('/api/client/me', {
+        headers: { authorization: `Bearer ${token}` }
+      });
+      const payload = await response.json().catch(() => null);
+      if (payload?.senderKyc?.kycStatus) {
+        setKycStatus(payload.senderKyc.kycStatus.toUpperCase() as KycStatus);
+      } else {
+        setKycError(readApiMessage(payload, 'Unable to check KYC status.'));
+      }
+    })();
   }, []);
 
-  useEffect(() => {
-    if (!token) return;
-    void loadProfile(token);
-  }, [token]);
-
-  const senderKycStatus = profile?.senderKyc.kycStatus ?? 'pending';
-  const senderApproved = senderKycStatus === 'approved';
-
-  const kycBadgeVariant = useMemo(() => {
-    if (senderKycStatus === 'approved') return 'success';
-    if (senderKycStatus === 'rejected') return 'destructive';
-    return 'warning';
-  }, [senderKycStatus]);
-
-  async function loadProfile(accessToken: string): Promise<void> {
-    setLoadingProfile(true);
-    const response = await fetch('/api/client/me', {
-      headers: {
-        authorization: `Bearer ${accessToken}`
-      }
-    });
-    const payload = (await response.json().catch(() => ({ error: { message: 'Invalid response.' } }))) as
-      | MePayload
-      | { error?: { message?: string } };
-
-    if (!response.ok || !('customerId' in payload)) {
-      setMessage(readApiMessage(payload, 'Unable to load sender profile.'));
-      setLoadingProfile(false);
-      return;
-    }
-
-    setProfile(payload);
-    setLoadingProfile(false);
-  }
-
-  async function refreshSenderKyc(): Promise<void> {
-    if (!token) return;
-    setKycBusy(true);
-    setMessage(null);
-
-    try {
-      const response = await fetch('/api/client/kyc/sender/status', {
-        headers: {
-          authorization: `Bearer ${token}`
-        }
-      });
-      const payload = (await response.json().catch(() => ({ error: { message: 'Invalid response.' } }))) as
-        | {
-            kycStatus?: 'approved' | 'pending' | 'rejected';
-            applicantId?: string | null;
-            reasonCode?: string | null;
-            lastReviewedAt?: string | null;
-          }
-        | { error?: { message?: string } };
-
-      if (!response.ok || !('kycStatus' in payload)) {
-        setMessage(readApiMessage(payload, 'Could not refresh sender KYC status.'));
-        return;
-      }
-
-      setProfile((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          senderKyc: {
-            kycStatus: payload.kycStatus ?? prev.senderKyc.kycStatus,
-            applicantId: payload.applicantId ?? null,
-            reasonCode: payload.reasonCode ?? null,
-            lastReviewedAt: payload.lastReviewedAt ?? null
-          }
-        };
-      });
-      setMessage('Sender KYC status refreshed.');
-    } finally {
-      setKycBusy(false);
-    }
-  }
-
-  async function restartVerification(): Promise<void> {
-    if (!token) return;
-    setKycBusy(true);
-    setMessage(null);
-
-    try {
-      const response = await fetch('/api/client/kyc/sender/sumsub-token', {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${token}`
-        }
-      });
-      const payload = (await response.json().catch(() => ({ error: { message: 'Invalid response.' } }))) as
-        | { token?: string }
-        | { error?: { message?: string } };
-
-      if (!response.ok || !('token' in payload)) {
-        setMessage(readApiMessage(payload, 'Could not restart verification.'));
-        return;
-      }
-
-      setMessage('Verification session started. Complete provider flow, then refresh your status.');
-    } finally {
-      setKycBusy(false);
-    }
-  }
-
-  function onQuoteCreated(nextQuote: QuoteSummary): void {
-    setQuote(nextQuote);
-    patchFlowDraft({ quote: nextQuote, transfer: null });
+  function handleQuoteCreated(created: QuoteSummary) {
+    setQuote(created);
+    patchFlowDraft({ quote: created, transfer: null });
   }
 
   return (
-    <RouteGuard requireAuth>
+    <div className="mx-auto max-w-2xl">
       <div className="grid gap-6">
-        <section className="neon-surface neon-section grid gap-3 rounded-[1.8rem] p-6 md:p-8">
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Lock your quote</h1>
-          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
-            Pick route and token, lock your USD to ETB terms, then continue to recipient and transfer setup.
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Quote</h1>
+          <p className="mt-1.5 text-base text-muted-foreground">
+            Lock your exchange rate and review terms before transferring.
           </p>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">USDC / USDT</Badge>
-            <Badge variant="outline">Base + Solana</Badge>
-            <Badge variant="outline">No custodial wallet balances</Badge>
-          </div>
-        </section>
+        </div>
 
-        <Card className="neon-section">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              {senderApproved ? <ShieldCheck className="h-5 w-5 text-emerald-300" /> : <ShieldAlert className="h-5 w-5 text-amber-200" />}
-              Sender KYC status
-            </CardTitle>
-            <CardDescription>Transfer creation requires sender and receiver verification.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            {loadingProfile ? <p className="text-sm text-muted-foreground">Loading sender profile...</p> : null}
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={kycBadgeVariant}>{senderKycStatus.toUpperCase()}</Badge>
-              {profile?.senderKyc.reasonCode ? <span className="text-xs text-muted-foreground">Reason: {profile.senderKyc.reasonCode}</span> : null}
-            </div>
-
-            {!senderApproved ? (
-              <Alert>
-                <AlertTitle>Verification required</AlertTitle>
-                <AlertDescription>
-                  {senderKycStatus === 'pending'
-                    ? 'Your verification is in review. Refresh status or wait for approval.'
-                    : 'Your verification was rejected. Restart verification and refresh status.'}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={refreshSenderKyc} disabled={kycBusy || !token}>
-                <RotateCw className="mr-2 h-4 w-4" />
-                Refresh status
-              </Button>
-              {senderKycStatus === 'rejected' ? (
-                <Button variant="secondary" onClick={restartVerification} disabled={kycBusy || !token}>
-                  Restart verification
-                </Button>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-
-        <QuoteForm token={token} initialQuote={quote} onQuoteCreated={onQuoteCreated} disabled={!token} />
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Continue to transfer</CardTitle>
-            <CardDescription>Create recipient details and get deposit instructions in the next step.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap items-center gap-3">
-            {quote && senderApproved ? (
-              <Button asChild>
-                <Link href={'/transfer' as Route}>
-                  Continue to transfer
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            ) : (
-              <Button disabled>
-                Continue to transfer
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            )}
-            {!quote ? <p className="text-sm text-muted-foreground">Create a quote first.</p> : null}
-            {quote && !senderApproved ? <p className="text-sm text-muted-foreground">Sender KYC must be approved first.</p> : null}
-          </CardContent>
-        </Card>
-
-        {message ? (
+        {/* Auth notice for unauthenticated users */}
+        {!isAuthenticated && (
           <Alert>
-            <AlertTitle>Quote flow</AlertTitle>
-            <AlertDescription>{message}</AlertDescription>
+            <AlertTitle>Sign in to lock your quote</AlertTitle>
+            <AlertDescription>
+              You can preview rates below, but you&apos;ll need to{' '}
+              <Link href={'/login?next=/quote' as Route} className="font-medium text-primary underline">
+                sign in
+              </Link>{' '}
+              or{' '}
+              <Link href={'/signup?next=/quote' as Route} className="font-medium text-primary underline">
+                create an account
+              </Link>{' '}
+              to lock a quote.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* KYC status (only for authenticated users) */}
+        {isAuthenticated && kycError ? (
+          <Alert variant="destructive">
+            <XCircle className="h-4 w-4" />
+            <AlertTitle>KYC check failed</AlertTitle>
+            <AlertDescription>{kycError}</AlertDescription>
           </Alert>
         ) : null}
+
+        {isAuthenticated && kycStatus === 'PENDING' ? (
+          <Alert>
+            <AlertTitle>Verification pending</AlertTitle>
+            <AlertDescription>Your identity verification is still being reviewed. You can create a quote but cannot start a transfer until approved.</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {isAuthenticated && kycStatus === 'REJECTED' ? (
+          <Alert variant="destructive">
+            <XCircle className="h-4 w-4" />
+            <AlertTitle>Verification rejected</AlertTitle>
+            <AlertDescription>Your identity verification was not approved. Please contact support.</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {/* Quote form */}
+        <QuoteForm
+          token={readAccessToken() ?? ''}
+          initialQuote={quote}
+          onQuoteCreated={handleQuoteCreated}
+          disabled={kycStatus === 'REJECTED'}
+          isAuthenticated={isAuthenticated}
+        />
+
+        {/* Locked quote confirmation */}
+        {quote && isAuthenticated && kycStatus === 'APPROVED' && (
+          <div className="flex items-center justify-between rounded-2xl border border-green-200 bg-green-50 p-5">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <div>
+                <p className="text-sm font-medium text-green-900">
+                  Quote locked. Continue to transfer setup.
+                </p>
+                <p className="text-xs text-green-700">
+                  {quote.sendAmountUsd} USD → {currencyEtb((quote.sendAmountUsd - quote.feeUsd) * quote.fxRateUsdToEtb)} on {quote.chain}/{quote.token}
+                </p>
+              </div>
+            </div>
+            <Button size="sm" onClick={() => router.push('/transfer' as Route)}>
+              Continue to transfer
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
-    </RouteGuard>
+    </div>
   );
 }
