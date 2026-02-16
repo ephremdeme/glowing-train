@@ -60,4 +60,8 @@ All illustrations are responsive SVGs with CSS animations, no raster images.
 | Cards | Lift + glow intensify on hover (260ms ease) | Interactive feedback |
 | FlowProgress | Sequential step highlight, progress line fill | Visual journey metaphor |
 | PAID state | Confetti burst + bounce-scale on badge | Celebratory moment |
-| Reduced motion | All animations disabled via `prefers-reduced-motion: reduce` | Accessibility |
+
+## Polish Updates (Round 3)
+
+- **Quote Widget**: Inline currency selector with dynamic icons (USDC/USDT), Ethiopian flag for recipient.
+- **Layout**: Compact 2-column grid for FAQ and Rate Alert sections on desktop.

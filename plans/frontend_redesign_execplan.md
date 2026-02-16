@@ -31,3 +31,8 @@
 2. Run `pnpm dev` build check
 3. Run Playwright happy-path test
 4. Create walkthrough.md with screenshots
+
+## Milestone 5 — Polish Round 3
+1. **Quote Widget**: Add USDC/USDT icons and Ethiopian flag.
+2. **Layout**: Merge FAQ and Rate Alert into 2-column grid.
+3. **Verify**: Visual check of icons and layout.
