@@ -2,12 +2,16 @@ import {
   assertHasRole,
   assertTokenType,
   authenticateBearerToken,
+  createAuthRateLimiter,
   createHs256Jwt,
+  createRateLimiter,
+  registerCors,
+  registerVersionHeaders,
   verifySignedPayloadSignature,
   type AuthClaims
 } from '@cryptopay/auth';
 import { getPool } from '@cryptopay/db';
-import { createServiceMetrics, log } from '@cryptopay/observability';
+import { createServiceMetrics, deepHealthCheck, log } from '@cryptopay/observability';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
@@ -16,6 +20,7 @@ import { FundingConfirmationRepository, FundingConfirmationService } from './mod
 import { QuoteRepository, QuoteService } from './modules/quotes/index.js';
 import { ReceiverKycRepository, ReceiverKycService } from './modules/receiver-kyc/index.js';
 import { buildQuoteRoutes } from './routes/quotes.js';
+import { ExchangeRateApiProvider } from '@cryptopay/adapters';
 
 const createQuoteSchema = z.object({
   chain: z.enum(['base', 'solana']),
@@ -199,10 +204,10 @@ async function withIdempotency(params: {
   const existing = await pool.query('select request_hash, response_status, response_body from idempotency_record where key = $1', [key]);
   const row = existing.rows[0] as
     | {
-        request_hash: string;
-        response_status: number;
-        response_body: unknown;
-      }
+      request_hash: string;
+      response_status: number;
+      response_body: unknown;
+    }
     | undefined;
 
   if (row) {
@@ -494,8 +499,23 @@ async function forwardToCustomerAuth(params: {
 export async function buildCoreApiApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
 
+  // -- Security middleware --
+  registerCors(app);
+  registerVersionHeaders(app);
+  const generalLimiter = createRateLimiter({
+    max: Number(process.env['RATE_LIMIT_MAX'] ?? 200),
+    windowMs: Number(process.env['RATE_LIMIT_WINDOW_MS'] ?? 60_000)
+  });
+  generalLimiter.register(app);
+
   const metrics = createServiceMetrics('core-api');
-  const quoteRoutes = buildQuoteRoutes(new QuoteService(new QuoteRepository()));
+  const fxProvider = new ExchangeRateApiProvider({
+    cacheTtlMs: Number(process.env['FX_RATE_CACHE_TTL_MS'] ?? 3_600_000)
+  });
+  const quoteRoutes = buildQuoteRoutes(new QuoteService(new QuoteRepository()), {
+    fxProvider,
+    fxRateTolerancePercent: Number(process.env['FX_RATE_TOLERANCE_PERCENT'] ?? 2)
+  });
   const fundingService = new FundingConfirmationService(new FundingConfirmationRepository());
   const auditService = new AuditService();
   const receiverKycService = new ReceiverKycService(new ReceiverKycRepository());
@@ -519,7 +539,11 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
   });
 
   app.get('/healthz', async () => ({ ok: true, service: 'core-api' }));
-  app.get('/readyz', async () => ({ ok: true }));
+  app.get('/readyz', async (_request, reply) => {
+    const health = await deepHealthCheck('core-api');
+    const status = health.status === 'unhealthy' ? 503 : 200;
+    return reply.status(status).send(health);
+  });
   app.get('/metrics', async (_request, reply) => {
     reply.header('content-type', metrics.registry.contentType);
     return metrics.registry.metrics();
@@ -962,11 +986,11 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     );
     const customer = customerResult.rows[0] as
       | {
-          customer_id: string;
-          full_name: string;
-          country_code: string;
-          status: string;
-        }
+        customer_id: string;
+        full_name: string;
+        country_code: string;
+        status: string;
+      }
       | undefined;
 
     if (!customer) {
@@ -990,11 +1014,11 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     );
     const kycRow = senderKyc.rows[0] as
       | {
-          kyc_status: string;
-          applicant_id: string | null;
-          reason_code: string | null;
-          last_reviewed_at: Date | null;
-        }
+        kyc_status: string;
+        applicant_id: string | null;
+        reason_code: string | null;
+        last_reviewed_at: Date | null;
+      }
       | undefined;
 
     return reply.send({
@@ -1051,12 +1075,12 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     );
     const row = updated.rows[0] as
       | {
-          customer_id: string;
-          full_name: string;
-          country_code: string;
-          status: string;
-          updated_at: Date;
-        }
+        customer_id: string;
+        full_name: string;
+        country_code: string;
+        status: string;
+        updated_at: Date;
+      }
       | undefined;
 
     if (!row) {
@@ -1142,18 +1166,18 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     );
     const recipient = inserted.rows[0] as
       | {
-          recipient_id: string;
-          customer_id: string;
-          full_name: string;
-          bank_account_name: string;
-          bank_account_number: string;
-          bank_code: string;
-          phone_e164: string | null;
-          country_code: string;
-          status: string;
-          created_at: Date;
-          updated_at: Date;
-        }
+        recipient_id: string;
+        customer_id: string;
+        full_name: string;
+        bank_account_name: string;
+        bank_account_number: string;
+        bank_code: string;
+        phone_e164: string | null;
+        country_code: string;
+        status: string;
+        created_at: Date;
+        updated_at: Date;
+      }
       | undefined;
 
     if (!recipient) {
@@ -1269,17 +1293,17 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     );
     const row = result.rows[0] as
       | {
-          recipient_id: string;
-          full_name: string;
-          bank_account_name: string;
-          bank_account_number: string;
-          bank_code: string;
-          phone_e164: string | null;
-          country_code: string;
-          status: string;
-          created_at: Date;
-          updated_at: Date;
-        }
+        recipient_id: string;
+        full_name: string;
+        bank_account_name: string;
+        bank_account_number: string;
+        bank_code: string;
+        phone_e164: string | null;
+        country_code: string;
+        status: string;
+        created_at: Date;
+        updated_at: Date;
+      }
       | undefined;
     if (!row) {
       return deny({
@@ -1302,9 +1326,9 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     );
     const kyc = kycResult.rows[0] as
       | {
-          kyc_status: string;
-          national_id_verified: boolean;
-        }
+        kyc_status: string;
+        national_id_verified: boolean;
+      }
       | undefined;
 
     return reply.send({
@@ -1379,17 +1403,17 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     );
     const row = updated.rows[0] as
       | {
-          recipient_id: string;
-          full_name: string;
-          bank_account_name: string;
-          bank_account_number: string;
-          bank_code: string;
-          phone_e164: string | null;
-          country_code: string;
-          status: string;
-          created_at: Date;
-          updated_at: Date;
-        }
+        recipient_id: string;
+        full_name: string;
+        bank_account_name: string;
+        bank_account_number: string;
+        bank_code: string;
+        phone_e164: string | null;
+        country_code: string;
+        status: string;
+        created_at: Date;
+        updated_at: Date;
+      }
       | undefined;
 
     if (!row) {
@@ -1404,9 +1428,9 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
 
     let receiverKyc:
       | {
-          kycStatus: 'approved' | 'pending' | 'rejected';
-          nationalIdVerified: boolean;
-        }
+        kycStatus: 'approved' | 'pending' | 'rejected';
+        nationalIdVerified: boolean;
+      }
       | null = null;
 
     const hasReceiverKycUpdate =
@@ -1424,9 +1448,9 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
       );
       const existingKycRow = existingKyc.rows[0] as
         | {
-            kyc_status: 'approved' | 'pending' | 'rejected';
-            national_id_verified: boolean;
-          }
+          kyc_status: 'approved' | 'pending' | 'rejected';
+          national_id_verified: boolean;
+        }
         | undefined;
 
       const profile = await receiverKycService.upsert({
@@ -1457,9 +1481,9 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
       );
       const existingKycRow = existingKyc.rows[0] as
         | {
-            kyc_status: 'approved' | 'pending' | 'rejected';
-            national_id_verified: boolean;
-          }
+          kyc_status: 'approved' | 'pending' | 'rejected';
+          national_id_verified: boolean;
+        }
         | undefined;
       if (existingKycRow) {
         receiverKyc = {
@@ -1576,12 +1600,12 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     );
     const row = result.rows[0] as
       | {
-          provider: string;
-          applicant_id: string | null;
-          kyc_status: string;
-          reason_code: string | null;
-          last_reviewed_at: Date | null;
-        }
+        provider: string;
+        applicant_id: string | null;
+        kyc_status: string;
+        reason_code: string | null;
+        last_reviewed_at: Date | null;
+      }
       | undefined;
 
     return reply.send({
@@ -1867,27 +1891,27 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
 
     const transfer = transferResult.rows[0] as
       | {
-          transfer_id: string;
-          quote_id: string;
-          sender_id: string;
-          recipient_id: string;
-          chain: string;
-          token: string;
-          send_amount_usd: string;
-          status: string;
-          created_at: Date;
-          fx_rate_usd_to_etb: string;
-          fee_usd: string;
-          recipient_amount_etb: string;
-          expires_at: Date;
-          recipient_name: string | null;
-          bank_account_name: string | null;
-          bank_account_number: string | null;
-          bank_code: string | null;
-          phone_e164: string | null;
-          deposit_address: string | null;
-          deposit_memo: string | null;
-        }
+        transfer_id: string;
+        quote_id: string;
+        sender_id: string;
+        recipient_id: string;
+        chain: string;
+        token: string;
+        send_amount_usd: string;
+        status: string;
+        created_at: Date;
+        fx_rate_usd_to_etb: string;
+        fee_usd: string;
+        recipient_amount_etb: string;
+        expires_at: Date;
+        recipient_name: string | null;
+        bank_account_name: string | null;
+        bank_account_number: string | null;
+        bank_code: string | null;
+        phone_e164: string | null;
+        deposit_address: string | null;
+        deposit_memo: string | null;
+      }
       | undefined;
 
     if (!transfer) {
@@ -1932,22 +1956,22 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
 
     const funding = fundingResult.rows[0] as
       | {
-          event_id: string;
-          tx_hash: string;
-          amount_usd: string;
-          confirmed_at: Date;
-        }
+        event_id: string;
+        tx_hash: string;
+        amount_usd: string;
+        confirmed_at: Date;
+      }
       | undefined;
 
     const payout = payoutResult.rows[0] as
       | {
-          payout_id: string;
-          method: string;
-          amount_etb: string;
-          status: string;
-          provider_reference: string | null;
-          updated_at: Date;
-        }
+        payout_id: string;
+        method: string;
+        amount_etb: string;
+        status: string;
+        provider_reference: string | null;
+        updated_at: Date;
+      }
       | undefined;
 
     return reply.send({
@@ -1981,21 +2005,21 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
       },
       funding: funding
         ? {
-            eventId: funding.event_id,
-            txHash: funding.tx_hash,
-            amountUsd: Number(funding.amount_usd),
-            confirmedAt: funding.confirmed_at.toISOString()
-          }
+          eventId: funding.event_id,
+          txHash: funding.tx_hash,
+          amountUsd: Number(funding.amount_usd),
+          confirmedAt: funding.confirmed_at.toISOString()
+        }
         : null,
       payout: payout
         ? {
-            payoutId: payout.payout_id,
-            method: payout.method,
-            amountEtb: Number(payout.amount_etb),
-            status: payout.status,
-            providerReference: payout.provider_reference,
-            updatedAt: payout.updated_at.toISOString()
-          }
+          payoutId: payout.payout_id,
+          method: payout.method,
+          amountEtb: Number(payout.amount_etb),
+          status: payout.status,
+          providerReference: payout.provider_reference,
+          updatedAt: payout.updated_at.toISOString()
+        }
         : null,
       transitions: transitionsResult.rows.map((row) => ({
         fromState: (row.from_state as string | null) ?? null,
@@ -2923,10 +2947,10 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     const existing = await getPool().query('select * from payout_instruction where transfer_id = $1 limit 1', [transferId]);
     const payoutInstruction = existing.rows[0] as
       | {
-          method: 'bank' | 'telebirr';
-          recipient_account_ref: string;
-          amount_etb: string;
-        }
+        method: 'bank' | 'telebirr';
+        recipient_account_ref: string;
+        amount_etb: string;
+      }
       | undefined;
 
     if (!payoutInstruction) {
