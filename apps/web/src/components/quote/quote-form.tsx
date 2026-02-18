@@ -130,9 +130,9 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
                 min={1}
                 max={2000}
                 step={0.01}
-                value={form.sendAmountUsd}
+                value={form.sendAmountUsd || ''}
                 onChange={(event) => handleUsdChange(Number(event.target.value))}
-                placeholder="100.00"
+                placeholder="0"
               />
               
               {/* Currency Pill Selector */}
@@ -180,16 +180,16 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
           <span className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50">
             They receive
           </span>
-          <div className="group rounded-3xl bg-slate-50 p-5 transition-colors focus-within:bg-slate-100">
+          <div className="group rounded-3xl bg-slate-100 p-5 transition-colors focus-within:bg-slate-100 focus-within:ring-0 focus-within:outline-none focus-within:border-transparent focus-within:shadow-none">
             <div className="flex items-center justify-between gap-3">
               <input
                 type="number"
-                className="w-full min-w-0 bg-transparent text-3xl font-bold text-foreground placeholder:text-muted-foreground/30 focus:outline-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full min-w-0 bg-transparent text-3xl font-bold text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 border-none shadow-none [&::-webkit-inner-spin-button]:appearance-none"
                 min={0}
                 step={1}
-                value={Math.round(preview.recipientAmountEtb)}
-                onChange={(event) => handleEtbChange(Number(event.target.value) || 0)}
-                placeholder="13,860"
+                value={Math.round(preview.recipientAmountEtb) || ''}
+                onChange={(event) => handleEtbChange(Number(event.target.value))}
+                placeholder="0"
               />
               
               {/* ETB Pill Badge */}

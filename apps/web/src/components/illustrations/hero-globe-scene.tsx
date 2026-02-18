@@ -1,80 +1,106 @@
 'use client';
 
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { Wallet, Landmark, ArrowRight, Zap } from 'lucide-react';
 
 /**
- * Clean flat illustration showing the remittance flow:
- * Wallet (phone) → Stablecoin (USDC/USDT) → CryptoPay → Bank → ETB
- * Redesigned for maximum readability with bolder text and thicker strokes.
+ * Premium Apple-style illustration showing the flow of value.
+ * Uses framer-motion for smooth, high-quality animations.
+ * Concept: Floating Glass Cards (Wallet -> Bank) connected by a beam of light.
  */
 export function HeroGlobeScene({ className }: { className?: string }) {
   return (
-    <div className={cn('flex items-center justify-center', className)}>
-      <svg viewBox="0 0 680 380" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full max-w-[680px]">
-        {/* Soft background shape */}
-        <ellipse cx="340" cy="180" rx="310" ry="160" fill="#EEF2FF" opacity="0.5" />
+    <div className={cn('relative flex items-center justify-center py-20', className)}>
+      {/* ── Ambient Background Glows ── */}
+      <motion.div 
+        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
+        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute top-1/2 left-1/4 h-80 w-80 -translate-y-1/2 rounded-full bg-blue-500/20 blur-[100px]" 
+      />
+      <motion.div 
+        animate={{ scale: [1.2, 1, 1.2], opacity: [0.3, 0.5, 0.3] }}
+        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 4 }}
+        className="absolute top-1/2 right-1/4 h-80 w-80 -translate-y-1/2 rounded-full bg-indigo-500/20 blur-[100px]" 
+      />
 
-        {/* ── Phone / Wallet ── */}
-        <g transform="translate(20, 50)">
-          <rect x="0" y="0" width="90" height="140" rx="14" fill="#fff" stroke="#C7D2FE" strokeWidth="2.5" />
-          <rect x="8" y="20" width="74" height="92" rx="8" fill="#EEF2FF" />
-          {/* Wallet icon */}
-          <circle cx="45" cy="66" r="24" fill="#4F46E5" opacity="0.12" />
-          <text x="45" y="74" textAnchor="middle" fontSize="18" fontWeight="700" fill="#4F46E5">$</text>
-          {/* Label */}
-          <text x="45" y="134" textAnchor="middle" fontSize="12" fontWeight="600" fill="#6B7280">Your Wallet</text>
-        </g>
+      <div className="relative z-10 flex w-full max-w-4xl items-center justify-center gap-12 sm:gap-24">
+        
+        {/* ── Left Card: Wallet ── */}
+        <GlassCard delay={0}>
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25">
+            <Wallet className="h-8 w-8 text-white" />
+          </div>
+          <div className="mt-5 text-center">
+            <p className="text-base font-bold text-slate-900">Your Wallet</p>
+            <p className="text-xs font-semibold text-slate-500">USDC / USDT</p>
+          </div>
+        </GlassCard>
 
-        {/* ── Arrow 1 ── */}
-        <g transform="translate(128, 130)">
-          <line x1="0" y1="0" x2="70" y2="0" stroke="#C7D2FE" strokeWidth="3" strokeDasharray="7 5" />
-          <polygon points="70,-6 82,0 70,6" fill="#4F46E5" />
-        </g>
+        {/* ── Flow Animation ── */}
+        <div className="relative flex flex-1 flex-col items-center justify-center px-4">
+          {/* Connection Line with Gradient */}
+          <div className="absolute top-1/2 h-[2px] w-full max-w-[200px] -translate-y-1/2 bg-gradient-to-r from-transparent via-blue-200 to-transparent" />
+          
+          {/* Moving Particle */}
+          <motion.div
+            animate={{ x: [-80, 80], opacity: [0, 1, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            className="absolute top-1/2 -translate-y-1/2 z-20"
+          >
+            <div className="relative h-3 w-3 rounded-full bg-blue-600 shadow-[0_0_12px_rgba(37,99,235,0.8)]">
+              <div className="absolute inset-0 animate-ping rounded-full bg-blue-600 opacity-50" />
+            </div>
+          </motion.div>
 
-        {/* ── Stablecoin circle ── */}
-        <g transform="translate(220, 60)">
-          <circle cx="55" cy="60" r="52" fill="#fff" stroke="#C7D2FE" strokeWidth="2.5" />
-          <circle cx="55" cy="60" r="36" fill="#4F46E5" opacity="0.08" />
-          {/* Dual coin label */}
-          <text x="55" y="53" textAnchor="middle" fontSize="14" fontWeight="700" fill="#4F46E5">USDC</text>
-          <text x="55" y="70" textAnchor="middle" fontSize="14" fontWeight="700" fill="#7C3AED">USDT</text>
-          {/* Network badge */}
-          <rect x="18" y="108" width="74" height="24" rx="12" fill="#EEF2FF" stroke="#E0E7FF" strokeWidth="1.5" />
-          <text x="55" y="124" textAnchor="middle" fontSize="10" fontWeight="600" fill="#4F46E5">Base / Solana</text>
-        </g>
+          {/* Label Chip */}
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="relative z-10 flex items-center gap-2 rounded-full border border-white/50 bg-white/40 px-3 py-1.5 shadow-sm backdrop-blur-md"
+          >
+            <Zap className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+            <span className="text-[10px] font-bold tracking-wide text-slate-600 uppercase">Instant Transfer</span>
+          </motion.div>
+        </div>
 
-        {/* ── Arrow 2 (CryptoPay conversion) ── */}
-        <g transform="translate(345, 108)">
-          <rect x="0" y="-20" width="96" height="40" rx="20" fill="#4F46E5" />
-          <text x="48" y="-3" textAnchor="middle" fontSize="12" fontWeight="700" fill="#fff">CryptoPay</text>
-          <line x1="96" y1="0" x2="124" y2="0" stroke="#C7D2FE" strokeWidth="3" />
-          <polygon points="124,-6 136,0 124,6" fill="#4F46E5" />
-        </g>
-
-        {/* ── Bank Building ── */}
-        <g transform="translate(490, 38)">
-          {/* Roof */}
-          <polygon points="65,0 130,38 0,38" fill="#4F46E5" opacity="0.1" />
-          <polygon points="65,5 122,38 8,38" fill="none" stroke="#4F46E5" strokeWidth="2.5" opacity="0.4" />
-          {/* Pillars */}
-          <rect x="18" y="42" width="14" height="56" rx="4" fill="#E0E7FF" stroke="#C7D2FE" strokeWidth="1.5" />
-          <rect x="46" y="42" width="14" height="56" rx="4" fill="#E0E7FF" stroke="#C7D2FE" strokeWidth="1.5" />
-          <rect x="74" y="42" width="14" height="56" rx="4" fill="#E0E7FF" stroke="#C7D2FE" strokeWidth="1.5" />
-          <rect x="102" y="42" width="14" height="56" rx="4" fill="#E0E7FF" stroke="#C7D2FE" strokeWidth="1.5" />
-          {/* Base */}
-          <rect x="4" y="98" width="122" height="16" rx="4" fill="#E0E7FF" stroke="#C7D2FE" strokeWidth="1.5" />
-          {/* ETB label */}
-          <rect x="28" y="122" width="74" height="28" rx="14" fill="#DCFCE7" />
-          <text x="65" y="140" textAnchor="middle" fontSize="13" fontWeight="700" fill="#16A34A">ETB ✓</text>
-          {/* Bank label */}
-          <text x="65" y="168" textAnchor="middle" fontSize="12" fontWeight="600" fill="#6B7280">Bank Payout</text>
-        </g>
-
-        {/* ── Flow label ── */}
-        <text x="340" y="330" textAnchor="middle" fontSize="13" fontWeight="600" fill="#9CA3AF">
-          Non-custodial · ~10 min · $1 flat fee
-        </text>
-      </svg>
+        {/* ── Right Card: Bank ── */}
+        <GlassCard delay={0.2}>
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100">
+            <Landmark className="h-8 w-8 text-emerald-600" />
+          </div>
+          <div className="mt-5 text-center">
+            <p className="text-base font-bold text-slate-900">Bank Account</p>
+            <div className="mt-1 flex items-center justify-center gap-1.5 rounded-full bg-emerald-100/50 px-2 py-0.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+              <p className="text-xs font-bold text-emerald-700">ETB Received</p>
+            </div>
+          </div>
+        </GlassCard>
+      </div>
     </div>
+  );
+}
+
+function GlassCard({ children, delay }: { children: React.ReactNode; delay: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8, delay, ease: "easeOut" }}
+      className="group relative"
+    >
+      <motion.div
+        animate={{ y: [0, -8, 0] }}
+        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay }}
+        className="relative z-10 flex h-48 w-40 flex-col items-center justify-center rounded-3xl border border-white/60 bg-white/80 p-5 shadow-2xl shadow-slate-200/50 backdrop-blur-xl transition-all duration-300 hover:scale-105 hover:bg-white/90"
+      >
+        {children}
+      </motion.div>
+      
+      {/* Reflection effect */}
+      <div className="absolute inset-0 -z-10 translate-y-4 scale-90 rounded-3xl bg-slate-200/50 blur-xl transition-all group-hover:bg-blue-200/50" />
+    </motion.div>
   );
 }

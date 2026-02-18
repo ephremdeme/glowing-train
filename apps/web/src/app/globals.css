@@ -40,6 +40,10 @@ body {
 body {
   @apply bg-background text-foreground antialiased;
   font-family: var(--font-display), ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08), transparent 25%), 
+    radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.08), transparent 25%);
+  background-attachment: fixed;
 }
 
 main {
@@ -124,4 +128,9 @@ select {
     background: white !important;
     border-radius: 0 !important;
   }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }

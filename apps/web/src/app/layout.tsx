@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${fontDisplay.variable} ${fontMono.variable}`}>
+      <body className={`${fontDisplay.variable} ${fontMono.variable}`} suppressHydrationWarning>
         <WalletProvider>
           <AppShell>{children}</AppShell>
         </WalletProvider>

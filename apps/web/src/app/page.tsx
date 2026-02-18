@@ -23,6 +23,7 @@ import { HeroGlobeScene } from '@/components/illustrations/hero-globe-scene';
 import { HeroConverter } from '@/components/quote/hero-converter';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { FadeIn, StaggerContainer, FadeInItem } from '@/components/ui/fade-in';
 import { startGoogleOAuth } from '@/lib/client-api';
 import { readAccessToken } from '@/lib/session';
 
@@ -39,7 +40,7 @@ function LiveRateTicker() {
   const ago = seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;
 
   return (
-    <div className="inline-flex items-center gap-2.5 rounded-full border border-green-200 bg-green-50 px-4 py-2 shadow-sm">
+    <div className="inline-flex items-center gap-2.5 rounded-full border border-green-200 bg-green-50/80 px-4 py-2 shadow-sm backdrop-blur-sm">
       <span className="relative flex h-2.5 w-2.5">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
         <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
@@ -84,21 +85,21 @@ function FaqSection() {
   ];
 
   return (
-    <section className="grid gap-10">
+    <FadeIn className="grid gap-10">
       <div className="grid gap-3 text-center">
-        <h2 className="text-3xl font-bold tracking-tight">Frequently asked questions</h2>
+        <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Frequently asked questions</h2>
         <p className="mx-auto max-w-md text-base text-muted-foreground">
           Everything you need to know about sending money with CryptoPay.
         </p>
       </div>
 
-      <div className="mx-auto w-full max-w-2xl divide-y divide-border/60 rounded-2xl border border-border/50 bg-white shadow-sm">
+      <div className="mx-auto w-full max-w-2xl divide-y divide-border/60 rounded-2xl border border-border/50 bg-white/50 shadow-sm backdrop-blur-sm">
         {faqs.map((faq, i) => (
           <div key={i}>
             <button
               type="button"
               onClick={() => setOpenIndex(openIndex === i ? null : i)}
-              className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition-colors hover:bg-slate-50/80"
+              className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition-colors hover:bg-slate-50/50"
             >
               <span className="text-sm font-semibold text-foreground">{faq.q}</span>
               <ChevronDown
@@ -117,7 +118,7 @@ function FaqSection() {
           </div>
         ))}
       </div>
-    </section>
+    </FadeIn>
   );
 }
 
@@ -146,23 +147,23 @@ function TestimonialsSection() {
 
   return (
     <section className="grid gap-10">
-      <div className="grid gap-3 text-center">
+      <FadeIn className="grid gap-3 text-center">
         <div className="mx-auto mb-1 flex items-center gap-1">
           {[...Array(5)].map((_, i) => (
             <Star key={i} className="h-5 w-5 fill-amber-400 text-amber-400" />
           ))}
         </div>
-        <h2 className="text-3xl font-bold tracking-tight">Trusted by senders worldwide</h2>
+        <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Trusted by senders worldwide</h2>
         <p className="mx-auto max-w-md text-base text-muted-foreground">
           Join thousands who send money home faster and cheaper with CryptoPay.
         </p>
-      </div>
+      </FadeIn>
 
-      <div className="grid gap-6 md:grid-cols-3">
+      <StaggerContainer className="grid gap-6 md:grid-cols-3">
         {testimonials.map((t, i) => (
-          <div
+          <FadeInItem
             key={i}
-            className="group relative rounded-2xl border border-border/50 bg-white p-6 shadow-sm transition-all hover:shadow-md"
+            className="group relative rounded-2xl border border-border/50 bg-white/60 p-6 shadow-sm backdrop-blur-sm transition-all hover:-translate-y-1 hover:shadow-md hover:bg-white/80"
           >
             <MessageSquare className="mb-4 h-8 w-8 text-primary/20" />
             <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
@@ -182,9 +183,9 @@ function TestimonialsSection() {
                 <Star key={j} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
               ))}
             </div>
-          </div>
+          </FadeInItem>
         ))}
-      </div>
+      </StaggerContainer>
     </section>
   );
 }
@@ -202,18 +203,18 @@ function RateAlertSection() {
   }
 
   return (
-    <section className="grid gap-8">
-      <div className="mx-auto w-full max-w-xl rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-indigo-50/80 p-8 text-center shadow-sm sm:p-10">
+    <FadeIn className="grid gap-8">
+      <div className="mx-auto w-full max-w-xl rounded-2xl border border-primary/20 bg-gradient-to-br from-white/80 to-indigo-50/80 p-8 text-center shadow-lg backdrop-blur-md sm:p-10">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
           <Bell className="h-6 w-6 text-primary" />
         </div>
-        <h2 className="mb-2 text-2xl font-bold text-foreground">Get rate alerts</h2>
+        <h2 className="mb-2 text-2xl font-bold text-foreground">Get rates alerts</h2>
         <p className="mb-6 text-sm text-muted-foreground">
           Get notified when the ETB exchange rate hits your target. Never miss a good rate.
         </p>
 
         {submitted ? (
-          <div className="rounded-xl bg-green-50 px-6 py-4 text-sm font-medium text-green-800">
+          <div className="rounded-xl bg-green-50/80 px-6 py-4 text-sm font-medium text-green-800 backdrop-blur-sm">
             ✓ You&apos;re subscribed! We&apos;ll notify you at <strong>{email}</strong> when rates change.
           </div>
         ) : (
@@ -224,7 +225,7 @@ function RateAlertSection() {
               placeholder="you@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="h-11 flex-1 rounded-xl border border-border/60 bg-white px-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="h-11 flex-1 rounded-xl border border-border/60 bg-white/80 px-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
             <Button type="submit" size="lg" className="shrink-0">
               Subscribe
@@ -232,7 +233,7 @@ function RateAlertSection() {
           </form>
         )}
       </div>
-    </section>
+    </FadeIn>
   );
 }
 
@@ -261,34 +262,40 @@ export default function HomePage() {
   }
 
   return (
-    <div className="grid gap-24">
+    <div className="grid gap-24 pb-20">
       {/* ── HERO ── */}
       <section className="grid items-center gap-10 pt-4 lg:grid-cols-2 lg:gap-16 lg:pt-10">
         {/* Text */}
-        <div className="grid gap-6">
-          <div className="stagger-reveal stagger-1 inline-flex w-fit items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3.5 py-1.5 text-xs font-medium text-primary">
-            <Zap className="h-3.5 w-3.5" />
-            Non-custodial remittance
-          </div>
+        <StaggerContainer className="grid gap-6">
+          <FadeInItem>
+            <div className="inline-flex w-fit items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3.5 py-1.5 text-xs font-medium text-primary shadow-sm backdrop-blur-sm">
+              <Zap className="h-3.5 w-3.5" />
+              Non-custodial remittance
+            </div>
+          </FadeInItem>
 
-          <h1 className="stagger-reveal stagger-2 max-w-lg text-balance text-4xl font-bold leading-[1.1] tracking-tight text-foreground md:text-5xl lg:text-[3.5rem]">
-            Send crypto.
-            <br />
-            <span className="text-primary">Deliver ETB.</span>
-          </h1>
+          <FadeInItem>
+            <h1 className="max-w-lg text-balance text-5xl font-extrabold leading-[1.1] tracking-tight text-foreground md:text-6xl lg:text-[4rem]">
+              Send crypto.
+              <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Deliver ETB.</span>
+            </h1>
+          </FadeInItem>
 
-          <p className="stagger-reveal stagger-3 max-w-md text-lg leading-relaxed text-muted-foreground">
-            Send USDC or USDT from your own wallet. Your family receives Ethiopian Birr in their bank account in about 10 minutes.
-          </p>
+          <FadeInItem>
+            <p className="max-w-md text-lg leading-relaxed text-muted-foreground">
+              Send USDC or USDT from your own wallet. Your family receives Ethiopian Birr in their bank account in about 10 minutes.
+            </p>
+          </FadeInItem>
 
           {/* Live rate ticker */}
-          <div className="stagger-reveal stagger-3">
+          <FadeInItem>
             <LiveRateTicker />
-          </div>
+          </FadeInItem>
 
-          <div className="stagger-reveal stagger-4 flex flex-wrap gap-3">
+          <FadeInItem className="flex flex-wrap gap-3 pt-2">
             {hasSession ? (
-              <Button asChild size="lg">
+              <Button asChild size="lg" className="h-12 px-8 text-base shadow-lg shadow-primary/20 transition-transform hover:scale-105 active:scale-95">
                 <Link href={'/quote' as Route}>
                   Continue to quote
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -296,42 +303,43 @@ export default function HomePage() {
               </Button>
             ) : (
               <>
-                <Button asChild size="lg">
+                <Button asChild size="lg" className="h-12 px-8 text-base shadow-lg shadow-primary/20 transition-transform hover:scale-105 active:scale-95">
                   <Link href={'/signup?next=%2Fquote' as Route}>
                     Create account
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
-                <Button asChild variant="outline" size="lg">
+                <Button asChild variant="outline" size="lg" className="h-12 px-8 text-base bg-white/50 backdrop-blur-sm hover:bg-white/80">
                   <Link href={'/login?next=%2Fquote' as Route}>Sign in</Link>
                 </Button>
               </>
             )}
-          </div>
+          </FadeInItem>
 
-          <div className="stagger-reveal stagger-5 flex flex-wrap gap-5 text-sm text-muted-foreground">
+          <FadeInItem className="flex flex-wrap gap-5 text-sm font-medium text-muted-foreground/80">
             <span className="flex items-center gap-1.5">
-              <Clock className="h-4 w-4" /> ~10 min payout
+              <Clock className="h-4 w-4 text-primary/60" /> ~10 min payout
             </span>
             <span className="flex items-center gap-1.5">
-              <DollarSign className="h-4 w-4" /> $1 flat fee
+              <DollarSign className="h-4 w-4 text-primary/60" /> $1 flat fee
             </span>
             <span className="flex items-center gap-1.5">
-              <Lock className="h-4 w-4" /> Non-custodial
+              <Lock className="h-4 w-4 text-primary/60" /> Non-custodial
             </span>
-          </div>
-        </div>
+          </FadeInItem>
+
+        </StaggerContainer>
 
         {/* Illustration */}
-        <div className="stagger-reveal stagger-5">
-          <HeroGlobeScene className="h-[320px] md:h-[380px] lg:h-[420px]" />
-        </div>
+        <FadeIn delay={0.3}>
+          <HeroGlobeScene className="h-[360px] md:h-[420px] lg:h-[480px]" />
+        </FadeIn>
       </section>
 
       {/* ── INLINE QUOTE ── */}
-      <section className="mx-auto w-full max-w-lg stagger-reveal" style={{ animationDelay: '500ms' }}>
+      <FadeIn delay={0.4} className="mx-auto w-full max-w-lg">
         <HeroConverter hasSession={hasSession} onMessage={setMessage} />
-      </section>
+      </FadeIn>
 
       {message ? (
         <Alert variant="destructive" className="mx-auto max-w-md">
@@ -341,81 +349,81 @@ export default function HomePage() {
       ) : null}
 
       {/* ── HOW IT WORKS ── */}
-      <section className="grid gap-10">
-        <div className="grid gap-3 text-center">
-          <h2 className="text-3xl font-bold tracking-tight">How it works</h2>
+      <section className="grid gap-16">
+        <FadeIn className="grid gap-3 text-center">
+          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">How it works</h2>
           <p className="mx-auto max-w-md text-base text-muted-foreground">
             Three steps from your wallet to their bank account.
           </p>
-        </div>
+        </FadeIn>
 
-        <div className="grid gap-6 md:grid-cols-3">
+        <StaggerContainer className="grid gap-8 md:grid-cols-3">
           {[
             {
               icon: Send,
               step: '1',
               title: 'Send from your wallet',
               desc: 'Fund with USDC or USDT on Base or Solana. You keep full custody of your keys.',
-              accent: 'from-indigo-50 to-blue-50',
+              accent: 'from-indigo-50/50 to-blue-50/50',
               iconBg: 'bg-indigo-100',
-              iconColor: 'text-indigo-600',
-              borderColor: 'border-l-indigo-500'
+              iconColor: 'icon-gradient-indigo',
+              borderColor: 'border-indigo-200/50'
             },
             {
               icon: Shield,
               step: '2',
               title: 'We convert & settle',
               desc: 'CryptoPay confirms on-chain, converts at locked rate, and initiates ETB bank payout.',
-              accent: 'from-violet-50 to-purple-50',
+              accent: 'from-violet-50/50 to-purple-50/50',
               iconBg: 'bg-violet-100',
-              iconColor: 'text-violet-600',
-              borderColor: 'border-l-violet-500'
+              iconColor: 'icon-gradient-violet',
+              borderColor: 'border-violet-200/50'
             },
             {
               icon: Building2,
               step: '3',
               title: 'Bank payout arrives',
               desc: 'Your recipient receives ETB directly in their Ethiopian bank account in ~10 minutes.',
-              accent: 'from-emerald-50 to-green-50',
+              accent: 'from-emerald-50/50 to-green-50/50',
               iconBg: 'bg-emerald-100',
-              iconColor: 'text-emerald-600',
-              borderColor: 'border-l-emerald-500'
+              iconColor: 'icon-gradient-emerald',
+              borderColor: 'border-emerald-200/50'
             }
           ].map((item) => {
             const Icon = item.icon;
             return (
-              <div
+              <FadeInItem
                 key={item.step}
-                className={`group relative overflow-hidden rounded-2xl border border-border/50 border-l-4 ${item.borderColor} bg-gradient-to-br ${item.accent} p-7 shadow-md transition-all hover:-translate-y-1 hover:shadow-lg`}
+                className={`group relative overflow-hidden rounded-2xl border border-white/60 bg-gradient-to-br ${item.accent} p-8 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:bg-white/80`}
               >
                 {/* Step number watermark */}
-                <div className="absolute -right-2 -top-2 text-[80px] font-black leading-none text-black/[0.03]">
+                <div className="absolute -right-4 -top-6 text-[100px] font-black leading-none text-black/[0.04] transition-all group-hover:text-black/[0.07]">
                   {item.step}
                 </div>
                 <div className="relative">
-                  <div className={`mb-5 flex h-14 w-14 items-center justify-center rounded-2xl ${item.iconBg} shadow-sm transition-transform group-hover:scale-110`}>
-                    <Icon className={`h-7 w-7 ${item.iconColor}`} />
+                  <div className={`mb-6 flex h-14 w-14 items-center justify-center rounded-2xl ${item.iconBg} shadow-sm transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3`}>
+                    <Icon className={`h-7 w-7 text-slate-700`} /> 
                   </div>
-                  <div className="mb-1.5 text-xs font-bold uppercase tracking-wider text-primary/60">Step {item.step}</div>
-                  <h3 className="mb-2.5 text-lg font-bold text-foreground">{item.title}</h3>
+                  <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Step {item.step}</div>
+                  <h3 className="mb-3 text-xl font-bold text-foreground">{item.title}</h3>
                   <p className="text-sm leading-relaxed text-muted-foreground">{item.desc}</p>
                 </div>
-              </div>
+              </FadeInItem>
             );
           })}
-        </div>
+        </StaggerContainer>
       </section>
 
       {/* ── WHY CRYPTOPAY ── */}
-      <section className="grid gap-10">
-        <div className="grid gap-3 text-center">
-          <h2 className="text-3xl font-bold tracking-tight">Built for trust & speed</h2>
+      <section className="grid gap-16">
+        <FadeIn className="grid gap-3 text-center">
+          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Built for trust & speed</h2>
           <p className="mx-auto max-w-md text-base text-muted-foreground">
             Every transfer is transparent, fast, and fully compliant.
           </p>
-        </div>
+        </FadeIn>
 
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <StaggerContainer className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {[
             {
               icon: Lock,
@@ -423,7 +431,7 @@ export default function HomePage() {
               desc: 'We never hold your crypto. You sign every transaction from your own wallet.',
               iconBg: 'bg-indigo-100',
               iconColor: 'text-indigo-600',
-              accent: 'from-indigo-50/80'
+              accent: 'from-indigo-50/40'
             },
             {
               icon: Zap,
@@ -431,7 +439,7 @@ export default function HomePage() {
               desc: 'Bank payout in about 10 minutes after on-chain confirmation.',
               iconBg: 'bg-amber-100',
               iconColor: 'text-amber-600',
-              accent: 'from-amber-50/80'
+              accent: 'from-amber-50/40'
             },
             {
               icon: Shield,
@@ -439,7 +447,7 @@ export default function HomePage() {
               desc: 'Both sender and recipient are verified for full regulatory compliance.',
               iconBg: 'bg-emerald-100',
               iconColor: 'text-emerald-600',
-              accent: 'from-emerald-50/80'
+              accent: 'from-emerald-50/40'
             },
             {
               icon: DollarSign,
@@ -447,31 +455,31 @@ export default function HomePage() {
               desc: 'Simple, transparent pricing. No hidden charges or percentage-based fees.',
               iconBg: 'bg-sky-100',
               iconColor: 'text-sky-600',
-              accent: 'from-sky-50/80'
+              accent: 'from-sky-50/40'
             }
           ].map((item) => {
             const Icon = item.icon;
             return (
-              <div
+              <FadeInItem
                 key={item.title}
-                className={`group relative overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br ${item.accent} to-white p-7 shadow-md transition-all hover:-translate-y-1 hover:shadow-lg`}
+                className={`group relative overflow-hidden rounded-3xl border border-white/60 bg-gradient-to-br ${item.accent} to-white/20 p-8 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:bg-white/90`}
               >
-                <div className={`mb-5 flex h-12 w-12 items-center justify-center rounded-xl ${item.iconBg} shadow-sm transition-transform group-hover:scale-110`}>
+                <div className={`mb-6 flex h-12 w-12 items-center justify-center rounded-xl ${item.iconBg} shadow-sm transition-transform duration-300 group-hover:scale-110`}>
                   <Icon className={`h-6 w-6 ${item.iconColor}`} />
                 </div>
-                <h3 className="mb-2 text-base font-bold text-foreground">{item.title}</h3>
+                <h3 className="mb-2 text-lg font-bold text-foreground">{item.title}</h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">{item.desc}</p>
-              </div>
+              </FadeInItem>
             );
           })}
-        </div>
+        </StaggerContainer>
       </section>
 
       {/* ── TESTIMONIALS ── */}
       <TestimonialsSection />
 
       {/* ── FAQ & RATE ALERT (2-Col) ── */}
-      <section className="grid items-start gap-10 lg:grid-cols-2 lg:gap-16">
+      <section className="grid items-start gap-12 lg:grid-cols-2 lg:gap-20">
         <FaqSection />
         <div className="sticky top-24">
           <RateAlertSection />
@@ -479,30 +487,32 @@ export default function HomePage() {
       </section>
 
       {/* ── CTA ── */}
-      {!hasSession ? (
-        <section className="rounded-2xl border border-border/50 bg-gradient-to-br from-primary/5 to-indigo-50/80 p-10 text-center shadow-sm">
-          <h2 className="mb-3 text-2xl font-bold">Ready to send money home?</h2>
-          <p className="mb-8 text-base text-muted-foreground">
-            Create an account and lock your first quote in seconds.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <Button asChild size="lg">
-              <Link href={'/signup?next=%2Fquote' as Route}>Create account</Link>
-            </Button>
-            <Button variant="outline" size="lg" onClick={continueWithGoogle} disabled={googleBusy}>
-              {googleBusy ? 'Connecting...' : 'Continue with Google'}
-            </Button>
-          </div>
-        </section>
-      ) : (
-        <section className="rounded-2xl border border-border/50 bg-gradient-to-br from-primary/5 to-indigo-50/80 p-10 text-center shadow-sm">
-          <h2 className="mb-3 text-2xl font-bold">Your account is ready</h2>
-          <p className="mb-8 text-base text-muted-foreground">
-            Lock a quote and start your transfer.
-          </p>
-          <Button size="lg" onClick={() => router.push('/quote' as Route)}>Go to quote</Button>
-        </section>
-      )}
+      <FadeIn>
+        {!hasSession ? (
+          <section className="rounded-3xl border border-white/50 bg-gradient-to-br from-blue-50/80 to-indigo-50/80 p-12 text-center shadow-lg backdrop-blur-md">
+            <h2 className="mb-4 text-3xl font-bold tracking-tight sm:text-4xl text-foreground">Ready to send money home?</h2>
+            <p className="mb-10 text-lg text-muted-foreground max-w-lg mx-auto">
+              Create an account and lock your first quote in seconds. No credit card required.
+            </p>
+            <div className="flex flex-wrap justify-center gap-4">
+              <Button asChild size="lg" className="h-12 px-8 text-base shadow-xl shadow-primary/25 transition-transform hover:scale-105 active:scale-95">
+                <Link href={'/signup?next=%2Fquote' as Route}>Create account</Link>
+              </Button>
+              <Button variant="outline" size="lg" className="h-12 px-8 text-base bg-white/60 backdrop-blur-sm hover:bg-white/90" onClick={continueWithGoogle} disabled={googleBusy}>
+                {googleBusy ? 'Connecting...' : 'Continue with Google'}
+              </Button>
+            </div>
+          </section>
+        ) : (
+          <section className="rounded-3xl border border-white/50 bg-gradient-to-br from-blue-50/80 to-indigo-50/80 p-12 text-center shadow-lg backdrop-blur-md">
+            <h2 className="mb-4 text-3xl font-bold tracking-tight sm:text-4xl">Your account is ready</h2>
+            <p className="mb-10 text-lg text-muted-foreground">
+              Lock a quote and start your transfer immediately.
+            </p>
+            <Button size="lg" className="h-12 px-10 text-base shadow-xl shadow-primary/25 transition-transform hover:scale-105 active:scale-95" onClick={() => router.push('/quote' as Route)}>Go to quote</Button>
+          </section>
+        )}
+      </FadeIn>
     </div>
   );
 }

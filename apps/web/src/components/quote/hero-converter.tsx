@@ -156,11 +156,11 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
                   min={1}
                   max={2000}
                   step={0.01}
-                  value={editingField === 'usd' ? form.sendAmountUsd : form.sendAmountUsd || ''}
-                  placeholder="100.00"
+                  value={editingField === 'usd' ? (form.sendAmountUsd || '') : (form.sendAmountUsd || '')}
+                  placeholder="0"
                   onFocus={() => setState((prev) => ({ ...prev, highlightedField: 'send' }))}
                   onBlur={() => setState((prev) => ({ ...prev, highlightedField: null }))}
-                  onChange={(event) => handleUsdChange(Number(event.target.value) || 0)}
+                  onChange={(event) => handleUsdChange(Number(event.target.value))}
                 />
                 
                 {/* Currency Pill Selector */}
@@ -203,24 +203,24 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
           </div>
         </div>
 
-        {/* ── YOU RECEIVE ── */}
+          {/* ── YOU RECEIVE ── */}
         <div>
           <span className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50">
             They receive
           </span>
-          <div className="group rounded-3xl bg-slate-50 p-5 transition-colors focus-within:bg-slate-100">
+          <div className="group rounded-3xl bg-slate-100 p-5 transition-colors focus-within:bg-slate-100 focus-within:ring-0 focus-within:outline-none focus-within:border-transparent focus-within:shadow-none">
             <div className="flex items-center justify-between gap-3">
               <input
                 aria-label="They receive (ETB)"
-                className="w-full min-w-0 bg-transparent text-4xl font-bold text-foreground placeholder:text-muted-foreground/30 focus:outline-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full min-w-0 bg-transparent text-4xl font-bold text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 border-none shadow-none [&::-webkit-inner-spin-button]:appearance-none"
                 type="number"
                 min={0}
                 step={1}
-                value={editingField === 'etb' ? estimate.recipientAmountEtb : estimate.recipientAmountEtb || ''}
-                placeholder="13,860"
+                value={editingField === 'etb' ? estimate.recipientAmountEtb || '' : estimate.recipientAmountEtb || ''}
+                placeholder="0"
                 onFocus={() => setState((prev) => ({ ...prev, highlightedField: 'receive' }))}
                 onBlur={() => setState((prev) => ({ ...prev, highlightedField: null }))}
-                onChange={(event) => handleEtbChange(Number(event.target.value) || 0)}
+                onChange={(event) => handleEtbChange(Number(event.target.value))}
               />
               
               {/* ETB Pill Badge */}
