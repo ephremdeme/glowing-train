@@ -1,5 +1,6 @@
 import { assertWithinTransferLimit } from '@cryptopay/domain';
 import { createHash, randomUUID } from 'node:crypto';
+import type { DepositAddressStrategy } from './deposit-address.js';
 import { IdempotencyConflictError, QuoteExpiredError, QuoteNotFoundError, TransferValidationError } from './errors.js';
 import type { CreateTransferInput, TransferCreationResult, TransferRepositoryPort } from './types.js';
 
@@ -16,12 +17,23 @@ function computeRequestHash(input: Omit<CreateTransferInput, 'idempotencyKey'>):
   return createHash('sha256').update(payload).digest('hex');
 }
 
-function buildDepositAddress(): string {
-  return `dep_${randomUUID().replaceAll('-', '')}`;
-}
+/** Simple fallback deposit address strategy. */
+const defaultStrategy: DepositAddressStrategy = {
+  generateAddress: () => ({
+    depositAddress: `dep_${randomUUID().replaceAll('-', '')}`,
+    depositMemo: null
+  })
+};
 
 export class TransferService {
-  constructor(private readonly repository: TransferRepositoryPort) {}
+  private readonly depositAddressStrategy: DepositAddressStrategy;
+
+  constructor(
+    private readonly repository: TransferRepositoryPort,
+    depositAddressStrategy?: DepositAddressStrategy
+  ) {
+    this.depositAddressStrategy = depositAddressStrategy ?? defaultStrategy;
+  }
 
   async createTransfer(input: CreateTransferInput, now: Date = new Date()): Promise<TransferCreationResult> {
     const receiverProfile = await this.repository.findReceiverKycProfile(input.receiverId);
@@ -82,15 +94,21 @@ export class TransferService {
         sendAmountUsd: quote.sendAmountUsd,
         status: 'AWAITING_FUNDING'
       },
-      route: {
-        routeId,
-        transferId,
-        chain: quote.chain,
-        token: quote.token,
-        depositAddress: buildDepositAddress(),
-        depositMemo: null,
-        status: 'active'
-      }
+      route: (() => {
+        const addr = this.depositAddressStrategy.generateAddress({
+          chain: quote.chain,
+          transferId
+        });
+        return {
+          routeId,
+          transferId,
+          chain: quote.chain,
+          token: quote.token,
+          depositAddress: addr.depositAddress,
+          depositMemo: addr.depositMemo,
+          status: 'active' as const
+        };
+      })()
     });
 
     await this.repository.saveIdempotencyRecord({

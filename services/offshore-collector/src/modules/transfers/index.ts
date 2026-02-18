@@ -1,3 +1,4 @@
+export { HdWalletDepositStrategy, type DepositAddressResult, type DepositAddressStrategy } from './deposit-address.js';
 export {
   IdempotencyConflictError,
   QuoteExpiredError,
