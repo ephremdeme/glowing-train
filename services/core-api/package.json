@@ -11,9 +11,11 @@
     "start": "tsx src/server.ts",
     "lint": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --pool=forks --poolOptions.forks.singleFork=true"
+    "test": "vitest run --pool=forks --poolOptions.forks.singleFork=true",
+    "test:e2e": "vitest run test/e2e.test.ts --pool=forks --poolOptions.forks.singleFork=true"
   },
   "dependencies": {
+    "@cryptopay/adapters": "workspace:*",
     "@cryptopay/auth": "workspace:*",
     "@cryptopay/db": "workspace:*",
     "@cryptopay/domain": "workspace:*",
