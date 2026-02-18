@@ -14,6 +14,7 @@
     "test": "vitest run --pool=forks --poolOptions.forks.singleFork=true"
   },
   "dependencies": {
+    "@cryptopay/adapters": "workspace:*",
     "@cryptopay/auth": "workspace:*",
     "@cryptopay/db": "workspace:*",
     "@cryptopay/observability": "workspace:*",

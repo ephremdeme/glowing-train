@@ -6,6 +6,7 @@ import {
 } from '@cryptopay/auth';
 import { getPool } from '@cryptopay/db';
 import { createServiceMetrics, log } from '@cryptopay/observability';
+import type { EmailProvider, SmsProvider } from '@cryptopay/adapters';
 import { decryptField, encryptField, LocalDevKeyProvider, type EncryptedField, type KeyProvider } from '@cryptopay/security';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { createHash, createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
@@ -262,10 +263,10 @@ async function withIdempotency(params: {
   const existing = await pool.query('select request_hash, response_status, response_body from idempotency_record where key = $1', [key]);
   const row = existing.rows[0] as
     | {
-        request_hash: string;
-        response_status: number;
-        response_body: unknown;
-      }
+      request_hash: string;
+      response_status: number;
+      response_body: unknown;
+    }
     | undefined;
 
   if (row) {
@@ -446,18 +447,18 @@ async function findCustomerByEmail(email: string): Promise<(CustomerRow & { iden
   );
   const row = result.rows[0] as
     | {
-        customer_id: string;
-        full_name: string;
-        country_code: string;
-        status: CustomerRow['status'];
-        identity_id: number;
-        provider: IdentityRow['provider'];
-        provider_subject: string | null;
-        email: string | null;
-        phone_e164: string | null;
-        password_hash: string | null;
-        verified_at: Date | null;
-      }
+      customer_id: string;
+      full_name: string;
+      country_code: string;
+      status: CustomerRow['status'];
+      identity_id: number;
+      provider: IdentityRow['provider'];
+      provider_subject: string | null;
+      email: string | null;
+      phone_e164: string | null;
+      password_hash: string | null;
+      verified_at: Date | null;
+    }
     | undefined;
 
   if (!row) {
@@ -507,18 +508,18 @@ async function findCustomerByPhone(phoneE164: string): Promise<(CustomerRow & { 
   );
   const row = result.rows[0] as
     | {
-        customer_id: string;
-        full_name: string;
-        country_code: string;
-        status: CustomerRow['status'];
-        identity_id: number;
-        provider: IdentityRow['provider'];
-        provider_subject: string | null;
-        email: string | null;
-        phone_e164: string | null;
-        password_hash: string | null;
-        verified_at: Date | null;
-      }
+      customer_id: string;
+      full_name: string;
+      country_code: string;
+      status: CustomerRow['status'];
+      identity_id: number;
+      provider: IdentityRow['provider'];
+      provider_subject: string | null;
+      email: string | null;
+      phone_e164: string | null;
+      password_hash: string | null;
+      verified_at: Date | null;
+    }
     | undefined;
 
   if (!row) {
@@ -556,9 +557,9 @@ async function getMfaSecret(customerId: string, provider: KeyProvider): Promise<
 
   const value = row.rows[0] as
     | {
-        secret_encrypted: unknown;
-        enabled_at: Date | null;
-      }
+      secret_encrypted: unknown;
+      enabled_at: Date | null;
+    }
     | undefined;
 
   if (!value?.secret_encrypted) {
@@ -585,10 +586,17 @@ async function resolveGoogleIdentity(code: string): Promise<{ subject: string; e
   };
 }
 
-export async function buildCustomerAuthApp(): Promise<FastifyInstance> {
+export interface CustomerAuthAppOptions {
+  emailProvider?: EmailProvider;
+  smsProvider?: SmsProvider;
+}
+
+export async function buildCustomerAuthApp(options?: CustomerAuthAppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
   const metrics = createServiceMetrics('customer-auth');
   const provider = buildKeyProvider();
+  const emailProvider = options?.emailProvider;
+  const smsProvider = options?.smsProvider;
 
   app.addHook('onRequest', async (request, reply) => {
     request.headers['x-request-start'] = String(Date.now());
@@ -895,6 +903,23 @@ export async function buildCustomerAuthApp(): Promise<FastifyInstance> {
       entityId: challengeId
     });
 
+    // Send magic-link email (fire-and-forget — don't block auth response)
+    if (emailProvider) {
+      const baseUrl = process.env.APP_BASE_URL ?? 'http://localhost:3000';
+      const magicLink = `${baseUrl}/auth/verify?challengeId=${challengeId}&token=${token}`;
+      emailProvider.sendEmail({
+        to: email,
+        subject: 'Your CryptoPay Login Link',
+        html: `<p>Click the link below to log in to CryptoPay:</p><p><a href="${magicLink}">Log in to CryptoPay</a></p><p>This link expires in 10 minutes.</p>`,
+        text: `Log in to CryptoPay: ${magicLink}\n\nThis link expires in 10 minutes.`
+      }).catch((err: unknown) => {
+        log('error', 'Failed to send magic-link email', {
+          challengeId,
+          error: (err as Error).message
+        });
+      });
+    }
+
     return reply.status(202).send({
       challengeId,
       expiresAt: expiresAt.toISOString(),
@@ -927,13 +952,13 @@ export async function buildCustomerAuthApp(): Promise<FastifyInstance> {
 
     const challenge = query.rows[0] as
       | {
-          challenge_id: string;
-          target: string;
-          token_hash: string;
-          expires_at: Date;
-          consumed_at: Date | null;
-          attempt_count: number;
-        }
+        challenge_id: string;
+        target: string;
+        token_hash: string;
+        expires_at: Date;
+        consumed_at: Date | null;
+        attempt_count: number;
+      }
       | undefined;
 
     if (!challenge || challenge.consumed_at || challenge.expires_at.getTime() < Date.now()) {
@@ -1056,6 +1081,19 @@ export async function buildCustomerAuthApp(): Promise<FastifyInstance> {
       entityId: challengeId
     });
 
+    // Send OTP via SMS (fire-and-forget)
+    if (smsProvider) {
+      smsProvider.sendSms({
+        to: phone,
+        message: `Your CryptoPay verification code is ${code}. Valid for 5 minutes.`
+      }).catch((err: unknown) => {
+        log('error', 'Failed to send OTP SMS', {
+          challengeId,
+          error: (err as Error).message
+        });
+      });
+    }
+
     return reply.status(202).send({
       challengeId,
       expiresAt: expiresAt.toISOString(),
@@ -1087,12 +1125,12 @@ export async function buildCustomerAuthApp(): Promise<FastifyInstance> {
     );
     const challenge = query.rows[0] as
       | {
-          challenge_id: string;
-          target: string;
-          code_hash: string;
-          expires_at: Date;
-          consumed_at: Date | null;
-        }
+        challenge_id: string;
+        target: string;
+        code_hash: string;
+        expires_at: Date;
+        consumed_at: Date | null;
+      }
       | undefined;
 
     if (!challenge || challenge.consumed_at || challenge.expires_at.getTime() < Date.now()) {
@@ -1250,10 +1288,10 @@ export async function buildCustomerAuthApp(): Promise<FastifyInstance> {
 
     const challenge = query.rows[0] as
       | {
-          challenge_id: string;
-          expires_at: Date;
-          consumed_at: Date | null;
-        }
+        challenge_id: string;
+        expires_at: Date;
+        consumed_at: Date | null;
+      }
       | undefined;
 
     if (!challenge || challenge.consumed_at || challenge.expires_at.getTime() < Date.now()) {
@@ -1287,10 +1325,10 @@ export async function buildCustomerAuthApp(): Promise<FastifyInstance> {
     let countryCode: string;
     const row = existing.rows[0] as
       | {
-          customer_id: string;
-          full_name: string;
-          country_code: string;
-        }
+        customer_id: string;
+        full_name: string;
+        country_code: string;
+      }
       | undefined;
 
     if (row) {
