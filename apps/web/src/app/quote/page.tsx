@@ -125,14 +125,14 @@ export default function QuotePage() {
 
         {/* Locked quote confirmation */}
         {quote && isAuthenticated && kycStatus === 'APPROVED' && (
-          <div className="flex items-center justify-between rounded-2xl border border-green-200 bg-green-50 p-5">
+          <div className="flex items-center justify-between rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5">
             <div className="flex items-center gap-3">
-              <CheckCircle className="h-5 w-5 text-green-600" />
+              <CheckCircle className="h-5 w-5 text-emerald-500" />
               <div>
-                <p className="text-sm font-medium text-green-900">
+                <p className="text-sm font-medium text-foreground">
                   Quote locked. Continue to transfer setup.
                 </p>
-                <p className="text-xs text-green-700">
+                <p className="text-xs text-muted-foreground">
                   {quote.sendAmountUsd} USD → {currencyEtb((quote.sendAmountUsd - quote.feeUsd) * quote.fxRateUsdToEtb)} on {quote.chain}/{quote.token}
                 </p>
               </div>

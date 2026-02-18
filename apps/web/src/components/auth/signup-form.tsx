@@ -146,10 +146,10 @@ export function SignupForm({ nextPath = '/quote' }: { nextPath?: string }) {
             value={form.countryCode}
             onChange={(event) => setForm((prev) => ({ ...prev, countryCode: event.target.value }))}
             required
-            className="h-12 rounded-xl border border-border/60 bg-white px-4 text-sm text-foreground transition-colors focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="h-12 rounded-xl border border-border/60 bg-muted/30 px-4 text-sm text-foreground transition-colors focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             {COUNTRIES.map((c) => (
-              <option key={c.code} value={c.code}>
+              <option key={c.code} value={c.code} className="bg-background text-foreground">
                 {c.name}
               </option>
             ))}

@@ -2,10 +2,14 @@ import { NextResponse } from 'next/server';
 import { recipientUpdateSchema } from '@/lib/contracts';
 import { forwardCoreApi } from '@/lib/server-api';
 
-export async function GET(request: Request, context: { params: { recipientId: string } }) {
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ recipientId: string }> }
+) {
+  const { recipientId } = await context.params;
   const authorization = request.headers.get('authorization') ?? '';
   const upstream = await forwardCoreApi({
-    path: `/v1/recipients/${context.params.recipientId}`,
+    path: `/v1/recipients/${recipientId}`,
     method: 'GET',
     authorization
   });
@@ -14,7 +18,11 @@ export async function GET(request: Request, context: { params: { recipientId: st
   return NextResponse.json(payload, { status: upstream.status });
 }
 
-export async function PATCH(request: Request, context: { params: { recipientId: string } }) {
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ recipientId: string }> }
+) {
+  const { recipientId } = await context.params;
   const authorization = request.headers.get('authorization') ?? '';
   const body = await request.json().catch(() => null);
   const parsed = recipientUpdateSchema.safeParse(body);
@@ -31,7 +39,7 @@ export async function PATCH(request: Request, context: { params: { recipientId: 
   }
 
   const upstream = await forwardCoreApi({
-    path: `/v1/recipients/${context.params.recipientId}`,
+    path: `/v1/recipients/${recipientId}`,
     method: 'PATCH',
     authorization,
     body: parsed.data

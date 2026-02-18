@@ -13,8 +13,11 @@ interface TransferDetailResponse {
   } | null;
 }
 
-export async function GET(request: Request, context: { params: { transferId: string } }) {
-  const transferId = context.params.transferId;
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ transferId: string }> }
+) {
+  const { transferId } = await context.params;
   const authorization = request.headers.get('authorization') ?? '';
 
   const upstream = await forwardCoreApi({

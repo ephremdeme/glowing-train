@@ -2,34 +2,111 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: 0 0% 100%;
-  --foreground: 224 71% 4%;
-  --muted: 220 14% 96%;
-  --muted-foreground: 220 9% 46%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 224 71% 4%;
-  --card: 0 0% 100%;
-  --card-foreground: 224 71% 4%;
-  --border: 220 13% 91%;
-  --input: 220 13% 91%;
-  /* Professional Crypto Blue (Electric Blue) */
-  --primary: 221 83% 53%; 
-  --primary-foreground: 0 0% 100%;
-  --secondary: 220 14% 96%;
-  --secondary-foreground: 224 71% 4%;
-  --accent: 220 14% 96%;
-  --accent-foreground: 224 71% 4%;
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 100%;
-  --ring: 221 83% 53%;
-  --radius: 0.75rem;
-  --success: 142 71% 45%;
-  --warning: 38 92% 50%;
+/* ═══════════════════════════════════════════════
+   CryptoPay Design System — Dual Mode
+   Light: Platinum surfaces with gold accents
+   Dark:  Deep obsidian surfaces with gold accents
+   ═══════════════════════════════════════════════ */
+
+@property --mesh-a {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: hsl(42 80% 55% / 0.12);
 }
 
+@property --mesh-b {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: hsl(220 60% 50% / 0.08);
+}
+
+@layer base {
+  :root {
+    /* ── Light Mode (Platinum/Gold) ── */
+    --background: 210 20% 98%;
+    /* Very light cool gray */
+    --foreground: 220 14% 10%;
+    /* Deep slate text */
+
+    --card: 0 0% 100%;
+    /* White cards */
+    --card-foreground: 220 14% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 14% 10%;
+
+    --muted: 220 14% 96%;
+    /* Subtle gray surface */
+    --muted-foreground: 220 8% 46%;
+
+    --primary: 42 92% 50%;
+    /* Gold accent (slightly darker for contrast) */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 220 14% 10%;
+
+    --accent: 42 80% 96%;
+    /* Very light gold wash */
+    --accent-foreground: 42 92% 40%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 42 92% 50%;
+
+    --radius: 0.875rem;
+
+    /* Shadows for light mode */
+    --shadow-glow: 0 0 20px hsl(42 92% 50% / 0.15), 0 0 40px hsl(42 92% 50% / 0.1);
+  }
+
+  .dark {
+    /* ── Dark Mode (Obsidian/Gold) ── */
+    --background: 225 20% 4%;
+    --foreground: 40 10% 92%;
+
+    --card: 225 16% 7%;
+    --card-foreground: 40 10% 92%;
+
+    --popover: 225 16% 7%;
+    --popover-foreground: 40 10% 92%;
+
+    --muted: 225 12% 12%;
+    --muted-foreground: 225 8% 52%;
+
+    --secondary: 225 12% 10%;
+    --secondary-foreground: 40 10% 85%;
+
+    --primary: 42 92% 56%;
+    --primary-foreground: 225 20% 4%;
+
+    --accent: 42 80% 55%;
+    --accent-foreground: 225 20% 4%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 225 10% 15%;
+    --input: 225 10% 13%;
+    --ring: 42 92% 56%;
+
+    /* Shadows for dark mode */
+    --shadow-glow: 0 0 20px hsl(42 92% 56% / 0.15), 0 0 60px hsl(42 92% 56% / 0.08);
+  }
+}
+
+/* ── Global resets ── */
 * {
   @apply border-border;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html,
@@ -38,74 +115,226 @@ body {
 }
 
 body {
-  @apply bg-background text-foreground antialiased;
-  font-family: var(--font-display), ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
-  background-image: 
-    radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08), transparent 25%), 
-    radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.08), transparent 25%);
-  background-attachment: fixed;
+  @apply bg-background text-foreground;
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* ── Noise texture overlay ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px 128px;
+}
+
+/* ── Mesh gradient ambient background ── */
+/* Only show in dark mode for maximum effect */
+.dark body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 50% at 15% 15%, hsl(42 80% 55% / 0.06), transparent),
+    radial-gradient(ellipse 60% 40% at 85% 20%, hsl(220 60% 50% / 0.05), transparent),
+    radial-gradient(ellipse 50% 60% at 50% 80%, hsl(280 40% 50% / 0.03), transparent);
+}
+
+/* Light mode gradient - subtle */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, hsl(42 90% 60% / 0.04), transparent),
+    radial-gradient(ellipse 50% 50% at 50% 120%, hsl(220 60% 60% / 0.03), transparent);
 }
 
 main {
   min-height: calc(100dvh - 4.5rem);
 }
 
-h1, h2, h3, h4 {
-  letter-spacing: -0.025em;
+/* ── Typography ── */
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.035em;
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
 }
 
-code, kbd, pre {
+h1 {
+  letter-spacing: -0.045em;
+}
+
+.font-display {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-serif {
+  font-family: var(--font-serif), 'Georgia', serif;
+}
+
+code,
+kbd,
+pre {
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-a, button, input, select, textarea {
-  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2;
+/* ── Focus states ── */
+a,
+button,
+input,
+select,
+textarea {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
 }
 
 select {
   @apply text-foreground;
 }
 
-/* ── Staggered reveal ── */
+/* ── Selection ── */
+::selection {
+  background: hsl(42 92% 56% / 0.25);
+  color: hsl(40 10% 95%);
+}
+
+.dark ::selection {
+  background: hsl(42 92% 56% / 0.25);
+  color: hsl(40 10% 95%);
+}
+
+::selection {
+  background: hsl(42 92% 50% / 0.2);
+  color: hsl(220 14% 10%);
+}
+
+
+/* ── Glass utility ── */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.dark .glass {
+  background: hsl(225 16% 7% / 0.6);
+  border: 1px solid hsl(225 10% 15% / 0.6);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.02),
+    0 4px 20px -8px rgba(0, 0, 0, 0.05);
+}
+
+.dark .glass-card {
+  background: hsl(225 16% 8% / 0.5);
+  border: 1px solid hsl(225 10% 18% / 0.4);
+  box-shadow:
+    0 0 0 1px hsl(225 10% 20% / 0.1),
+    inset 0 1px 0 0 hsl(225 10% 25% / 0.08),
+    0 8px 40px -12px hsl(225 20% 4% / 0.5);
+}
+
+/* ── Gold glow ── */
+.glow-gold {
+  box-shadow:
+    0 0 20px hsl(42 92% 56% / 0.15),
+    0 0 60px hsl(42 92% 56% / 0.08);
+}
+
+/* ── Text gradient ── */
+.text-gradient-gold {
+  background: linear-gradient(135deg, hsl(42 92% 55%), hsl(35 85% 60%), hsl(42 92% 45%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dark .text-gradient-gold {
+  background: linear-gradient(135deg, hsl(42 92% 60%), hsl(35 85% 50%), hsl(42 92% 65%));
+}
+
+/* ── Stagger animation classes (CSS-only fallback) ── */
 .stagger-reveal {
   animation: fade-up 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.stagger-1 { animation-delay: 80ms; }
-.stagger-2 { animation-delay: 160ms; }
-.stagger-3 { animation-delay: 240ms; }
-.stagger-4 { animation-delay: 320ms; }
-.stagger-5 { animation-delay: 420ms; }
 
-/* ── Card lift hover ── */
-.lift-hover {
-  transition: transform 280ms ease, box-shadow 280ms ease;
-}
-.lift-hover:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.12);
+.stagger-1 {
+  animation-delay: 80ms;
 }
 
-/* ── Celebration burst ── */
-.celebration-burst {
-  animation: confetti-pop 600ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+.stagger-2 {
+  animation-delay: 160ms;
 }
 
-/* ── Wallet adapter overrides ── */
-.wallet-adapter-button {
-  @apply h-11 rounded-lg border border-border bg-white px-4 text-sm font-medium text-foreground transition hover:bg-muted;
+.stagger-3 {
+  animation-delay: 240ms;
 }
-.wallet-adapter-modal-wrapper {
-  @apply rounded-xl border border-border bg-white text-foreground;
+
+.stagger-4 {
+  animation-delay: 320ms;
 }
-.wallet-adapter-modal-title {
-  @apply text-foreground;
+
+.stagger-5 {
+  animation-delay: 420ms;
+}
+
+/* ── Premium scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(220 10% 80%);
+  border-radius: 999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: hsl(225 10% 20%);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(220 10% 70%);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(225 10% 30%);
 }
 
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation: none !important;
-    transition: none !important;
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
 }
@@ -116,21 +345,4 @@ select {
     background: white !important;
     color: black !important;
   }
-  header, .receipt-actions, .wallet-adapter-modal-wrapper {
-    display: none !important;
-  }
-  .receipt-root {
-    display: block !important;
-  }
-  .receipt-print-card {
-    border: 1px solid #d1d5db !important;
-    box-shadow: none !important;
-    background: white !important;
-    border-radius: 0 !important;
-  }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
 }
