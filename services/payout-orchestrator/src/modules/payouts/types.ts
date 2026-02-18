@@ -14,7 +14,7 @@ export interface PayoutInstructionRecord {
   method: PayoutMethod;
   recipientAccountRef: string;
   amountEtb: number;
-  status: 'PENDING' | 'PAYOUT_INITIATED' | 'PAYOUT_REVIEW_REQUIRED';
+  status: 'PENDING' | 'PAYOUT_INITIATED' | 'PAYOUT_COMPLETED' | 'PAYOUT_FAILED' | 'PAYOUT_REVIEW_REQUIRED';
   providerReference: string | null;
   attemptCount: number;
   lastError: string | null;

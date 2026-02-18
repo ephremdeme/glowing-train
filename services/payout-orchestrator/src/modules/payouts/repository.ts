@@ -26,7 +26,7 @@ function mapInstruction(row: Row): PayoutInstructionRecord {
 }
 
 export class PayoutRepository {
-  constructor(private readonly pool: Pool = getPool()) {}
+  constructor(private readonly pool: Pool = getPool()) { }
 
   async findTransferStatus(transferId: string): Promise<TransferStatusSnapshot | null> {
     const result = await this.pool.query('select transfer_id, status from transfers where transfer_id = $1', [transferId]);
@@ -275,5 +275,163 @@ export class PayoutRepository {
       `,
       [params.key, params.requestHash, params.result, expiresAt]
     );
+  }
+
+  async findByPayoutId(payoutId: string): Promise<PayoutInstructionRecord | null> {
+    const result = await this.pool.query('select * from payout_instruction where payout_id = $1 limit 1', [payoutId]);
+    const row = result.rows[0] as Row | undefined;
+    if (!row) {
+      return null;
+    }
+
+    return mapInstruction(row);
+  }
+
+  async markCompleted(params: {
+    instruction: PayoutInstructionRecord;
+    providerReference: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      await client.query(
+        `
+        update payout_instruction
+        set status = 'PAYOUT_COMPLETED',
+            provider_reference = $2,
+            last_error = null,
+            updated_at = now()
+        where payout_id = $1
+        `,
+        [params.instruction.payoutId, params.providerReference]
+      );
+
+      await client.query(
+        "update transfers set status = 'PAYOUT_COMPLETED' where transfer_id = $1 and status = 'PAYOUT_INITIATED'",
+        [params.instruction.transferId]
+      );
+
+      await client.query(
+        `
+        insert into transfer_transition (transfer_id, from_state, to_state, metadata)
+        values ($1, 'PAYOUT_INITIATED', 'PAYOUT_COMPLETED', $2)
+        `,
+        [params.instruction.transferId, params.metadata ?? {}]
+      );
+
+      await client.query(
+        `
+        insert into payout_status_event (payout_id, transfer_id, from_status, to_status, metadata)
+        values ($1, $2, $3, 'PAYOUT_COMPLETED', $4)
+        `,
+        [params.instruction.payoutId, params.instruction.transferId, params.instruction.status, params.metadata ?? {}]
+      );
+
+      await client.query(
+        `
+        insert into audit_log (actor_type, actor_id, action, entity_type, entity_id, reason, metadata)
+        values ($1,$2,$3,$4,$5,$6,$7)
+        `,
+        [
+          'system',
+          'payout-orchestrator',
+          'payout_completed',
+          'transfer',
+          params.instruction.transferId,
+          'Payout partner confirmed completion',
+          {
+            payoutId: params.instruction.payoutId,
+            providerReference: params.providerReference,
+            ...params.metadata
+          }
+        ]
+      );
+
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async markFailed(params: {
+    instruction: PayoutInstructionRecord;
+    errorMessage: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      await client.query(
+        `
+        update payout_instruction
+        set status = 'PAYOUT_FAILED',
+            last_error = $2,
+            updated_at = now()
+        where payout_id = $1
+        `,
+        [params.instruction.payoutId, params.errorMessage]
+      );
+
+      await client.query(
+        "update transfers set status = 'PAYOUT_FAILED' where transfer_id = $1 and status = 'PAYOUT_INITIATED'",
+        [params.instruction.transferId]
+      );
+
+      await client.query(
+        `
+        insert into transfer_transition (transfer_id, from_state, to_state, metadata)
+        values ($1, 'PAYOUT_INITIATED', 'PAYOUT_FAILED', $2)
+        `,
+        [params.instruction.transferId, { errorMessage: params.errorMessage, ...params.metadata }]
+      );
+
+      await client.query(
+        `
+        insert into payout_status_event (payout_id, transfer_id, from_status, to_status, metadata)
+        values ($1, $2, $3, 'PAYOUT_FAILED', $4)
+        `,
+        [
+          params.instruction.payoutId,
+          params.instruction.transferId,
+          params.instruction.status,
+          { errorMessage: params.errorMessage, ...params.metadata }
+        ]
+      );
+
+      await client.query(
+        `
+        insert into audit_log (actor_type, actor_id, action, entity_type, entity_id, reason, metadata)
+        values ($1,$2,$3,$4,$5,$6,$7)
+        `,
+        [
+          'system',
+          'payout-orchestrator',
+          'payout_failed',
+          'transfer',
+          params.instruction.transferId,
+          'Payout partner reported failure',
+          {
+            payoutId: params.instruction.payoutId,
+            errorMessage: params.errorMessage,
+            ...params.metadata
+          }
+        ]
+      );
+
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

@@ -6,12 +6,16 @@ import {
   type PayoutMethod,
   type PayoutRequest
 } from '@cryptopay/adapters';
+import { withRetry } from '@cryptopay/domain';
+import { log } from '@cryptopay/observability';
 import { createHash } from 'node:crypto';
 import { isTelebirrEnabled } from '../../feature-flags.js';
 import { PayoutRepository } from './repository.js';
 import type { InitiatePayoutInput, PayoutResult } from './types.js';
 
 const MAX_RETRIES = 5;
+const RETRY_BASE_DELAY_MS = 200;
+const RETRY_MAX_DELAY_MS = 10_000;
 
 function fingerprint(input: Omit<InitiatePayoutInput, 'idempotencyKey'>): string {
   return createHash('sha256').update(JSON.stringify(input)).digest('hex');
@@ -33,7 +37,7 @@ export class PayoutService {
   constructor(
     private readonly repository: PayoutRepository,
     private readonly adapters: { bank: PayoutAdapter; telebirr: PayoutAdapter }
-  ) {}
+  ) { }
 
   async initiatePayout(input: InitiatePayoutInput, now: Date = new Date()): Promise<PayoutResult> {
     const key = `payout:initiate:${input.idempotencyKey}`;
@@ -64,101 +68,87 @@ export class PayoutService {
     const instruction = await this.repository.getOrCreateInstruction(input);
     const adapter = resolveAdapter(input.method, this.adapters);
 
-    let attempts = 0;
-    while (attempts < MAX_RETRIES) {
-      attempts += 1;
-
-      try {
-        const request: PayoutRequest = {
-          payoutId: instruction.payoutId,
-          transferId: instruction.transferId,
-          method: instruction.method,
-          recipientAccountRef: instruction.recipientAccountRef,
-          amountEtb: instruction.amountEtb
-        };
-
-        const response = await adapter.initiatePayout(request, key);
-
-        const result: PayoutResult = {
-          status: 'initiated',
-          payoutId: instruction.payoutId,
-          transferId: instruction.transferId,
-          providerReference: response.providerReference,
-          attempts
-        };
-
-        await this.repository.markInitiated({
-          instruction,
-          providerReference: response.providerReference,
-          attempts
-        });
-
-        await this.repository.saveIdempotency({
-          key,
-          requestHash,
-          result,
-          now
-        });
-
-        return result;
-      } catch (error) {
-        const retryable = error instanceof RetryableAdapterError;
-        if (retryable && attempts < MAX_RETRIES) {
-          continue;
-        }
-
-        if (error instanceof FeatureDisabledError) {
-          throw error;
-        }
-
-        if (!retryable && !(error instanceof NonRetryableAdapterError)) {
-          throw error;
-        }
-
-        const result: PayoutResult = {
-          status: 'review_required',
-          payoutId: instruction.payoutId,
-          transferId: instruction.transferId,
-          attempts
-        };
-
-        await this.repository.markReviewRequired({
-          instruction,
-          attempts,
-          errorMessage: (error as Error).message
-        });
-
-        await this.repository.saveIdempotency({
-          key,
-          requestHash,
-          result,
-          now
-        });
-
-        return result;
-      }
-    }
-
-    const fallback: PayoutResult = {
-      status: 'review_required',
+    const request: PayoutRequest = {
       payoutId: instruction.payoutId,
       transferId: instruction.transferId,
-      attempts: MAX_RETRIES
+      method: instruction.method,
+      recipientAccountRef: instruction.recipientAccountRef,
+      amountEtb: instruction.amountEtb
     };
 
-    await this.repository.markReviewRequired({
-      instruction,
-      attempts: MAX_RETRIES,
-      errorMessage: 'Retry budget exhausted.'
-    });
+    try {
+      const retryResult = await withRetry(
+        () => adapter.initiatePayout(request, key),
+        {
+          maxAttempts: MAX_RETRIES,
+          baseDelayMs: RETRY_BASE_DELAY_MS,
+          maxDelayMs: RETRY_MAX_DELAY_MS,
+          isRetryable: (error) => error instanceof RetryableAdapterError,
+          onRetry: (attempt, error, delayMs) => {
+            log('warn', 'Payout adapter retry', {
+              payoutId: instruction.payoutId,
+              transferId: instruction.transferId,
+              attempt,
+              delayMs,
+              error: (error as Error).message
+            });
+          }
+        }
+      );
 
-    await this.repository.saveIdempotency({
-      key,
-      requestHash,
-      result: fallback,
-      now
-    });
+      const result: PayoutResult = {
+        status: 'initiated',
+        payoutId: instruction.payoutId,
+        transferId: instruction.transferId,
+        providerReference: retryResult.value.providerReference,
+        attempts: retryResult.attempts
+      };
 
-    return fallback;
+      await this.repository.markInitiated({
+        instruction,
+        providerReference: retryResult.value.providerReference,
+        attempts: retryResult.attempts
+      });
+
+      await this.repository.saveIdempotency({
+        key,
+        requestHash,
+        result,
+        now
+      });
+
+      return result;
+    } catch (error) {
+      // Re-throw feature-flag and unexpected errors
+      if (error instanceof FeatureDisabledError) {
+        throw error;
+      }
+      if (!(error instanceof RetryableAdapterError) && !(error instanceof NonRetryableAdapterError)) {
+        throw error;
+      }
+
+      // Retries exhausted or non-retryable — mark for review
+      const result: PayoutResult = {
+        status: 'review_required',
+        payoutId: instruction.payoutId,
+        transferId: instruction.transferId,
+        attempts: MAX_RETRIES
+      };
+
+      await this.repository.markReviewRequired({
+        instruction,
+        attempts: MAX_RETRIES,
+        errorMessage: (error as Error).message
+      });
+
+      await this.repository.saveIdempotency({
+        key,
+        requestHash,
+        result,
+        now
+      });
+
+      return result;
+    }
   }
 }
