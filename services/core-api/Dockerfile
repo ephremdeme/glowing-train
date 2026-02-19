@@ -21,11 +21,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 
 RUN pnpm deploy --filter "@cryptopay/core-api" --prod /app
 
-WORKDIR /app
-RUN npm init -y > /dev/null 2>&1 \
-    && npm install --no-save tsx@4.19.2 --prefix /app 2>/dev/null \
-    && rm -f package.json package-lock.json \
-    && find /app/node_modules -name '*.md' -o -name '*.map' -o -name 'LICENSE*' -o -name 'CHANGELOG*' | head -2000 | xargs rm -f 2>/dev/null || true
 
 # ─── Stage 2: Runner ───
 FROM node:${NODE_VERSION}-alpine

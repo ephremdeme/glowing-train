@@ -12,11 +12,6 @@ COPY --link services/ ./services/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts --prefer-offline
 RUN pnpm deploy --filter "@cryptopay/customer-auth" --prod /app
-WORKDIR /app
-RUN npm init -y > /dev/null 2>&1 \
-    && npm install --no-save tsx@4.19.2 --prefix /app 2>/dev/null \
-    && rm -f package.json package-lock.json \
-    && find /app/node_modules -name '*.md' -o -name '*.map' -o -name 'LICENSE*' -o -name 'CHANGELOG*' | head -2000 | xargs rm -f 2>/dev/null || true
 
 FROM node:${NODE_VERSION}-alpine
 LABEL org.opencontainers.image.title="cryptopay-customer-auth"
