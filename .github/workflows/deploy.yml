@@ -1,0 +1,138 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      tag:
+        description: 'Image tag to deploy (default: latest)'
+        required: false
+        default: 'latest'
+
+env:
+  COMPOSE_FILE: docker-compose.prod.yml
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -eu
+            set -o pipefail 2>/dev/null || true
+
+            cd ${{ secrets.VPS_APP_DIR || '/opt/cryptopay' }}
+            COMPOSE_FILE="docker-compose.prod.yml"
+            TAG="${{ inputs.tag }}"
+
+            resolve_digest() {
+              image="$1"
+              docker pull "$image" > /dev/null
+              docker image inspect --format='{{index .RepoDigests 0}}' "$image"
+            }
+
+            wait_for() {
+              name="$1"
+              url="$2"
+              attempts="${3:-30}"
+              delay="${4:-2}"
+
+              for i in $(seq 1 "$attempts"); do
+                if curl -fsS "$url" > /dev/null 2>&1; then
+                  echo "✅ ${name} is healthy (${url})"
+                  return 0
+                fi
+                sleep "$delay"
+              done
+
+              echo "❌ ${name} did not become healthy (${url})"
+              return 1
+            }
+
+            PREV_CORE_API_IMAGE="$(docker inspect --format='{{.Config.Image}}' cryptopay-core-api 2>/dev/null || true)"
+            PREV_CUSTOMER_AUTH_IMAGE="$(docker inspect --format='{{.Config.Image}}' cryptopay-customer-auth 2>/dev/null || true)"
+            PREV_OFFSHORE_COLLECTOR_IMAGE="$(docker inspect --format='{{.Config.Image}}' cryptopay-offshore-collector 2>/dev/null || true)"
+            PREV_PAYOUT_ORCHESTRATOR_IMAGE="$(docker inspect --format='{{.Config.Image}}' cryptopay-payout-orchestrator 2>/dev/null || true)"
+            PREV_RECONCILIATION_WORKER_IMAGE="$(docker inspect --format='{{.Config.Image}}' cryptopay-reconciliation-worker 2>/dev/null || true)"
+            PREV_ADMIN_API_IMAGE="$(docker inspect --format='{{.Config.Image}}' cryptopay-admin-api 2>/dev/null || true)"
+            PREV_WEB_IMAGE="$(docker inspect --format='{{.Config.Image}}' cryptopay-web 2>/dev/null || true)"
+            PREV_BASE_WATCHER_IMAGE="$(docker inspect --format='{{.Config.Image}}' cryptopay-base-watcher 2>/dev/null || true)"
+            PREV_SOLANA_WATCHER_IMAGE="$(docker inspect --format='{{.Config.Image}}' cryptopay-solana-watcher 2>/dev/null || true)"
+
+            rollback_enabled=0
+            rollback_on_exit() {
+              exit_code="$?"
+              if [ "${exit_code}" -eq 0 ] || [ "${rollback_enabled}" -ne 1 ]; then
+                return
+              fi
+
+              echo "❌ Deployment failed. Rolling back to previous images..."
+              [ -n "${PREV_CORE_API_IMAGE}" ] && export CORE_API_IMAGE="${PREV_CORE_API_IMAGE}"
+              [ -n "${PREV_CUSTOMER_AUTH_IMAGE}" ] && export CUSTOMER_AUTH_IMAGE="${PREV_CUSTOMER_AUTH_IMAGE}"
+              [ -n "${PREV_OFFSHORE_COLLECTOR_IMAGE}" ] && export OFFSHORE_COLLECTOR_IMAGE="${PREV_OFFSHORE_COLLECTOR_IMAGE}"
+              [ -n "${PREV_PAYOUT_ORCHESTRATOR_IMAGE}" ] && export PAYOUT_ORCHESTRATOR_IMAGE="${PREV_PAYOUT_ORCHESTRATOR_IMAGE}"
+              [ -n "${PREV_RECONCILIATION_WORKER_IMAGE}" ] && export RECONCILIATION_WORKER_IMAGE="${PREV_RECONCILIATION_WORKER_IMAGE}"
+              [ -n "${PREV_ADMIN_API_IMAGE}" ] && export ADMIN_API_IMAGE="${PREV_ADMIN_API_IMAGE}"
+              [ -n "${PREV_WEB_IMAGE}" ] && export WEB_IMAGE="${PREV_WEB_IMAGE}"
+              [ -n "${PREV_BASE_WATCHER_IMAGE}" ] && export BASE_WATCHER_IMAGE="${PREV_BASE_WATCHER_IMAGE}"
+              [ -n "${PREV_SOLANA_WATCHER_IMAGE}" ] && export SOLANA_WATCHER_IMAGE="${PREV_SOLANA_WATCHER_IMAGE}"
+
+              docker compose -f "${COMPOSE_FILE}" up -d || true
+              docker compose -f "${COMPOSE_FILE}" ps || true
+              trap - EXIT
+              exit "${exit_code}"
+            }
+            trap rollback_on_exit EXIT
+
+            echo "Resolving immutable image digests for tag: ${TAG}"
+            export CORE_API_IMAGE="$(resolve_digest "ghcr.io/ephrem/cryptopay-core-api:${TAG}")"
+            export CUSTOMER_AUTH_IMAGE="$(resolve_digest "ghcr.io/ephrem/cryptopay-customer-auth:${TAG}")"
+            export OFFSHORE_COLLECTOR_IMAGE="$(resolve_digest "ghcr.io/ephrem/cryptopay-offshore-collector:${TAG}")"
+            export PAYOUT_ORCHESTRATOR_IMAGE="$(resolve_digest "ghcr.io/ephrem/cryptopay-payout-orchestrator:${TAG}")"
+            export RECONCILIATION_WORKER_IMAGE="$(resolve_digest "ghcr.io/ephrem/cryptopay-reconciliation-worker:${TAG}")"
+            export ADMIN_API_IMAGE="$(resolve_digest "ghcr.io/ephrem/cryptopay-admin-api:${TAG}")"
+            export WEB_IMAGE="$(resolve_digest "ghcr.io/ephrem/cryptopay-web:${TAG}")"
+            export BASE_WATCHER_IMAGE="$(resolve_digest "ghcr.io/ephrem/cryptopay-base-watcher:${TAG}")"
+            export SOLANA_WATCHER_IMAGE="$(resolve_digest "ghcr.io/ephrem/cryptopay-solana-watcher:${TAG}")"
+
+            # Start dependencies first, then run migrations on the same pinned core-api image
+            docker compose -f "${COMPOSE_FILE}" up -d postgres redis
+            sleep 5
+            docker compose -f "${COMPOSE_FILE}" run --rm --no-deps core-api node /app/node_modules/@cryptopay/db/dist/migrate.js
+
+            rollback_enabled=1
+            docker compose -f "${COMPOSE_FILE}" up -d
+
+            echo "=== Container Status ==="
+            docker compose -f "${COMPOSE_FILE}" ps
+
+            # Fail deployment if critical endpoints are not healthy
+            if ! wait_for "core-api" "http://localhost:3001/readyz" 45 2; then
+              docker compose -f "${COMPOSE_FILE}" logs --tail=120 core-api
+              false
+            fi
+
+            if ! wait_for "web" "http://localhost/" 45 2; then
+              docker compose -f "${COMPOSE_FILE}" logs --tail=120 web
+              false
+            fi
+
+            rollback_enabled=0
+
+            # Clean up old images
+            docker image prune -f
