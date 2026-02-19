@@ -1,11 +1,10 @@
 import { loadRuntimeConfig } from '@cryptopay/config';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const scriptPath = process.argv[1] ? path.resolve(process.argv[1]) : process.cwd();
+const scriptDir = path.dirname(scriptPath);
 
 async function runMigrations(): Promise<void> {
   const config = loadRuntimeConfig();
@@ -19,7 +18,7 @@ async function runMigrations(): Promise<void> {
       )
     `);
 
-    const migrationDir = path.resolve(__dirname, '../migrations');
+    const migrationDir = path.resolve(scriptDir, '../migrations');
     const migrationFiles = (await readdir(migrationDir))
       .filter((file) => file.endsWith('.sql'))
       .sort((a, b) => a.localeCompare(b));

@@ -7,6 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "build": "node ../../scripts/build/build-runtime.mjs --entry src/index.ts --out dist/index.cjs && node ../../scripts/build/build-runtime.mjs --entry src/migrate.ts --out dist/migrate.cjs",
     "lint": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
