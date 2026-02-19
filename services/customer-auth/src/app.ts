@@ -5,7 +5,7 @@ import {
   type AuthClaims
 } from '@cryptopay/auth';
 import { getPool } from '@cryptopay/db';
-import { createServiceMetrics, log } from '@cryptopay/observability';
+import { createServiceMetrics, deepHealthCheck, log } from '@cryptopay/observability';
 import type { EmailProvider, SmsProvider } from '@cryptopay/adapters';
 import { decryptField, encryptField, LocalDevKeyProvider, type EncryptedField, type KeyProvider } from '@cryptopay/security';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
@@ -591,6 +591,16 @@ export interface CustomerAuthAppOptions {
   smsProvider?: SmsProvider;
 }
 
+function runtimeVersion(service: string): Record<string, string> {
+  return {
+    service,
+    releaseId: process.env.RELEASE_ID ?? 'dev',
+    gitSha: process.env.GIT_SHA ?? 'local',
+    deployColor: process.env.DEPLOY_COLOR ?? 'local',
+    environment: process.env.ENVIRONMENT ?? process.env.NODE_ENV ?? 'development'
+  };
+}
+
 export async function buildCustomerAuthApp(options?: CustomerAuthAppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
   const metrics = createServiceMetrics('customer-auth');
@@ -631,7 +641,15 @@ export async function buildCustomerAuthApp(options?: CustomerAuthAppOptions): Pr
   });
 
   app.get('/healthz', async () => ({ ok: true, service: 'customer-auth' }));
-  app.get('/readyz', async () => ({ ok: true }));
+  app.get('/readyz', async (_request, reply) => {
+    const health = await deepHealthCheck('customer-auth');
+    const status = health.status === 'unhealthy' ? 503 : 200;
+    return reply.status(status).send({
+      ok: health.status !== 'unhealthy',
+      ...health
+    });
+  });
+  app.get('/version', async () => runtimeVersion('customer-auth'));
   app.get('/metrics', async (_request, reply) => {
     reply.header('content-type', metrics.registry.contentType);
     return metrics.registry.metrics();

@@ -4,18 +4,43 @@ import { createEmailProvider, createSmsProvider } from '@cryptopay/adapters';
 import { buildCustomerAuthApp } from './app.js';
 
 async function main(): Promise<void> {
-  const emailProvider = createEmailProvider({
+  const emailProviderConfig: {
+    provider: 'resend' | 'mock';
+    resendApiKey?: string;
+    defaultFrom?: string;
+  } = {
     provider: (process.env['EMAIL_PROVIDER'] as 'resend' | 'mock') ?? 'mock',
-    resendApiKey: process.env['RESEND_API_KEY'],
     defaultFrom: process.env['EMAIL_FROM'] ?? 'noreply@cryptopay.com'
-  });
+  };
 
-  const smsProvider = createSmsProvider({
-    provider: (process.env['SMS_PROVIDER'] as 'africastalking' | 'mock') ?? 'mock',
-    atApiKey: process.env['AT_API_KEY'],
-    atUsername: process.env['AT_USERNAME'],
-    atSenderId: process.env['AT_SENDER_ID']
-  });
+  if (process.env['RESEND_API_KEY']) {
+    emailProviderConfig.resendApiKey = process.env['RESEND_API_KEY'];
+  }
+
+  const emailProvider = createEmailProvider(emailProviderConfig);
+
+  const smsProviderConfig: {
+    provider: 'africastalking' | 'mock';
+    atApiKey?: string;
+    atUsername?: string;
+    atSenderId?: string;
+  } = {
+    provider: (process.env['SMS_PROVIDER'] as 'africastalking' | 'mock') ?? 'mock'
+  };
+
+  if (process.env['AT_API_KEY']) {
+    smsProviderConfig.atApiKey = process.env['AT_API_KEY'];
+  }
+
+  if (process.env['AT_USERNAME']) {
+    smsProviderConfig.atUsername = process.env['AT_USERNAME'];
+  }
+
+  if (process.env['AT_SENDER_ID']) {
+    smsProviderConfig.atSenderId = process.env['AT_SENDER_ID'];
+  }
+
+  const smsProvider = createSmsProvider(smsProviderConfig);
 
   const app = await buildCustomerAuthApp({ emailProvider, smsProvider });
   const port = Number(process.env.CUSTOMER_AUTH_PORT ?? '3005');
