@@ -1,0 +1,247 @@
+# ── CryptoPay Production Stack ──
+# Usage: docker compose -f docker-compose.prod.yml up -d
+# Requires: images built and available (locally or from GHCR)
+
+x-node-service: &node-service
+  restart: unless-stopped
+  env_file:
+    - ${APP_ENV_FILE:-.env.prod}
+  deploy:
+    resources:
+      limits:
+        memory: 384M
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # ─── Infrastructure ───
+  postgres:
+    image: postgres:16-alpine
+    container_name: cryptopay-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cryptopay}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-cryptopay}
+    ports:
+      - '127.0.0.1:5432:5432'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cryptopay} -d ${POSTGRES_DB:-cryptopay}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    container_name: cryptopay-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - '127.0.0.1:6379:6379'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 192M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─── Node.js API Services ───
+  core-api:
+    <<: *node-service
+    image: ${CORE_API_IMAGE:-ghcr.io/ephrem/cryptopay-core-api:latest}
+    container_name: cryptopay-core-api
+    environment:
+      APP_REGION: ethiopia
+      PORT: 3001
+    ports:
+      - '127.0.0.1:3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      customer-auth:
+        condition: service_started
+
+  customer-auth:
+    <<: *node-service
+    image: ${CUSTOMER_AUTH_IMAGE:-ghcr.io/ephrem/cryptopay-customer-auth:latest}
+    container_name: cryptopay-customer-auth
+    environment:
+      APP_REGION: ethiopia
+      PORT: 3005
+    ports:
+      - '127.0.0.1:3005:3005'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  offshore-collector:
+    <<: *node-service
+    image: ${OFFSHORE_COLLECTOR_IMAGE:-ghcr.io/ephrem/cryptopay-offshore-collector:latest}
+    container_name: cryptopay-offshore-collector
+    environment:
+      APP_REGION: offshore
+      PORT: 3002
+    ports:
+      - '127.0.0.1:3002:3002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  payout-orchestrator:
+    <<: *node-service
+    image: ${PAYOUT_ORCHESTRATOR_IMAGE:-ghcr.io/ephrem/cryptopay-payout-orchestrator:latest}
+    container_name: cryptopay-payout-orchestrator
+    environment:
+      APP_REGION: ethiopia
+      PORT: 3003
+    ports:
+      - '127.0.0.1:3003:3003'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  reconciliation-worker:
+    <<: *node-service
+    image: ${RECONCILIATION_WORKER_IMAGE:-ghcr.io/ephrem/cryptopay-reconciliation-worker:latest}
+    container_name: cryptopay-reconciliation-worker
+    environment:
+      APP_REGION: ethiopia
+      PORT: 3004
+    ports:
+      - '127.0.0.1:3004:3004'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  admin-api:
+    <<: *node-service
+    image: ${ADMIN_API_IMAGE:-ghcr.io/ephrem/cryptopay-admin-api:latest}
+    container_name: cryptopay-admin-api
+    environment:
+      APP_REGION: ethiopia
+      ADMIN_API_PORT: 3010
+    ports:
+      - '127.0.0.1:3010:3010'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ─── Go Blockchain Watchers ───
+  base-watcher:
+    image: ${BASE_WATCHER_IMAGE:-ghcr.io/ephrem/cryptopay-base-watcher:latest}
+    container_name: cryptopay-base-watcher
+    restart: unless-stopped
+    env_file:
+      - ${APP_ENV_FILE:-.env.prod}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      core-api:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  solana-watcher:
+    image: ${SOLANA_WATCHER_IMAGE:-ghcr.io/ephrem/cryptopay-solana-watcher:latest}
+    container_name: cryptopay-solana-watcher
+    restart: unless-stopped
+    env_file:
+      - ${APP_ENV_FILE:-.env.prod}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      core-api:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─── Frontend ───
+  web:
+    <<: *node-service
+    image: ${WEB_IMAGE:-ghcr.io/ephrem/cryptopay-web:latest}
+    container_name: cryptopay-web
+    environment:
+      PORT: 3000
+      WEB_CORE_API_URL: http://core-api:3001
+      WEB_OFFSHORE_COLLECTOR_URL: http://offshore-collector:3002
+    ports:
+      - '80:3000'
+    depends_on:
+      core-api:
+        condition: service_started
+
+  # ─── Monitoring (optional) ───
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cryptopay-prometheus
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - '127.0.0.1:9090:9090'
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
