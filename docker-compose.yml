@@ -38,7 +38,7 @@ services:
       - .env
     environment:
       APP_REGION: ethiopia
-    command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/core-api dev"]
+    command: ["sh", "-lc", "pnpm --version >/dev/null 2>&1 || npm i -g pnpm@9.15.5; pnpm --filter @cryptopay/core-api dev"]
     volumes:
       - ./:/workspace
     ports:
@@ -59,7 +59,7 @@ services:
       - .env
     environment:
       APP_REGION: ethiopia
-    command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/customer-auth dev"]
+    command: ["sh", "-lc", "pnpm --version >/dev/null 2>&1 || npm i -g pnpm@9.15.5; pnpm --filter @cryptopay/customer-auth dev"]
     volumes:
       - ./:/workspace
     ports:
@@ -78,7 +78,7 @@ services:
       - .env
     environment:
       APP_REGION: offshore
-    command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/offshore-collector dev"]
+    command: ["sh", "-lc", "pnpm --version >/dev/null 2>&1 || npm i -g pnpm@9.15.5; pnpm --filter @cryptopay/offshore-collector dev"]
     volumes:
       - ./:/workspace
     ports:
@@ -97,7 +97,7 @@ services:
       - .env
     environment:
       APP_REGION: ethiopia
-    command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/payout-orchestrator dev"]
+    command: ["sh", "-lc", "pnpm --version >/dev/null 2>&1 || npm i -g pnpm@9.15.5; pnpm --filter @cryptopay/payout-orchestrator dev"]
     volumes:
       - ./:/workspace
     ports:
@@ -116,7 +116,7 @@ services:
       - .env
     environment:
       APP_REGION: ethiopia
-    command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/reconciliation-worker dev"]
+    command: ["sh", "-lc", "pnpm --version >/dev/null 2>&1 || npm i -g pnpm@9.15.5; pnpm --filter @cryptopay/reconciliation-worker dev"]
     volumes:
       - ./:/workspace
     ports:
@@ -167,7 +167,7 @@ services:
       PORT: 3000
       WEB_CORE_API_URL: http://core-api:3001
       WEB_OFFSHORE_COLLECTOR_URL: http://offshore-collector:3002
-    command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/web dev -- --hostname 0.0.0.0 --port 3000"]
+    command: ["sh", "-lc", "pnpm --version >/dev/null 2>&1 || npm i -g pnpm@9.15.5; pnpm --filter @cryptopay/web dev -- --hostname 0.0.0.0 --port 3000"]
     volumes:
       - ./:/workspace
     ports:
