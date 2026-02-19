@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
+    "build": "node ../../scripts/build/build-runtime.mjs --entry src/server.ts --out dist/server.cjs",
+    "start": "node dist/server.cjs",
     "lint": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --pool=forks --poolOptions.forks.singleFork=true"
@@ -17,6 +18,7 @@
     "@cryptopay/adapters": "workspace:*",
     "@cryptopay/auth": "workspace:*",
     "@cryptopay/db": "workspace:*",
+    "@cryptopay/domain": "workspace:*",
     "@cryptopay/observability": "workspace:*",
     "@cryptopay/security": "workspace:*",
     "fastify": "^5.2.1",
