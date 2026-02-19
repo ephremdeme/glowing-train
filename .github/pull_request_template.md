@@ -6,12 +6,12 @@
 - [ ] Ethiopia-side services remain crypto-free (no chain SDKs / wallet logic)
 
 ## Verification
-- [ ] `corepack pnpm -w lint`
-- [ ] `corepack pnpm -w typecheck`
-- [ ] `corepack pnpm -w test`
+- [ ] `pnpm -w lint`
+- [ ] `pnpm -w typecheck`
+- [ ] `pnpm -w test`
 - [ ] `go test ./workers/base-watcher/...`
 - [ ] `go test ./workers/solana-watcher/...`
-- [ ] `corepack pnpm check:ethiopia-boundary`
+- [ ] `pnpm check:ethiopia-boundary`
 
 ## AGENTS.md DoD
 - [ ] Plan documented before implementation; files-to-change listed

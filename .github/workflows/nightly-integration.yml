@@ -1,15 +1,12 @@
-name: CI
+name: Nightly Integration
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - feat/**
-      - codex/**
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 jobs:
-  validate:
+  nightly:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -46,10 +43,10 @@ jobs:
       WATCHER_CALLBACK_SECRET: test-callback-secret
       WATCHER_CALLBACK_MAX_AGE_MS: '300000'
       PAYOUT_ORCHESTRATOR_URL: http://localhost:3003
-      RELEASE_ID: ci-${{ github.run_id }}
+      RELEASE_ID: nightly-${{ github.run_id }}
       GIT_SHA: ${{ github.sha }}
-      DEPLOY_COLOR: ci
-      ENVIRONMENT: ci
+      DEPLOY_COLOR: nightly
+      ENVIRONMENT: nightly
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -68,39 +65,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Ethiopia boundary check
+      - name: Boundary checks
         run: pnpm check:ethiopia-boundary
-
-      - name: Lint
-        run: pnpm -w lint
-
-      - name: Typecheck
-        run: pnpm -w typecheck
 
       - name: Run DB migrations
         run: pnpm --filter @cryptopay/db migrate
 
-      - name: Unit tests
-        run: pnpm test:unit
+      - name: Adapter sandbox-style coverage
+        run: |
+          pnpm --filter @cryptopay/adapters test
+          pnpm --filter @cryptopay/customer-auth test
 
-      - name: Integration tests
+      - name: Integration suites
         run: pnpm test:integration
 
-      - name: E2E backend flow
+      - name: Full MVP flow with replay/retry/reconciliation assertions
         run: pnpm test:e2e
-
-      - name: Detect web changes
-        id: web_changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            web:
-              - 'apps/web/**'
-
-      - name: Web Playwright smoke (changed frontend only)
-        if: steps.web_changes.outputs.web == 'true'
-        continue-on-error: true
-        run: pnpm test:web:e2e
 
       - name: Setup Go
         uses: actions/setup-go@v5

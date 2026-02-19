@@ -1,0 +1,86 @@
+name: Deploy Staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      color:
+        description: Deploy target color
+        required: true
+        default: green
+        type: choice
+        options:
+          - blue
+          - green
+      image_tag:
+        description: Image tag to deploy
+        required: true
+        default: latest
+        type: string
+
+jobs:
+  deploy-ethiopia:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy Ethiopia stack color
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.STAGING_ETHIOPIA_HOST }}
+          username: ${{ secrets.STAGING_VM_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd /opt/cryptopay
+            ./scripts/deploy/deploy_color.sh \
+              --domain ethiopia \
+              --color ${{ inputs.color }} \
+              --environment staging \
+              --image-tag ${{ inputs.image_tag }}
+
+  deploy-offshore:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy Offshore stack color
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.STAGING_OFFSHORE_HOST }}
+          username: ${{ secrets.STAGING_VM_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd /opt/cryptopay
+            ./scripts/deploy/deploy_color.sh \
+              --domain offshore \
+              --color ${{ inputs.color }} \
+              --environment staging \
+              --image-tag ${{ inputs.image_tag }}
+
+  smoke-and-switch:
+    runs-on: ubuntu-latest
+    needs:
+      - deploy-ethiopia
+      - deploy-offshore
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run smoke checks
+        run: |
+          ./scripts/smoke/ethiopia_smoke.sh --base-url "${{ secrets.STAGING_ETHIOPIA_BASE_URL }}"
+          ./scripts/smoke/offshore_smoke.sh --base-url "${{ secrets.STAGING_OFFSHORE_BASE_URL }}"
+
+      - name: Switch edge upstream to selected color
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.STAGING_EDGE_HOST }}
+          username: ${{ secrets.STAGING_VM_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd /opt/cryptopay
+            ./scripts/deploy/switch_color.sh --color ${{ inputs.color }} --environment staging
