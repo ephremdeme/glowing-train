@@ -1,0 +1,21 @@
+{
+  admin off
+}
+
+# The active upstream host:port values are switched by deployment scripts.
+{$EDGE_HOSTNAME:0.0.0.0} {
+  encode gzip zstd
+
+  handle_path /api/* {
+    reverse_proxy {$ETHIOPIA_API_UPSTREAM:http://10.0.11.10:3101}
+  }
+
+  handle /offshore/* {
+    uri strip_prefix /offshore
+    reverse_proxy {$OFFSHORE_API_UPSTREAM:http://10.0.21.10:4102}
+  }
+
+  handle {
+    reverse_proxy {$WEB_UPSTREAM:http://10.0.11.10:3100}
+  }
+}

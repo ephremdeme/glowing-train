@@ -1,0 +1,117 @@
+name: ethiopia-green
+
+services:
+  core-api:
+    image: ${IMAGE_REGISTRY:-ghcr.io/cryptopay}/core-api:${IMAGE_TAG:-latest}
+    container_name: cryptopay-core-api-green
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      DEPLOY_COLOR: green
+      RELEASE_ID: ${RELEASE_ID:-local}
+      GIT_SHA: ${GIT_SHA:-local}
+      APP_REGION: ethiopia
+      CORE_API_PORT: 3001
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      ETHIOPIA_SERVICES_CRYPTO_DISABLED: 'true'
+      CUSTOMER_AUTH_URL: http://customer-auth:3005
+      PAYOUT_ORCHESTRATOR_URL: http://payout-orchestrator:3003
+      RECONCILIATION_WORKER_URL: http://reconciliation-worker:3004
+    ports:
+      - '3201:3001'
+    depends_on:
+      - customer-auth
+      - payout-orchestrator
+      - reconciliation-worker
+
+  customer-auth:
+    image: ${IMAGE_REGISTRY:-ghcr.io/cryptopay}/customer-auth:${IMAGE_TAG:-latest}
+    container_name: cryptopay-customer-auth-green
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      DEPLOY_COLOR: green
+      RELEASE_ID: ${RELEASE_ID:-local}
+      GIT_SHA: ${GIT_SHA:-local}
+      APP_REGION: ethiopia
+      CUSTOMER_AUTH_PORT: 3005
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      ETHIOPIA_SERVICES_CRYPTO_DISABLED: 'true'
+    ports:
+      - '3205:3005'
+
+  payout-orchestrator:
+    image: ${IMAGE_REGISTRY:-ghcr.io/cryptopay}/payout-orchestrator:${IMAGE_TAG:-latest}
+    container_name: cryptopay-payout-orchestrator-green
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      DEPLOY_COLOR: green
+      RELEASE_ID: ${RELEASE_ID:-local}
+      GIT_SHA: ${GIT_SHA:-local}
+      APP_REGION: ethiopia
+      PAYOUT_ORCHESTRATOR_PORT: 3003
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      ETHIOPIA_SERVICES_CRYPTO_DISABLED: 'true'
+    ports:
+      - '3203:3003'
+
+  reconciliation-worker:
+    image: ${IMAGE_REGISTRY:-ghcr.io/cryptopay}/reconciliation-worker:${IMAGE_TAG:-latest}
+    container_name: cryptopay-reconciliation-worker-green
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      DEPLOY_COLOR: green
+      RELEASE_ID: ${RELEASE_ID:-local}
+      GIT_SHA: ${GIT_SHA:-local}
+      APP_REGION: ethiopia
+      RECONCILIATION_WORKER_PORT: 3004
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      ETHIOPIA_SERVICES_CRYPTO_DISABLED: 'true'
+    ports:
+      - '3204:3004'
+
+  admin-api:
+    image: ${IMAGE_REGISTRY:-ghcr.io/cryptopay}/admin-api:${IMAGE_TAG:-latest}
+    container_name: cryptopay-admin-api-green
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      DEPLOY_COLOR: green
+      RELEASE_ID: ${RELEASE_ID:-local}
+      GIT_SHA: ${GIT_SHA:-local}
+      APP_REGION: ethiopia
+      ADMIN_API_PORT: 3010
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      ETHIOPIA_SERVICES_CRYPTO_DISABLED: 'true'
+    ports:
+      - '3210:3010'
+
+  web:
+    image: ${IMAGE_REGISTRY:-ghcr.io/cryptopay}/web:${IMAGE_TAG:-latest}
+    container_name: cryptopay-web-green
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      DEPLOY_COLOR: green
+      RELEASE_ID: ${RELEASE_ID:-local}
+      GIT_SHA: ${GIT_SHA:-local}
+      PORT: 3000
+      WEB_CORE_API_URL: ${WEB_CORE_API_URL:-http://core-api:3001}
+      WEB_OFFSHORE_COLLECTOR_URL: ${WEB_OFFSHORE_COLLECTOR_URL:-http://10.0.21.10:4202}
+    depends_on:
+      - core-api
+    ports:
+      - '3200:3000'

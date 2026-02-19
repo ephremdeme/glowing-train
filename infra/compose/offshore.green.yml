@@ -1,0 +1,69 @@
+name: offshore-green
+
+services:
+  offshore-collector:
+    image: ${IMAGE_REGISTRY:-ghcr.io/cryptopay}/offshore-collector:${IMAGE_TAG:-latest}
+    container_name: cryptopay-offshore-collector-green
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      DEPLOY_COLOR: green
+      RELEASE_ID: ${RELEASE_ID:-local}
+      GIT_SHA: ${GIT_SHA:-local}
+      APP_REGION: offshore
+      OFFSHORE_COLLECTOR_PORT: 3002
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+    ports:
+      - '4202:3002'
+
+  base-watcher:
+    image: ${IMAGE_REGISTRY:-ghcr.io/cryptopay}/base-watcher:${IMAGE_TAG:-latest}
+    container_name: cryptopay-base-watcher-green
+    restart: unless-stopped
+    environment:
+      APP_REGION: offshore
+      RELEASE_ID: ${RELEASE_ID:-local}
+      GIT_SHA: ${GIT_SHA:-local}
+      DEPLOY_COLOR: green
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      DATABASE_URL: ${DATABASE_URL}
+      CORE_API_URL: ${ETHIOPIA_CORE_API_URL}
+      CORE_API_FUNDING_CALLBACK_URL: ${CORE_API_FUNDING_CALLBACK_URL}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      AUTH_JWT_ISSUER: ${AUTH_JWT_ISSUER}
+      AUTH_JWT_AUDIENCE: ${AUTH_JWT_AUDIENCE}
+      WATCHER_CALLBACK_SECRET: ${WATCHER_CALLBACK_SECRET}
+      BASE_RPC_URL: ${BASE_RPC_URL}
+      BASE_USDC_CONTRACT: ${BASE_USDC_CONTRACT}
+      BASE_USDT_CONTRACT: ${BASE_USDT_CONTRACT}
+      BASE_MIN_CONFIRMATIONS: ${BASE_MIN_CONFIRMATIONS:-2}
+      BASE_POLL_INTERVAL_MS: ${BASE_POLL_INTERVAL_MS:-5000}
+    depends_on:
+      - offshore-collector
+
+  solana-watcher:
+    image: ${IMAGE_REGISTRY:-ghcr.io/cryptopay}/solana-watcher:${IMAGE_TAG:-latest}
+    container_name: cryptopay-solana-watcher-green
+    restart: unless-stopped
+    environment:
+      APP_REGION: offshore
+      RELEASE_ID: ${RELEASE_ID:-local}
+      GIT_SHA: ${GIT_SHA:-local}
+      DEPLOY_COLOR: green
+      ENVIRONMENT: ${ENVIRONMENT:-staging}
+      DATABASE_URL: ${DATABASE_URL}
+      CORE_API_URL: ${ETHIOPIA_CORE_API_URL}
+      CORE_API_FUNDING_CALLBACK_URL: ${CORE_API_FUNDING_CALLBACK_URL}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      AUTH_JWT_ISSUER: ${AUTH_JWT_ISSUER}
+      AUTH_JWT_AUDIENCE: ${AUTH_JWT_AUDIENCE}
+      WATCHER_CALLBACK_SECRET: ${WATCHER_CALLBACK_SECRET}
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL}
+      SOLANA_USDC_MINT: ${SOLANA_USDC_MINT}
+      SOLANA_USDT_MINT: ${SOLANA_USDT_MINT}
+      SOLANA_POLL_INTERVAL_MS: ${SOLANA_POLL_INTERVAL_MS:-5000}
+      SOLANA_SIGNATURE_LIMIT: ${SOLANA_SIGNATURE_LIMIT:-100}
+    depends_on:
+      - offshore-collector

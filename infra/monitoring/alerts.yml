@@ -9,6 +9,14 @@ groups:
         annotations:
           summary: Core API error rate is high
 
+      - alert: CoreApiFiveXXSpike
+        expr: sum(increase(core_api_request_total{status=~"5.."}[10m])) > 10
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Core API 5xx spike detected during release guard window
+
       - alert: PayoutOrchestratorErrorRateHigh
         expr: increase(payout_orchestrator_error_total[5m]) > 10
         for: 5m
@@ -16,6 +24,22 @@ groups:
           severity: warning
         annotations:
           summary: Payout orchestrator error rate is high
+
+      - alert: PayoutRetryExhaustionHigh
+        expr: increase(payout_orchestrator_retry_exhausted_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Payout retries exhausted and manual review is growing
+
+      - alert: PayoutSlaBreachDetected
+        expr: increase(core_api_sla_breach_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Transfer payout SLA breach detected
 
       - alert: ReconciliationWorkerErrors
         expr: increase(reconciliation_worker_error_total[15m]) > 0
@@ -25,6 +49,14 @@ groups:
         annotations:
           summary: Reconciliation worker returned errors
 
+      - alert: ReconciliationIssueSpike
+        expr: increase(reconciliation_worker_issue_total[15m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Reconciliation issues spiked above baseline
+
       - alert: OffshoreCollectorErrors
         expr: increase(offshore_collector_error_total[5m]) > 10
         for: 5m
@@ -32,3 +64,27 @@ groups:
           severity: warning
         annotations:
           summary: Offshore collector error rate is high
+
+      - alert: BaseWatcherLagHigh
+        expr: base_watcher_lag_seconds > 300
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: Base watcher lag exceeded 5 minutes
+
+      - alert: SolanaWatcherLagHigh
+        expr: solana_watcher_lag_seconds > 300
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: Solana watcher lag exceeded 5 minutes
+
+      - alert: ServiceBuildMetadataMissing
+        expr: absent(core_api_build_info)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Build metadata metrics are missing for core-api
