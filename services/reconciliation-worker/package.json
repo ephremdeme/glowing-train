@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
+    "build": "node ../../scripts/build/build-runtime.mjs --entry src/server.ts --out dist/server.cjs",
+    "start": "node dist/server.cjs",
     "lint": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --pool=forks --poolOptions.forks.singleFork=true"
