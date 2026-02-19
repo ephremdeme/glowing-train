@@ -19,6 +19,7 @@
     "@cryptopay/observability": "workspace:*",
     "@cryptopay/security": "workspace:*",
     "fastify": "^5.2.1",
+    "tsx": "^4.21.0",
     "zod": "^3.24.1"
   }
 }
