@@ -1,10 +1,11 @@
-import { Counter, Histogram, Registry } from 'prom-client';
+import { Counter, Gauge, Histogram, Registry } from 'prom-client';
 
 export function createServiceMetrics(serviceName: string): {
   registry: Registry;
   requestDurationMs: Histogram<string>;
   requestCount: Counter<string>;
   errorCount: Counter<string>;
+  buildInfo: Gauge<string>;
 } {
   const registry = new Registry();
 
@@ -30,10 +31,27 @@ export function createServiceMetrics(serviceName: string): {
     registers: [registry]
   });
 
+  const buildInfo = new Gauge({
+    name: `${serviceName.replaceAll('-', '_')}_build_info`,
+    help: 'Build and deployment metadata for this running service',
+    labelNames: ['release_id', 'git_sha', 'deploy_color', 'environment'] as const,
+    registers: [registry]
+  });
+
+  buildInfo
+    .labels(
+      process.env.RELEASE_ID ?? 'dev',
+      process.env.GIT_SHA ?? 'local',
+      process.env.DEPLOY_COLOR ?? 'local',
+      process.env.ENVIRONMENT ?? process.env.NODE_ENV ?? 'development'
+    )
+    .set(1);
+
   return {
     registry,
     requestDurationMs,
     requestCount,
-    errorCount
+    errorCount,
+    buildInfo
   };
 }
