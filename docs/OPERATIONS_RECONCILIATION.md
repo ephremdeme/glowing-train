@@ -1,35 +1,39 @@
 # Reconciliation Operations
 
 ## Purpose
-The reconciliation worker compares transfer lifecycle records against:
-- on-chain funding confirmations,
-- payout instruction state,
-- and ledger debit/credit parity.
+The reconciliation worker compares:
+- transfer state machine lifecycle,
+- on-chain funding records,
+- payout instruction status,
+- ledger debit/credit parity.
 
 It writes:
-- `reconciliation_run` metadata,
-- `reconciliation_issue` findings,
-- and CSV output for operations/compliance review.
+- `reconciliation_run`
+- `reconciliation_issue`
+- CSV report artifacts.
 
-## Run Command
+## Scheduled cadence
+- Active transfer sweep: every 5 minutes (default).
+- Daily operations run for reporting and exception review.
+
+## Manual command
 ```bash
-corepack pnpm --filter @cryptopay/reconciliation-worker test
+ops-cli recon run --reason "daily reconciliation" --output /tmp/recon.csv
 ```
 
-## Issue Codes
-- `MISSING_FUNDING_EVENT`: transfer is past funding stage but no on-chain funding event exists.
-- `LEDGER_IMBALANCE`: debit and credit totals do not match for a transfer.
-- `PAYOUT_STATUS_MISMATCH`: transfer status and payout instruction status conflict.
-- `MISSING_PAYOUT_RECORD`: transfer is payout-initiated but payout instruction row is missing.
+## Issue codes
+- `MISSING_FUNDING_EVENT`
+- `LEDGER_IMBALANCE`
+- `PAYOUT_STATUS_MISMATCH`
+- `MISSING_PAYOUT_RECORD`
 
-## CSV Columns
-- transfer_id
-- quote_id
-- chain
-- token
-- funded_amount_usd
-- expected_etb
-- payout_status
-- ledger_balanced
-- issue_code
-- detected_at
+## Run evidence requirements
+For each scheduled/manual run, keep:
+1. run id
+2. start/end time
+3. issue counts by code
+4. CSV output path and checksum
+5. exception stack (if failed)
+
+## Post-rollback requirement
+After any rollback, run reconciliation immediately and triage all open issues before closing the incident.

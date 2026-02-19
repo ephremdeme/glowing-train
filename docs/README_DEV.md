@@ -3,35 +3,35 @@
 ## Prerequisites
 - Node.js 22+
 - Docker + Docker Compose
-- Corepack enabled (pnpm)
-- Go toolchain (for watcher tests)
+- pnpm 9.15.5+
+- Go 1.22+ (watcher tests)
 
 ## Setup
 ```bash
-corepack prepare pnpm@9.15.5 --activate
-corepack pnpm install
+pnpm --version
+pnpm install
 cp .env.example .env
 ```
 
-## Start infrastructure
+## Start local dependencies (lightweight)
 ```bash
 docker compose up -d postgres redis
-corepack pnpm --filter @cryptopay/db migrate
+pnpm --filter @cryptopay/db migrate
 ```
 
-## Run all HTTP services in Docker
+## Start services (host mode)
+```bash
+pnpm dev:customer-auth
+pnpm dev:core-api
+pnpm dev:offshore-collector
+pnpm dev:payout-orchestrator
+pnpm dev:reconciliation-worker
+pnpm dev:web
+```
+
+## Start all services in Docker (dev mode)
 ```bash
 docker compose up -d customer-auth core-api offshore-collector payout-orchestrator reconciliation-worker base-watcher solana-watcher web
-```
-
-## Run services on host (alternative)
-```bash
-corepack pnpm dev:core-api
-corepack pnpm dev:customer-auth
-corepack pnpm dev:offshore-collector
-corepack pnpm dev:payout-orchestrator
-corepack pnpm dev:reconciliation-worker
-corepack pnpm dev:web
 ```
 
 ## Service endpoints
@@ -39,67 +39,54 @@ corepack pnpm dev:web
 - Offshore Collector: `http://localhost:3002`
 - Payout Orchestrator: `http://localhost:3003`
 - Reconciliation Worker: `http://localhost:3004`
-- Customer Auth (internal): `http://localhost:3005`
-- Web Client: `http://localhost:3000`
+- Customer Auth: `http://localhost:3005`
+- Web: `http://localhost:3000`
 
 Each service exposes:
 - `GET /healthz`
 - `GET /readyz`
+- `GET /version`
 - `GET /metrics`
 
-## Verify workspace
+## Validation and test matrix
+
+### Full validation
 ```bash
-corepack pnpm -w lint
-corepack pnpm -w typecheck
-corepack pnpm -w test
-corepack pnpm check:ethiopia-boundary
-go test ./workers/base-watcher/...
-go test ./workers/solana-watcher/...
+pnpm check:ethiopia-boundary
+pnpm -w lint
+pnpm -w typecheck
+pnpm go:test
 ```
 
-## Ops CLI quickstart
+### Unit-only suites
 ```bash
-export OPS_AUTH_TOKEN="<admin-jwt>"
-corepack pnpm --filter @cryptopay/ops-cli dev transfers list --api-url http://localhost:3001
+pnpm test:unit
 ```
 
-## Notes
-- Keep `ETHIOPIA_SERVICES_CRYPTO_DISABLED=true` for Ethiopia-side processes.
-- Telebirr remains feature-flagged off for MVP (`PAYOUT_TELEBIRR_ENABLED=false`).
-- Customer auth is in scope in this stage (`customer-auth` service + `core-api` `/v1/auth/*` proxy).
-
-## Frontend Validation
+### DB integration suites
 ```bash
-corepack pnpm --filter @cryptopay/web typecheck
-corepack pnpm --filter @cryptopay/web test:e2e
+./scripts/ci/start-test-infra.sh
+pnpm --filter @cryptopay/db migrate
+pnpm test:integration
 ```
 
-## Frontend multipage routes
-- Landing: `http://localhost:3000/`
-- Signup: `http://localhost:3000/signup`
-- Login: `http://localhost:3000/login`
-- Quote: `http://localhost:3000/quote`
-- Transfer: `http://localhost:3000/transfer`
-- Transfer history: `http://localhost:3000/history`
-- Printable receipt: `http://localhost:3000/receipts/<transferId>`
-- Status: `http://localhost:3000/transfers/<transferId>`
-- Google OAuth callback: `http://localhost:3000/auth/google/callback`
+### End-to-end MVP flow
+```bash
+pnpm test:e2e
+```
 
-## Landing converter behavior
-- Landing computes an indicative ETB estimate from env-configured rate and fee.
-- `Lock real quote` creates a real quote via web BFF and stores quote draft.
-- If unauthenticated, user is routed to signup/login with `next=/transfer`.
+## Production-like compose specs
+Blue/green compose files are in:
+- `infra/compose/ethiopia.blue.yml`
+- `infra/compose/ethiopia.green.yml`
+- `infra/compose/offshore.blue.yml`
+- `infra/compose/offshore.green.yml`
 
-## Wallet + UI env flags
-- `NEXT_PUBLIC_WALLET_MODE=real|mock` (`mock` used by `dev:e2e`)
-- `NEXT_PUBLIC_SOLANA_CLUSTER=mainnet-beta|devnet|testnet`
-- `NEXT_PUBLIC_TELEBIRR_ENABLED=false` (MVP default)
-- `NEXT_PUBLIC_LANDING_USDC_ETB_RATE=140`
-- `NEXT_PUBLIC_LANDING_USDT_ETB_RATE=140`
-- `NEXT_PUBLIC_LANDING_FEE_USD=1`
-- `GOOGLE_OAUTH_REDIRECT_URL=http://localhost:3000/auth/google/callback`
-
-## Playwright MCP notes
-- Configure `~/.codex/config.toml` with Playwright MCP command.
-- Restart Codex desktop after config updates to reload MCP servers.
-- If MCP is unavailable in-session, use repo Playwright tests as fallback.
+## Environment guardrails
+- `ETHIOPIA_SERVICES_CRYPTO_DISABLED=true` must remain true for Ethiopia domain services.
+- `PAYOUT_TELEBIRR_ENABLED=false` for MVP.
+- Runtime deployment metadata variables:
+  - `RELEASE_ID`
+  - `GIT_SHA`
+  - `DEPLOY_COLOR`
+  - `ENVIRONMENT`

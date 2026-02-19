@@ -2,7 +2,7 @@
 
 ## Package
 - Workspace package: `@cryptopay/ops-cli`
-- Entry command: `ops-cli` (or `corepack pnpm --filter @cryptopay/ops-cli dev ...`)
+- Entry command: `ops-cli` (or `pnpm --filter @cryptopay/ops-cli dev ...`)
 
 ## Required auth
 Set an internal/admin JWT token:
