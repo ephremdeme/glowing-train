@@ -9,14 +9,14 @@
 ## Setup
 ```bash
 corepack prepare pnpm@9.15.5 --activate
-corepack pnpm install
+pnpm install
 cp .env.example .env
 ```
 
 ## Start infrastructure
 ```bash
 docker compose up -d postgres redis
-corepack pnpm --filter @cryptopay/db migrate
+pnpm --filter @cryptopay/db migrate
 ```
 
 ## Run all HTTP services in Docker
@@ -24,14 +24,53 @@ corepack pnpm --filter @cryptopay/db migrate
 docker compose up -d customer-auth core-api offshore-collector payout-orchestrator reconciliation-worker base-watcher solana-watcher web
 ```
 
+## Production-like local simulation
+Use the production compose topology with local image builds and isolated host ports.
+
+```bash
+cp .env.prod.example .env.prod.local
+# edit .env.prod.local with local/sandbox values
+
+APP_ENV_FILE=.env.prod.local docker compose --env-file .env.prod.local -p cryptopay-prod-sim \
+  -f docker-compose.prod.yml -f docker-compose.prod.sim.yml up -d --build postgres redis
+
+APP_ENV_FILE=.env.prod.local docker compose --env-file .env.prod.local -p cryptopay-prod-sim \
+  -f docker-compose.prod.yml -f docker-compose.prod.sim.yml \
+  run --rm --no-deps core-api node /app/node_modules/@cryptopay/db/dist/migrate.js
+
+APP_ENV_FILE=.env.prod.local docker compose --env-file .env.prod.local -p cryptopay-prod-sim \
+  -f docker-compose.prod.yml -f docker-compose.prod.sim.yml up -d --build
+```
+
+Simulation endpoints:
+- Core API: `http://localhost:13001`
+- Web: `http://localhost:18080`
+- Postgres: `localhost:15432`
+- Redis: `localhost:16379`
+
+Teardown:
+```bash
+APP_ENV_FILE=.env.prod.local docker compose --env-file .env.prod.local -p cryptopay-prod-sim \
+  -f docker-compose.prod.yml -f docker-compose.prod.sim.yml down
+```
+
+Smoke automation (recommended):
+```bash
+./scripts/prod-sim-smoke.sh
+```
+
+Useful options:
+- Keep the stack up after checks: `./scripts/prod-sim-smoke.sh --keep-running`
+- Reuse already-built images: `./scripts/prod-sim-smoke.sh --no-build`
+
 ## Run services on host (alternative)
 ```bash
-corepack pnpm dev:core-api
-corepack pnpm dev:customer-auth
-corepack pnpm dev:offshore-collector
-corepack pnpm dev:payout-orchestrator
-corepack pnpm dev:reconciliation-worker
-corepack pnpm dev:web
+pnpm dev:core-api
+pnpm dev:customer-auth
+pnpm dev:offshore-collector
+pnpm dev:payout-orchestrator
+pnpm dev:reconciliation-worker
+pnpm dev:web
 ```
 
 ## Service endpoints
@@ -49,10 +88,10 @@ Each service exposes:
 
 ## Verify workspace
 ```bash
-corepack pnpm -w lint
-corepack pnpm -w typecheck
-corepack pnpm -w test
-corepack pnpm check:ethiopia-boundary
+pnpm -w lint
+pnpm -w typecheck
+pnpm -w test
+pnpm check:ethiopia-boundary
 go test ./workers/base-watcher/...
 go test ./workers/solana-watcher/...
 ```
@@ -60,7 +99,7 @@ go test ./workers/solana-watcher/...
 ## Ops CLI quickstart
 ```bash
 export OPS_AUTH_TOKEN="<admin-jwt>"
-corepack pnpm --filter @cryptopay/ops-cli dev transfers list --api-url http://localhost:3001
+pnpm --filter @cryptopay/ops-cli dev transfers list --api-url http://localhost:3001
 ```
 
 ## Notes
@@ -70,8 +109,8 @@ corepack pnpm --filter @cryptopay/ops-cli dev transfers list --api-url http://lo
 
 ## Frontend Validation
 ```bash
-corepack pnpm --filter @cryptopay/web typecheck
-corepack pnpm --filter @cryptopay/web test:e2e
+pnpm --filter @cryptopay/web typecheck
+pnpm --filter @cryptopay/web test:e2e
 ```
 
 ## Frontend multipage routes
