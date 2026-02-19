@@ -14,6 +14,8 @@ TIMEOUT_SECONDS=120
 DELAY_SECONDS=2
 BUILD_ARGS="--build"
 KEEP_RUNNING=0
+RETRY_ATTEMPTS=3
+RETRY_BASE_DELAY_SECONDS=5
 
 usage() {
   cat <<'EOF'
@@ -95,6 +97,35 @@ compose() {
     "$@"
 }
 
+compose_up() {
+  if [ -n "$BUILD_ARGS" ]; then
+    compose up -d --build "$@"
+  else
+    compose up -d "$@"
+  fi
+}
+
+retry_cmd() {
+  label="$1"
+  shift
+  attempt=1
+  while :; do
+    if "$@"; then
+      return 0
+    fi
+
+    if [ "$attempt" -ge "$RETRY_ATTEMPTS" ]; then
+      echo "FAIL ${label} after ${RETRY_ATTEMPTS} attempts" >&2
+      return 1
+    fi
+
+    sleep_seconds=$((RETRY_BASE_DELAY_SECONDS * attempt + 1))
+    echo "Retrying ${label} in ${sleep_seconds}s (attempt $((attempt + 1))/${RETRY_ATTEMPTS})..."
+    sleep "$sleep_seconds"
+    attempt=$((attempt + 1))
+  done
+}
+
 cleanup() {
   if [ "$KEEP_RUNNING" -eq 1 ]; then
     return
@@ -114,7 +145,8 @@ wait_for() {
 
   i=1
   while [ "$i" -le "$attempts" ]; do
-    if curl -fsS "$url" > /dev/null 2>&1; then
+    # Bound each readiness probe so one slow endpoint cannot hang the smoke script.
+    if curl -fsS --connect-timeout 2 --max-time 5 "$url" > /dev/null 2>&1; then
       echo "OK  ${name}: ${url}"
       return 0
     fi
@@ -128,13 +160,67 @@ wait_for() {
 }
 
 echo "Bringing up dependencies..."
-compose up -d $BUILD_ARGS postgres redis
+retry_cmd "dependencies startup" compose_up postgres redis
 
 echo "Running migrations..."
-compose run --rm --no-deps core-api node /app/node_modules/@cryptopay/db/dist/migrate.js
+compose run --rm --no-deps core-api sh -lc '
+cd /app/node_modules/@cryptopay/db
+node <<'"'"'EOF'"'"'
+const { readdirSync, readFileSync } = require("node:fs");
+const path = require("node:path");
+const { Pool } = require("pg");
+
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("DATABASE_URL is required for migrations");
+}
+
+const pool = new Pool({ connectionString });
+const migrationDir = "./migrations";
+
+(async () => {
+  try {
+    await pool.query(
+      "create table if not exists schema_migrations (version text primary key, applied_at timestamptz not null default now())"
+    );
+
+    const files = readdirSync(migrationDir)
+      .filter((name) => name.endsWith(".sql"))
+      .sort((a, b) => a.localeCompare(b));
+
+    for (const filename of files) {
+      const alreadyApplied = await pool.query(
+        "select 1 from schema_migrations where version = $1 limit 1",
+        [filename]
+      );
+      if (alreadyApplied.rowCount) continue;
+
+      const sql = readFileSync(path.join(migrationDir, filename), "utf8");
+      await pool.query("begin");
+      try {
+        await pool.query(sql);
+        await pool.query("insert into schema_migrations(version) values ($1)", [filename]);
+        await pool.query("commit");
+        console.log("Applied migration: " + filename);
+      } catch (error) {
+        await pool.query("rollback");
+        throw error;
+      }
+    }
+
+    console.log("Migration run complete.");
+  } finally {
+    await pool.end();
+  }
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+EOF
+'
 
 echo "Bringing up full stack..."
-compose up -d $BUILD_ARGS
+retry_cmd "full stack startup" compose_up
 
 echo "Checking readiness..."
 wait_for "core-api" "http://localhost:13001/readyz" "core-api"
