@@ -11,7 +11,7 @@ export default defineConfig({
     headless: true
   },
   webServer: {
-    command: 'corepack pnpm --filter @cryptopay/web dev:e2e',
+    command: 'pnpm --filter @cryptopay/web dev:e2e',
     port: 3100,
     timeout: 120_000,
     reuseExistingServer: !process.env.CI
