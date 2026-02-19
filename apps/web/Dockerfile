@@ -7,6 +7,7 @@ FROM node:${NODE_VERSION}-alpine AS build
 RUN npm i -g pnpm@9.15.5 && npm cache clean --force
 WORKDIR /workspace
 COPY --link pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY --link tsconfig.base.json ./
 COPY --link packages/ ./packages/
 COPY --link services/ ./services/
 COPY --link apps/ ./apps/

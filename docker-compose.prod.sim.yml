@@ -6,14 +6,14 @@
 services:
   postgres:
     environment:
-      POSTGRES_USER: cryptopay
-      POSTGRES_PASSWORD: cryptopay
-      POSTGRES_DB: cryptopay
-    ports:
+      POSTGRES_USER: ${POSTGRES_USER:-cryptopay}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cryptopay}
+      POSTGRES_DB: ${POSTGRES_DB:-cryptopay}
+    ports: !override
       - '127.0.0.1:15432:5432'
 
   redis:
-    ports:
+    ports: !override
       - '127.0.0.1:16379:6379'
 
   core-api:
@@ -23,7 +23,7 @@ services:
       dockerfile: services/core-api/Dockerfile
     env_file:
       - .env.prod.local
-    ports:
+    ports: !override
       - '127.0.0.1:13001:3001'
 
   customer-auth:
@@ -33,7 +33,7 @@ services:
       dockerfile: services/customer-auth/Dockerfile
     env_file:
       - .env.prod.local
-    ports:
+    ports: !override
       - '127.0.0.1:13005:3005'
 
   offshore-collector:
@@ -43,7 +43,7 @@ services:
       dockerfile: services/offshore-collector/Dockerfile
     env_file:
       - .env.prod.local
-    ports:
+    ports: !override
       - '127.0.0.1:13002:3002'
 
   payout-orchestrator:
@@ -53,7 +53,7 @@ services:
       dockerfile: services/payout-orchestrator/Dockerfile
     env_file:
       - .env.prod.local
-    ports:
+    ports: !override
       - '127.0.0.1:13003:3003'
 
   reconciliation-worker:
@@ -63,7 +63,7 @@ services:
       dockerfile: services/reconciliation-worker/Dockerfile
     env_file:
       - .env.prod.local
-    ports:
+    ports: !override
       - '127.0.0.1:13004:3004'
 
   admin-api:
@@ -73,7 +73,7 @@ services:
       dockerfile: services/admin-api/Dockerfile
     env_file:
       - .env.prod.local
-    ports:
+    ports: !override
       - '127.0.0.1:13010:3010'
 
   base-watcher:
@@ -106,5 +106,5 @@ services:
         NEXT_PUBLIC_LANDING_FEE_USD: ${NEXT_PUBLIC_LANDING_FEE_USD:-1}
     env_file:
       - .env.prod.local
-    ports:
+    ports: !override
       - '127.0.0.1:18080:3000'
