@@ -1,6 +1,6 @@
 import { assertTokenType, authenticateBearerToken, type AuthClaims } from '@cryptopay/auth';
 import { getPool } from '@cryptopay/db';
-import { createServiceMetrics, log } from '@cryptopay/observability';
+import { createServiceMetrics, deepHealthCheck, log } from '@cryptopay/observability';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
@@ -131,6 +131,16 @@ function assertScope(claims: AuthClaims, scope: string): void {
   }
 }
 
+function runtimeVersion(service: string): Record<string, string> {
+  return {
+    service,
+    releaseId: process.env.RELEASE_ID ?? 'dev',
+    gitSha: process.env.GIT_SHA ?? 'local',
+    deployColor: process.env.DEPLOY_COLOR ?? 'local',
+    environment: process.env.ENVIRONMENT ?? process.env.NODE_ENV ?? 'development'
+  };
+}
+
 export async function buildOffshoreCollectorApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
 
@@ -156,7 +166,15 @@ export async function buildOffshoreCollectorApp(): Promise<FastifyInstance> {
   });
 
   app.get('/healthz', async () => ({ ok: true, service: 'offshore-collector' }));
-  app.get('/readyz', async () => ({ ok: true }));
+  app.get('/readyz', async (_request, reply) => {
+    const health = await deepHealthCheck('offshore-collector');
+    const status = health.status === 'unhealthy' ? 503 : 200;
+    return reply.status(status).send({
+      ok: health.status !== 'unhealthy',
+      ...health
+    });
+  });
+  app.get('/version', async () => runtimeVersion('offshore-collector'));
   app.get('/metrics', async (_request, reply) => {
     reply.header('content-type', metrics.registry.contentType);
     return metrics.registry.metrics();
