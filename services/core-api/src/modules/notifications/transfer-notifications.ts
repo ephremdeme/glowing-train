@@ -80,11 +80,13 @@ export class TransferNotificationService {
         if (context.senderEmail) {
             try {
                 const template = EMAIL_TEMPLATES[event];
-                await this.emailProvider.send({
+                const textBody = template.body(context);
+                await this.emailProvider.sendEmail({
                     to: context.senderEmail,
                     from: this.fromEmail,
                     subject: template.subject,
-                    text: template.body(context)
+                    html: textBody.replaceAll('\n', '<br/>'),
+                    text: textBody
                 });
                 result.emailSent = true;
             } catch (error) {
@@ -100,7 +102,7 @@ export class TransferNotificationService {
         if (context.senderPhone) {
             try {
                 const message = SMS_TEMPLATES[event](context);
-                await this.smsProvider.send({
+                await this.smsProvider.sendSms({
                     to: context.senderPhone,
                     message
                 });

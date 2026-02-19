@@ -181,6 +181,16 @@ const meUpdateSchema = z
     message: 'At least one field is required.'
   });
 
+function runtimeVersion(service: string): Record<string, string> {
+  return {
+    service,
+    releaseId: process.env.RELEASE_ID ?? 'dev',
+    gitSha: process.env.GIT_SHA ?? 'local',
+    deployColor: process.env.DEPLOY_COLOR ?? 'local',
+    environment: process.env.ENVIRONMENT ?? process.env.NODE_ENV ?? 'development'
+  };
+}
+
 function sha256(input: unknown): string {
   return createHash('sha256').update(JSON.stringify(input)).digest('hex');
 }
@@ -542,8 +552,12 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
   app.get('/readyz', async (_request, reply) => {
     const health = await deepHealthCheck('core-api');
     const status = health.status === 'unhealthy' ? 503 : 200;
-    return reply.status(status).send(health);
+    return reply.status(status).send({
+      ok: health.status !== 'unhealthy',
+      ...health
+    });
   });
+  app.get('/version', async () => runtimeVersion('core-api'));
   app.get('/metrics', async (_request, reply) => {
     reply.header('content-type', metrics.registry.contentType);
     return metrics.registry.metrics();
