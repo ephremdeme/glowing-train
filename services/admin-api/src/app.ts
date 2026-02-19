@@ -10,6 +10,16 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { getPool } from '@cryptopay/db';
 import { createServiceMetrics, deepHealthCheck, log } from '@cryptopay/observability';
 
+function runtimeVersion(service: string): Record<string, string> {
+    return {
+        service,
+        releaseId: process.env.RELEASE_ID ?? 'dev',
+        gitSha: process.env.GIT_SHA ?? 'local',
+        deployColor: process.env.DEPLOY_COLOR ?? 'local',
+        environment: process.env.ENVIRONMENT ?? process.env.NODE_ENV ?? 'development'
+    };
+}
+
 export async function buildAdminApiApp(): Promise<FastifyInstance> {
     const app = Fastify({ logger: false });
     const metrics = createServiceMetrics('admin-api');
@@ -18,8 +28,12 @@ export async function buildAdminApiApp(): Promise<FastifyInstance> {
     app.get('/healthz', async () => ({ ok: true, service: 'admin-api' }));
     app.get('/readyz', async (_request, reply) => {
         const health = await deepHealthCheck('admin-api');
-        return reply.status(health.status === 'unhealthy' ? 503 : 200).send(health);
+        return reply.status(health.status === 'unhealthy' ? 503 : 200).send({
+            ok: health.status !== 'unhealthy',
+            ...health
+        });
     });
+    app.get('/version', async () => runtimeVersion('admin-api'));
 
     // ── Dashboard: Transfer Summary ──
     app.get('/admin/v1/transfers/summary', async (request, reply) => {
