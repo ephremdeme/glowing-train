@@ -32,9 +32,9 @@ Ship a sender-facing frontend MVP under `apps/web` for the non-custodial remitta
 
 ### Commands
 ```bash
-corepack pnpm install
-corepack pnpm --filter @cryptopay/web typecheck
-corepack pnpm --filter @cryptopay/web test:e2e
+pnpm install
+pnpm --filter @cryptopay/web typecheck
+pnpm --filter @cryptopay/web test:e2e
 ```
 
 ### Acceptance Criteria

@@ -7,26 +7,26 @@ Legal-first, crypto-funded remittance platform for Ethiopia.
 ### 1. Install and configure
 ```bash
 corepack prepare pnpm@9.15.5 --activate
-corepack pnpm install
+pnpm install
 cp .env.example .env
 ```
 
 ### 2. Start backend dependencies
 ```bash
 docker compose up -d postgres redis
-corepack pnpm --filter @cryptopay/db migrate
+pnpm --filter @cryptopay/db migrate
 ```
 
 ### 3. Start APIs required by the web app
 ```bash
-corepack pnpm dev:customer-auth
-corepack pnpm dev:core-api
-corepack pnpm dev:offshore-collector
+pnpm dev:customer-auth
+pnpm dev:core-api
+pnpm dev:offshore-collector
 ```
 
 ### 4. Run the web app
 ```bash
-corepack pnpm dev:web
+pnpm dev:web
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
@@ -70,8 +70,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Frontend Validation
 ```bash
-corepack pnpm --filter @cryptopay/web typecheck
-corepack pnpm --filter @cryptopay/web test:e2e
+pnpm --filter @cryptopay/web typecheck
+pnpm --filter @cryptopay/web test:e2e
 ```
 
 ## Playwright MCP Notes

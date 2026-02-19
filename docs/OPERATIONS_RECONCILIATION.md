@@ -13,7 +13,7 @@ It writes:
 
 ## Run Command
 ```bash
-corepack pnpm --filter @cryptopay/reconciliation-worker test
+pnpm --filter @cryptopay/reconciliation-worker test
 ```
 
 ## Issue Codes

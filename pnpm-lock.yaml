@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@esbuild/linux-arm64':
+        specifier: ^0.27.3
+        version: 0.27.3
       '@types/node':
         specifier: ^22.13.4
         version: 22.19.11
@@ -6076,8 +6079,7 @@ snapshots:
   '@esbuild/linux-arm64@0.21.5':
     optional: true
 
-  '@esbuild/linux-arm64@0.27.3':
-    optional: true
+  '@esbuild/linux-arm64@0.27.3': {}
 
   '@esbuild/linux-arm@0.21.5':
     optional: true

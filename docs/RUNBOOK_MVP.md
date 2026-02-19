@@ -54,8 +54,8 @@ All write actions require `ops_admin` and are audited with actor + reason.
 docker compose up -d postgres redis
 
 # apply all migrations
-APP_REGION=ethiopia DATABASE_URL=postgres://cryptopay:cryptopay@localhost:55432/cryptopay REDIS_URL=redis://localhost:6379 ETHIOPIA_SERVICES_CRYPTO_DISABLED=true corepack pnpm --filter @cryptopay/db migrate
+APP_REGION=ethiopia DATABASE_URL=postgres://cryptopay:cryptopay@localhost:55432/cryptopay REDIS_URL=redis://localhost:6379 ETHIOPIA_SERVICES_CRYPTO_DISABLED=true pnpm --filter @cryptopay/db migrate
 
 # run e2e flow
-corepack pnpm exec vitest run tests/e2e/mvp-transfer-flow.test.ts
+pnpm exec vitest run tests/e2e/mvp-transfer-flow.test.ts
 ```
