@@ -1,6 +1,11 @@
 #!/usr/bin/env sh
 set -eu
-set -o pipefail 2>/dev/null || true
+
+# dash (/bin/sh on Ubuntu) may exit on unsupported shell options.
+# Probe in a subshell first, then enable if supported.
+if (set -o pipefail) >/dev/null 2>&1; then
+  set -o pipefail
+fi
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 ENV_FILE="${ROOT_DIR}/.env.prod.local"
