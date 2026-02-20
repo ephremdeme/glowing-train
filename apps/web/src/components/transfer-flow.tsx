@@ -12,7 +12,7 @@ import type {
   SessionPayload,
   TransferSummary
 } from '@/lib/contracts';
-import { ACCESS_TOKEN_KEY } from '@/lib/session';
+import { ACCESS_TOKEN_KEY, exchangeAccessToken } from '@/lib/session';
 import { getWalletDeepLinkPresets } from '@/lib/wallet-deeplinks';
 
 interface ApiErrorShape {
@@ -94,7 +94,7 @@ export function TransferFlow() {
   const [history, setHistory] = useState<TransferSummary[]>([]);
 
   useEffect(() => {
-    const token = window.localStorage.getItem(ACCESS_TOKEN_KEY) ?? '';
+    const token = window.sessionStorage.getItem(ACCESS_TOKEN_KEY) ?? '';
     if (token) {
       setAccessToken(token);
     }
@@ -272,7 +272,7 @@ export function TransferFlow() {
     setMessage(null);
 
     try {
-      const response = await fetch('/api/client/auth/register', {
+      const response = await fetch('/api/client/auth/sign-up/email', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(registerForm)
@@ -287,8 +287,9 @@ export function TransferFlow() {
       }
 
       setCustomer(payload.customer ?? null);
-      setAccessToken(payload.session.accessToken);
-      window.localStorage.setItem(ACCESS_TOKEN_KEY, payload.session.accessToken);
+      const exchanged = await exchangeAccessToken();
+      setAccessToken(exchanged.token);
+      window.sessionStorage.setItem(ACCESS_TOKEN_KEY, exchanged.token);
       setMessage('Account created. You can now create transfer quotes.');
     } finally {
       setAuthBusy(false);
@@ -301,7 +302,7 @@ export function TransferFlow() {
     setMessage(null);
 
     try {
-      const response = await fetch('/api/client/auth/login/password', {
+      const response = await fetch('/api/client/auth/sign-in/email', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(loginForm)
@@ -316,8 +317,9 @@ export function TransferFlow() {
       }
 
       setCustomer(payload.customer ?? null);
-      setAccessToken(payload.session.accessToken);
-      window.localStorage.setItem(ACCESS_TOKEN_KEY, payload.session.accessToken);
+      const exchanged = await exchangeAccessToken();
+      setAccessToken(exchanged.token);
+      window.sessionStorage.setItem(ACCESS_TOKEN_KEY, exchanged.token);
       setMessage('Signed in.');
     } finally {
       setAuthBusy(false);
@@ -470,7 +472,7 @@ export function TransferFlow() {
         <div className="chips">
           <span>Limit: $2,000</span>
           <span>SLA target: about 10 minutes after confirmation</span>
-          <span>Telebirr: feature-flagged off by default</span>
+          <span>Payout method: bank transfer</span>
         </div>
         <div className="row">
           <Link href={'/history' as Route}>Transfer history</Link>

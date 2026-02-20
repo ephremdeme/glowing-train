@@ -6,7 +6,7 @@ import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { SignupForm } from '@/components/auth/signup-form';
-import { readAccessToken } from '@/lib/session';
+import { exchangeAccessToken, readAccessToken } from '@/lib/session';
 
 export default function SignupPage() {
   return (
@@ -22,9 +22,21 @@ function SignupPageContent() {
   const nextPath = searchParams.get('next') ?? '/quote';
 
   useEffect(() => {
-    if (readAccessToken()) {
-      router.replace(nextPath as Route);
+    async function bootstrap(): Promise<void> {
+      if (readAccessToken()) {
+        router.replace(nextPath as Route);
+        return;
+      }
+
+      try {
+        await exchangeAccessToken();
+        router.replace(nextPath as Route);
+      } catch {
+        // No active cookie session; stay on signup page.
+      }
     }
+
+    void bootstrap();
   }, [nextPath, router]);
 
   return (

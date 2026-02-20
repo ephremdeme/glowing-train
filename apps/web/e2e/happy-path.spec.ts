@@ -81,7 +81,7 @@ test('multipage happy path: signup -> login -> quote -> transfer -> status -> hi
 
   let transferStatusCalls = 0;
 
-  await page.route('**/api/client/auth/register', async (route) => {
+  await page.route('**/api/client/auth/sign-up/email', async (route) => {
     await route.fulfill({
       status: 201,
       contentType: 'application/json',
@@ -95,19 +95,33 @@ test('multipage happy path: signup -> login -> quote -> transfer -> status -> hi
     });
   });
 
-  await page.route('**/api/client/auth/login/password', async (route) => {
+  await page.route('**/api/client/auth/sign-in/email', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         session: {
-          accessToken: 'customer-access-token'
+          sessionId: 'csn_test_001',
+          expiresAt: new Date(Date.now() + 3600_000).toISOString()
         },
         customer: {
           customerId: 'cust_test_001',
           fullName: 'Diaspora Sender',
           countryCode: 'US'
         }
+      })
+    });
+  });
+
+  await page.route('**/api/client/auth/session/exchange', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        token: 'customer-access-token',
+        customerId: 'cust_test_001',
+        sessionId: 'csn_test_001',
+        expiresAt: new Date(Date.now() + 300_000).toISOString()
       })
     });
   });
@@ -271,14 +285,14 @@ test('multipage happy path: signup -> login -> quote -> transfer -> status -> hi
   await expect(page).toHaveURL(/\/signup/);
 
   await page.getByLabel('Full name').fill('Diaspora Sender');
-  await page.getByLabel('Country code').fill('US');
+  await page.getByLabel('Country').selectOption('US');
   await page.getByLabel('Email').fill('sender@example.com');
   await page.getByLabel('Password').fill('password123');
-  await page.getByRole('button', { name: 'Continue to login' }).click();
+  await page.getByRole('button', { name: 'Create account' }).click();
 
   await expect(page).toHaveURL(/\/login/);
   await page.getByLabel('Password').fill('password123');
-  await page.getByRole('button', { name: 'Continue to quote' }).click();
+  await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(page).toHaveURL('/quote');
   await page.getByRole('button', { name: 'Lock quote' }).click();

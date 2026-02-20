@@ -57,7 +57,7 @@ export function SignupForm({ nextPath = '/quote' }: { nextPath?: string }) {
     setMessage(null);
 
     try {
-      const response = await fetch('/api/client/auth/register', {
+      const response = await fetch('/api/client/auth/sign-up/email', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(form)

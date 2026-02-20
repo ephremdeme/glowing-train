@@ -1,13 +1,11 @@
 import { expect, test } from '@playwright/test';
 
 test('login page starts Google OAuth without password login', async ({ page }) => {
-  await page.route('**/api/client/auth/oauth/google/start**', async (route) => {
+  await page.route('**/api/client/auth/sign-in/google**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        challengeId: 'ach_google_1',
-        state: 'state_1',
         authUrl: 'http://127.0.0.1:3100/google-oauth-mock'
       })
     });
@@ -26,23 +24,15 @@ test('google callback writes session and redirects to authenticated quote page',
     sessionStorage.setItem('cryptopay:web:google-next', '/quote');
   });
 
-  await page.route('**/api/client/auth/oauth/google/callback**', async (route) => {
+  await page.route('**/api/client/auth/session/exchange', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        customer: {
-          customerId: 'cust_google_1',
-          fullName: 'Google Sender',
-          countryCode: 'US'
-        },
-        session: {
-          sessionId: 'csn_google_1',
-          accessToken: 'google-access-token',
-          refreshToken: 'refresh-token',
-          csrfToken: 'csrf-token',
-          expiresAt: new Date(Date.now() + 3600_000).toISOString()
-        }
+        token: 'google-access-token',
+        customerId: 'cust_google_1',
+        sessionId: 'csn_google_1',
+        expiresAt: new Date(Date.now() + 300_000).toISOString()
       })
     });
   });
@@ -69,6 +59,6 @@ test('google callback writes session and redirects to authenticated quote page',
   await page.goto('/auth/google/callback?state=abc123&code=xyz789');
   await expect(page).toHaveURL('/quote');
 
-  const token = await page.evaluate(() => window.localStorage.getItem('cryptopay:web:access-token'));
+  const token = await page.evaluate(() => window.sessionStorage.getItem('cryptopay:web:access-token'));
   expect(token).toBe('google-access-token');
 });

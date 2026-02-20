@@ -49,7 +49,7 @@ export async function startGoogleOAuth(nextPath: string): Promise<{ ok: true } |
   const query = new URLSearchParams({ redirectUri });
   storeGoogleNextPath(nextPath);
 
-  const response = await fetch(`/api/client/auth/oauth/google/start?${query.toString()}`);
+  const response = await fetch(`/api/client/auth/sign-in/google?${query.toString()}`);
   const payload = (await response.json().catch(() => ({ error: { message: 'Invalid response.' } }))) as
     | GoogleOAuthStartPayload
     | ApiErrorShape;

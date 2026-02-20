@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authLoginSchema } from '@/lib/contracts';
-import { forwardCoreApi } from '@/lib/server-api';
+import { forwardCustomerAuth } from '@/lib/server-api';
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -17,8 +17,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const upstream = await forwardCoreApi({
-    path: '/v1/auth/login/password',
+  const upstream = await forwardCustomerAuth({
+    path: '/auth/sign-in/email',
     method: 'POST',
     body: parsed.data
   });

@@ -5,7 +5,7 @@ import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { readFlowDraft } from '@/lib/flow-state';
-import { readAccessToken } from '@/lib/session';
+import { exchangeAccessToken, readAccessToken } from '@/lib/session';
 
 interface RouteGuardProps {
   requireAuth?: boolean;
@@ -19,26 +19,35 @@ export function RouteGuard({ requireAuth, requireQuote, requireRecipient, childr
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
-    setAllowed(false);
-    const token = readAccessToken();
-    const draft = readFlowDraft();
+    async function guard(): Promise<void> {
+      setAllowed(false);
+      let token = readAccessToken();
+      const draft = readFlowDraft();
 
-    if (requireAuth && !token) {
-      router.replace('/login' as Route);
-      return;
+      if (requireAuth && !token) {
+        try {
+          const exchanged = await exchangeAccessToken();
+          token = exchanged.token;
+        } catch {
+          router.replace('/login' as Route);
+          return;
+        }
+      }
+
+      if (requireQuote && !draft.quote) {
+        router.replace('/quote' as Route);
+        return;
+      }
+
+      if (requireRecipient && !draft.recipientId) {
+        router.replace('/quote' as Route);
+        return;
+      }
+
+      setAllowed(true);
     }
 
-    if (requireQuote && !draft.quote) {
-      router.replace('/quote' as Route);
-      return;
-    }
-
-    if (requireRecipient && !draft.recipientId) {
-      router.replace('/quote' as Route);
-      return;
-    }
-
-    setAllowed(true);
+    void guard();
   }, [requireAuth, requireQuote, requireRecipient, router]);
 
   if (!allowed) {

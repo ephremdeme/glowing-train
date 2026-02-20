@@ -7,8 +7,8 @@ import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { consumeGoogleNextPath, normalizeNextPath, readApiMessage } from '@/lib/client-api';
-import type { GoogleOAuthCallbackPayload } from '@/lib/contracts';
-import { writeAuthSession } from '@/lib/session';
+import type { MePayload } from '@/lib/contracts';
+import { exchangeAccessToken, writeAuthSession } from '@/lib/session';
 
 export default function GoogleAuthCallbackPage() {
   return (
@@ -29,39 +29,46 @@ function GoogleAuthCallbackContent() {
     if (once.current) return;
     once.current = true;
 
-    const state = searchParams.get('state') ?? '';
-    const code = searchParams.get('code') ?? '';
+    const callbackError = searchParams.get('error');
     const explicitNext = normalizeNextPath(searchParams.get('next'), '');
-
-    if (!state || !code) {
-      setError('Google callback is missing required parameters.');
+    if (callbackError) {
+      setError(`Google sign-in failed: ${callbackError}`);
       return;
     }
 
     const destination = explicitNext || consumeGoogleNextPath('/quote');
 
     async function finalizeAuth(): Promise<void> {
-      const query = new URLSearchParams({ state, code });
-      const response = await fetch(`/api/client/auth/oauth/google/callback?${query.toString()}`);
-      const payload = (await response.json().catch(() => ({ error: { message: 'Invalid response.' } }))) as
-        | GoogleOAuthCallbackPayload
-        | { error?: { message?: string } };
+      try {
+        const exchanged = await exchangeAccessToken();
+        const token = exchanged.token;
+        const meResponse = await fetch('/api/client/me', {
+          headers: {
+            authorization: `Bearer ${token}`
+          }
+        });
+        const mePayload = (await meResponse.json().catch(() => ({ error: { message: 'Could not load profile.' } }))) as
+          | MePayload
+          | { error?: { message?: string } };
 
-      if (!response.ok || !('session' in payload) || !payload.session?.accessToken || !payload.customer) {
-        setError(readApiMessage(payload, 'Google sign-in failed.'));
-        return;
+        if (!meResponse.ok || !('customerId' in mePayload)) {
+          setError(readApiMessage(mePayload, 'Signed in, but profile load failed.'));
+          return;
+        }
+
+        writeAuthSession({
+          token,
+          customerId: mePayload.customerId,
+          fullName: mePayload.fullName,
+          countryCode: mePayload.countryCode,
+          lastSyncedAt: new Date().toISOString()
+        });
+
+        setMessage('Signed in. Redirecting...');
+        router.replace(destination as Route);
+      } catch (error) {
+        setError((error as Error).message || 'Google sign-in failed.');
       }
-
-      writeAuthSession({
-        token: payload.session.accessToken,
-        customerId: payload.customer.customerId,
-        fullName: payload.customer.fullName,
-        countryCode: payload.customer.countryCode,
-        lastSyncedAt: new Date().toISOString()
-      });
-
-      setMessage('Signed in. Redirecting...');
-      router.replace(destination as Route);
     }
 
     void finalizeAuth();

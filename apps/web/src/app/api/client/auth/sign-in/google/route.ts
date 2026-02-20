@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { forwardCoreApi } from '@/lib/server-api';
+import { forwardCustomerAuth } from '@/lib/server-api';
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -9,8 +9,8 @@ export async function GET(request: Request) {
     query.set('redirectUri', redirectUri);
   }
 
-  const upstream = await forwardCoreApi({
-    path: `/v1/auth/oauth/google/start${query.toString() ? `?${query.toString()}` : ''}`,
+  const upstream = await forwardCustomerAuth({
+    path: `/auth/sign-in/google${query.toString() ? `?${query.toString()}` : ''}`,
     method: 'GET'
   });
 

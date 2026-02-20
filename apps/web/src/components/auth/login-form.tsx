@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { normalizeNextPath, readApiMessage, startGoogleOAuth } from '@/lib/client-api';
-import { writeAuthSession } from '@/lib/session';
+import { exchangeAccessToken, writeAuthSession } from '@/lib/session';
 import type { MePayload } from '@/lib/contracts';
 
 export function LoginForm({ prefillEmail = '', nextPath = '/quote' }: { prefillEmail?: string; nextPath?: string }) {
@@ -29,7 +29,7 @@ export function LoginForm({ prefillEmail = '', nextPath = '/quote' }: { prefillE
     setMessage(null);
 
     try {
-      const response = await fetch('/api/client/auth/login/password', {
+      const response = await fetch('/api/client/auth/sign-in/email', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(form)
@@ -37,17 +37,18 @@ export function LoginForm({ prefillEmail = '', nextPath = '/quote' }: { prefillE
 
       const payload = (await response.json().catch(() => ({ error: { message: 'Invalid response.' } }))) as
         | {
-            session?: { accessToken: string };
+            session?: { sessionId: string };
             customer?: { customerId: string; fullName: string; countryCode: string };
           }
         | { error?: { message?: string } };
 
-      if (!response.ok || !('session' in payload) || !payload.session?.accessToken) {
+      if (!response.ok || !('session' in payload) || !payload.session?.sessionId) {
         setMessage(readApiMessage(payload, 'Could not sign in.'));
         return;
       }
 
-      const token = payload.session.accessToken;
+      const exchanged = await exchangeAccessToken();
+      const token = exchanged.token;
       const meResponse = await fetch('/api/client/me', {
         headers: {
           authorization: `Bearer ${token}`
@@ -70,6 +71,8 @@ export function LoginForm({ prefillEmail = '', nextPath = '/quote' }: { prefillE
         lastSyncedAt: new Date().toISOString()
       });
       router.push(normalizeNextPath(nextPath, '/quote') as Route);
+    } catch (error) {
+      setMessage((error as Error).message || 'Could not sign in.');
     } finally {
       setBusy(false);
     }

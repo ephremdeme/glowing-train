@@ -4,6 +4,7 @@ interface ForwardParams {
   body?: unknown;
   authorization?: string;
   idempotencyKey?: string;
+  cookie?: string;
   useOpsToken?: boolean;
 }
 
@@ -11,11 +12,15 @@ function coreApiBaseUrl(): string {
   return process.env.WEB_CORE_API_URL ?? 'http://localhost:3001';
 }
 
+function customerAuthBaseUrl(): string {
+  return process.env.WEB_CUSTOMER_AUTH_URL ?? 'http://localhost:3005';
+}
+
 function opsReadToken(): string {
   return process.env.WEB_OPS_READ_TOKEN ?? '';
 }
 
-export async function forwardCoreApi(params: ForwardParams): Promise<Response> {
+function buildHeaders(params: ForwardParams): Record<string, string> {
   const headers: Record<string, string> = {
     'content-type': 'application/json'
   };
@@ -27,6 +32,16 @@ export async function forwardCoreApi(params: ForwardParams): Promise<Response> {
   if (params.idempotencyKey) {
     headers['idempotency-key'] = params.idempotencyKey;
   }
+
+  if (params.cookie) {
+    headers.cookie = params.cookie;
+  }
+
+  return headers;
+}
+
+export async function forwardCoreApi(params: ForwardParams): Promise<Response> {
+  const headers = buildHeaders(params);
 
   if (params.useOpsToken) {
     const token = opsReadToken();
@@ -45,6 +60,17 @@ export async function forwardCoreApi(params: ForwardParams): Promise<Response> {
   }
 
   return fetch(`${coreApiBaseUrl()}${params.path}`, {
+    method: params.method,
+    headers,
+    body: params.body ? JSON.stringify(params.body) : null,
+    cache: 'no-store'
+  });
+}
+
+export async function forwardCustomerAuth(params: ForwardParams): Promise<Response> {
+  const headers = buildHeaders(params);
+
+  return fetch(`${customerAuthBaseUrl()}${params.path}`, {
     method: params.method,
     headers,
     body: params.body ? JSON.stringify(params.body) : null,

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authRegisterSchema } from '@/lib/contracts';
 import { makeIdempotencyKey } from '@/lib/idempotency';
-import { forwardCoreApi } from '@/lib/server-api';
+import { forwardCustomerAuth } from '@/lib/server-api';
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -18,8 +18,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const upstream = await forwardCoreApi({
-    path: '/v1/auth/register',
+  const upstream = await forwardCustomerAuth({
+    path: '/auth/sign-up/email',
     method: 'POST',
     body: parsed.data,
     idempotencyKey: makeIdempotencyKey('web-register')

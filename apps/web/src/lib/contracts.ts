@@ -12,8 +12,7 @@ export const authRegisterSchema = z.object({
 
 export const authLoginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
-  totpCode: z.string().optional()
+  password: z.string().min(8)
 });
 
 export const recipientCreateSchema = z.object({
@@ -63,9 +62,13 @@ export type RecipientUpdateInput = z.infer<typeof recipientUpdateSchema>;
 
 export interface SessionPayload {
   sessionId: string;
-  accessToken: string;
-  refreshToken: string;
-  csrfToken: string;
+  expiresAt: string;
+}
+
+export interface TokenExchangePayload {
+  token: string;
+  customerId: string;
+  sessionId: string;
   expiresAt: string;
 }
 
@@ -258,7 +261,6 @@ export type StatusChipVariant = 'neutral' | 'info' | 'success' | 'warning' | 'da
 export type IllustrationVariant = 'wallet-funding' | 'bank-payout';
 
 export interface GoogleOAuthStartPayload {
-  challengeId: string;
   state: string;
   authUrl: string;
 }
