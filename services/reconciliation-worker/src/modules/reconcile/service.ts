@@ -1,16 +1,14 @@
-import { getPool } from '@cryptopay/db';
 import { randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
+import { ReconciliationRepository } from './repository.js';
 import { buildReconciliationCsv, type ReconciliationCsvRow } from '../reporting/csv.js';
-
-type Pool = ReturnType<typeof getPool>;
 
 type TransferSnapshot = {
   transfer_id: string;
-  quote_id: string | null;
+  quote_id: string;
   status: string;
-  chain: string | null;
-  token: string | null;
+  chain: string;
+  token: string;
   expected_etb: number | null;
   funded_amount_usd: number | null;
   payout_status: string | null;
@@ -18,7 +16,7 @@ type TransferSnapshot = {
   credit_total: number;
 };
 
-const OPEN_TRANSFER_STATUSES = ['AWAITING_FUNDING', 'FUNDING_CONFIRMED', 'PAYOUT_INITIATED', 'REVIEW_REQUIRED'] as const;
+const OPEN_TRANSFER_STATUSES = ['AWAITING_FUNDING', 'FUNDING_CONFIRMED', 'PAYOUT_INITIATED', 'PAYOUT_REVIEW_REQUIRED'] as const;
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (!value) {
@@ -32,19 +30,16 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 }
 
 export class ReconciliationService {
-  constructor(private readonly pool: Pool = getPool()) {}
+  constructor(private readonly repository: ReconciliationRepository = new ReconciliationRepository()) {}
 
   async runOnce(outputCsvPath?: string): Promise<{ runId: string; issueCount: number; csv: string }> {
     const runId = `recon_${randomUUID()}`;
     const startedAt = new Date();
 
-    await this.pool.query(
-      `
-      insert into reconciliation_run (run_id, started_at, status)
-      values ($1, $2, 'running')
-      `,
-      [runId, startedAt]
-    );
+    await this.repository.createRun({
+      runId,
+      startedAt
+    });
 
     const snapshots = await this.fetchSnapshots();
     const issues: Array<{ transferId: string; issueCode: string; details: Record<string, unknown> }> = [];
@@ -91,25 +86,7 @@ export class ReconciliationService {
       }
     }
 
-    if (issues.length > 0) {
-      await this.pool.query(
-        `
-        insert into reconciliation_issue (run_id, transfer_id, issue_code, details)
-        select $1, x.transfer_id, x.issue_code, x.details
-        from jsonb_to_recordset($2::jsonb) as x(transfer_id text, issue_code text, details jsonb)
-        `,
-        [
-          runId,
-          JSON.stringify(
-            issues.map((issue) => ({
-              transfer_id: issue.transferId,
-              issue_code: issue.issueCode,
-              details: issue.details
-            }))
-          )
-        ]
-      );
-    }
+    await this.repository.insertIssues(runId, issues);
 
     const csvRows: ReconciliationCsvRow[] = issues.map((issue) => {
       const transfer = snapshots.find((s) => s.transfer_id === issue.transferId);
@@ -133,17 +110,12 @@ export class ReconciliationService {
       await writeFile(outputCsvPath, csv, 'utf8');
     }
 
-    await this.pool.query(
-      `
-      update reconciliation_run
-      set finished_at = $2,
-          total_transfers = $3,
-          total_issues = $4,
-          status = 'completed'
-      where run_id = $1
-      `,
-      [runId, new Date(), snapshots.length, issues.length]
-    );
+    await this.repository.completeRun({
+      runId,
+      finishedAt: new Date(),
+      totalTransfers: snapshots.length,
+      totalIssues: issues.length
+    });
 
     return {
       runId,
@@ -181,51 +153,42 @@ export class ReconciliationService {
     pageSize: number;
     offset: number;
   }): Promise<TransferSnapshot[]> {
-    const result = await this.pool.query(
-      `
-      with target_transfers as (
-        select
-          t.transfer_id,
-          t.quote_id,
-          t.status,
-          t.chain,
-          t.token
-        from transfers t
-        where t.status = any($1::text[])
-           or t.created_at >= now() - ($2::int * interval '1 day')
-        order by t.created_at desc
-        limit $3
-        offset $4
-      ),
-      ledger as (
-        select
-          le.transfer_id,
-          coalesce(sum(case when le.entry_type = 'debit' then le.amount_usd else 0 end), 0)::numeric as debit_total,
-          coalesce(sum(case when le.entry_type = 'credit' then le.amount_usd else 0 end), 0)::numeric as credit_total
-        from ledger_entry le
-        join target_transfers tt on tt.transfer_id = le.transfer_id
-        group by le.transfer_id
-      )
-      select
-        tt.transfer_id,
-        tt.quote_id,
-        tt.status,
-        tt.chain,
-        tt.token,
-        q.recipient_amount_etb as expected_etb,
-        ofe.amount_usd as funded_amount_usd,
-        pi.status as payout_status,
-        coalesce(l.debit_total, 0) as debit_total,
-        coalesce(l.credit_total, 0) as credit_total
-      from target_transfers tt
-      left join quotes q on q.quote_id = tt.quote_id
-      left join onchain_funding_event ofe on ofe.transfer_id = tt.transfer_id
-      left join payout_instruction pi on pi.transfer_id = tt.transfer_id
-      left join ledger l on l.transfer_id = tt.transfer_id
-      `,
-      [OPEN_TRANSFER_STATUSES, params.lookbackDays, params.pageSize, params.offset]
-    );
+    const targets = await this.repository.listTargetTransfers({
+      openStatuses: OPEN_TRANSFER_STATUSES,
+      lookbackDays: params.lookbackDays,
+      pageSize: params.pageSize,
+      offset: params.offset
+    });
 
-    return result.rows as TransferSnapshot[];
+    if (targets.length === 0) {
+      return [];
+    }
+
+    const transferIds = targets.map((target) => target.transferId);
+    const quoteIds = [...new Set(targets.map((target) => target.quoteId))];
+    const supplements = await this.repository.fetchSupplements({
+      transferIds,
+      quoteIds
+    });
+
+    return targets.map((target) => {
+      const quote = supplements.quoteById.get(target.quoteId);
+      const funding = supplements.fundingByTransferId.get(target.transferId);
+      const payout = supplements.payoutByTransferId.get(target.transferId);
+      const ledger = supplements.ledgerByTransferId.get(target.transferId);
+
+      return {
+        transfer_id: target.transferId,
+        quote_id: target.quoteId,
+        status: target.status,
+        chain: target.chain,
+        token: target.token,
+        expected_etb: quote ? Number(quote.expectedEtb) : null,
+        funded_amount_usd: funding ? Number(funding.fundedAmountUsd) : null,
+        payout_status: payout?.payoutStatus ?? null,
+        debit_total: ledger?.debitTotal ?? 0,
+        credit_total: ledger?.creditTotal ?? 0
+      };
+    });
   }
 }

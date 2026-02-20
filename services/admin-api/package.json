@@ -16,6 +16,7 @@
         "fastify": "^5.2.1",
         "tsx": "^4.21.0",
         "@cryptopay/db": "workspace:*",
+        "@cryptopay/http": "workspace:*",
         "@cryptopay/observability": "workspace:*"
     }
 }

@@ -7,7 +7,7 @@
  */
 
 import Fastify, { type FastifyInstance } from 'fastify';
-import { getPool } from '@cryptopay/db';
+import { query } from '@cryptopay/db';
 import { createServiceMetrics, deepHealthCheck, log } from '@cryptopay/observability';
 
 export async function buildAdminApiApp(): Promise<FastifyInstance> {
@@ -23,8 +23,7 @@ export async function buildAdminApiApp(): Promise<FastifyInstance> {
 
     // ── Dashboard: Transfer Summary ──
     app.get('/admin/v1/transfers/summary', async (request, reply) => {
-        const pool = getPool();
-        const result = await pool.query(`
+        const result = await query(`
       select
         status,
         count(*)::int as count,
@@ -42,8 +41,7 @@ export async function buildAdminApiApp(): Promise<FastifyInstance> {
 
     // ── Dashboard: Payout Summary ──
     app.get('/admin/v1/payouts/summary', async (request, reply) => {
-        const pool = getPool();
-        const result = await pool.query(`
+        const result = await query(`
       select
         status,
         count(*)::int as count,
@@ -61,16 +59,15 @@ export async function buildAdminApiApp(): Promise<FastifyInstance> {
 
     // ── Dashboard: Review Queue (transfers/payouts needing ops attention) ──
     app.get('/admin/v1/review-queue', async (request, reply) => {
-        const pool = getPool();
         const [transfers, payouts] = await Promise.all([
-            pool.query(`
+            query(`
         select transfer_id, status, created_at, updated_at, send_amount_usd
         from transfers
         where status = 'PAYOUT_REVIEW_REQUIRED'
         order by updated_at asc
         limit 50
       `),
-            pool.query(`
+            query(`
         select instruction_id, transfer_id, status, amount_etb, last_error, attempt_count, updated_at
         from payout_instruction
         where status = 'PAYOUT_REVIEW_REQUIRED'
@@ -87,10 +84,9 @@ export async function buildAdminApiApp(): Promise<FastifyInstance> {
 
     // ── Dashboard: Recent Audit Log ──
     app.get('/admin/v1/audit-log', async (request, reply) => {
-        const pool = getPool();
         const limit = Math.min(Number((request.query as Record<string, string>).limit ?? 50), 200);
 
-        const result = await pool.query(`
+        const result = await query(`
       select id, actor_type, actor_id, action, entity_type, entity_id, reason, created_at
       from audit_log
       order by created_at desc
@@ -105,8 +101,7 @@ export async function buildAdminApiApp(): Promise<FastifyInstance> {
 
     // ── Dashboard: SLA Breaches ──
     app.get('/admin/v1/sla-breaches', async (request, reply) => {
-        const pool = getPool();
-        const result = await pool.query(`
+        const result = await query(`
       select entity_id as transfer_id, reason, metadata, created_at
       from audit_log
       where action = 'sla_breach_detected'
@@ -122,8 +117,7 @@ export async function buildAdminApiApp(): Promise<FastifyInstance> {
 
     // ── Dashboard: Expired Transfers ──
     app.get('/admin/v1/transfers/expired', async (request, reply) => {
-        const pool = getPool();
-        const result = await pool.query(`
+        const result = await query(`
       select transfer_id, created_at, updated_at, send_amount_usd
       from transfers
       where status = 'EXPIRED'

@@ -1,28 +1,15 @@
-import { closePool } from '@cryptopay/db';
-import { log } from '@cryptopay/observability';
+import { loadOffshoreCollectorServiceEnv } from '@cryptopay/config';
+import { closeDb } from '@cryptopay/db';
+import { runServiceAndExit } from '@cryptopay/http';
 import { buildOffshoreCollectorApp } from './app.js';
 
-async function main(): Promise<void> {
-  const app = await buildOffshoreCollectorApp();
+loadOffshoreCollectorServiceEnv();
 
-  const port = Number(process.env.OFFSHORE_COLLECTOR_PORT ?? '3002');
-  const host = process.env.OFFSHORE_COLLECTOR_HOST ?? '0.0.0.0';
-
-  await app.listen({ port, host });
-  log('info', 'offshore-collector listening', { host, port });
-
-  const shutdown = async (signal: string): Promise<void> => {
-    log('warn', 'offshore-collector shutting down', { signal });
-    await app.close();
-    await closePool();
-    process.exit(0);
-  };
-
-  process.on('SIGINT', () => void shutdown('SIGINT'));
-  process.on('SIGTERM', () => void shutdown('SIGTERM'));
-}
-
-main().catch((error) => {
-  log('error', 'offshore-collector failed to start', { error: (error as Error).message });
-  process.exit(1);
+runServiceAndExit({
+  serviceName: 'offshore-collector',
+  buildApp: buildOffshoreCollectorApp,
+  defaultPort: 3002,
+  portEnv: 'OFFSHORE_COLLECTOR_PORT',
+  hostEnv: 'OFFSHORE_COLLECTOR_HOST',
+  onShutdown: closeDb
 });

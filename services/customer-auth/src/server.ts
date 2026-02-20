@@ -1,29 +1,15 @@
+import { loadCustomerAuthServiceEnv } from '@cryptopay/config';
 import { closeDb } from '@cryptopay/db';
-import { log } from '@cryptopay/observability';
+import { runServiceAndExit } from '@cryptopay/http';
 import { buildCustomerAuthApp } from './app.js';
 
-async function main(): Promise<void> {
-  const app = await buildCustomerAuthApp();
-  const port = Number(process.env.CUSTOMER_AUTH_PORT ?? '3005');
-  const host = process.env.CUSTOMER_AUTH_HOST ?? '0.0.0.0';
+loadCustomerAuthServiceEnv();
 
-  await app.listen({ port, host });
-  log('info', 'customer-auth listening', { host, port });
-
-  const shutdown = async (signal: string): Promise<void> => {
-    log('warn', 'customer-auth shutting down', { signal });
-    await app.close();
-    await closeDb();
-    process.exit(0);
-  };
-
-  process.on('SIGINT', () => void shutdown('SIGINT'));
-  process.on('SIGTERM', () => void shutdown('SIGTERM'));
-}
-
-main().catch((error) => {
-  log('error', 'customer-auth failed to start', {
-    error: (error as Error).message
-  });
-  process.exit(1);
+runServiceAndExit({
+  serviceName: 'customer-auth',
+  buildApp: buildCustomerAuthApp,
+  defaultPort: 3005,
+  portEnv: 'CUSTOMER_AUTH_PORT',
+  hostEnv: 'CUSTOMER_AUTH_HOST',
+  onShutdown: closeDb
 });

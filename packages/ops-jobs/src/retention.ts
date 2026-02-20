@@ -1,4 +1,4 @@
-import { getPool } from '@cryptopay/db';
+import { query } from '@cryptopay/db';
 
 export interface RetentionConfig {
   idempotencyDays: number;
@@ -22,9 +22,7 @@ function defaultConfig(): RetentionConfig {
 }
 
 export async function runRetentionJob(config: RetentionConfig = defaultConfig()): Promise<RetentionResult> {
-  const pool = getPool();
-
-  const idempotencyDeleted = await pool.query(
+  const idempotencyDeleted = await query(
     `
     delete from idempotency_record
     where expires_at < now() - ($1 * interval '1 day')
@@ -33,7 +31,7 @@ export async function runRetentionJob(config: RetentionConfig = defaultConfig())
     [config.idempotencyDays]
   );
 
-  const auditDeleted = await pool.query(
+  const auditDeleted = await query(
     `
     delete from audit_log
     where created_at < now() - ($1 * interval '1 day')
@@ -42,7 +40,7 @@ export async function runRetentionJob(config: RetentionConfig = defaultConfig())
     [config.auditDays]
   );
 
-  const reconciliationIssuesDeleted = await pool.query(
+  const reconciliationIssuesDeleted = await query(
     `
     delete from reconciliation_issue
     where detected_at < now() - ($1 * interval '1 day')
@@ -51,7 +49,7 @@ export async function runRetentionJob(config: RetentionConfig = defaultConfig())
     [config.reconciliationDays]
   );
 
-  const reconciliationRunsDeleted = await pool.query(
+  const reconciliationRunsDeleted = await query(
     `
     delete from reconciliation_run
     where started_at < now() - ($1 * interval '1 day')

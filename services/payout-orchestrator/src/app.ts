@@ -1,6 +1,6 @@
 import { BankPayoutAdapter } from '@cryptopay/adapters';
 import { assertHasRole, assertTokenType, authenticateBearerToken, type AuthClaims } from '@cryptopay/auth';
-import { getPool } from '@cryptopay/db';
+import { query } from '@cryptopay/db';
 import { deny, errorEnvelope, registerServiceMetrics, withIdempotency } from '@cryptopay/http';
 import { log } from '@cryptopay/observability';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
@@ -119,7 +119,7 @@ export async function buildPayoutOrchestratorApp(): Promise<FastifyInstance> {
     }
 
     const response = await withIdempotency({
-      db: getPool(),
+      db: { query },
       scope: 'payout-orchestrator:initiate',
       idempotencyKey: headerKey,
       requestId: request.id,

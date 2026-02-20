@@ -1,11 +1,11 @@
 import { assertHasRole, assertTokenType, authenticateBearerToken, type AuthClaims } from '@cryptopay/auth';
-import { getPool } from '@cryptopay/db';
+import { query } from '@cryptopay/db';
 import { appendAuditLog, deny, errorEnvelope, registerServiceMetrics, withIdempotency } from '@cryptopay/http';
+import { runKeyVerification, runRetentionJob } from '@cryptopay/ops-jobs';
 import { log } from '@cryptopay/observability';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
-import { runKeyVerification } from './jobs/key-verification.js';
-import { runRetentionJob } from './jobs/retention.js';
 import { ReconciliationService } from './modules/reconcile/index.js';
+import { ReconciliationRepository } from './modules/reconcile/repository.js';
 import { z } from 'zod';
 
 const runSchema = z.object({
@@ -58,6 +58,7 @@ export async function buildReconciliationApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
 
   const metrics = registerServiceMetrics(app, 'reconciliation-worker');
+  const repository = new ReconciliationRepository();
   const service = new ReconciliationService();
 
   app.get('/healthz', async () => ({ ok: true, service: 'reconciliation-worker' }));
@@ -82,9 +83,8 @@ export async function buildReconciliationApp(): Promise<FastifyInstance> {
     }
 
     const runId = (request.params as { runId: string }).runId;
-    const run = await getPool().query('select * from reconciliation_run where run_id = $1 limit 1', [runId]);
-
-    if (!run.rows[0]) {
+    const run = await repository.findRunById(runId);
+    if (!run) {
       return deny({
         request,
         reply,
@@ -94,14 +94,16 @@ export async function buildReconciliationApp(): Promise<FastifyInstance> {
       });
     }
 
-    const issues = await getPool().query(
-      'select transfer_id, issue_code, details, detected_at from reconciliation_issue where run_id = $1 order by id asc',
-      [runId]
-    );
+    const issues = await repository.listIssuesByRunId(runId);
 
     return reply.send({
-      run: run.rows[0],
-      issues: issues.rows
+      run,
+      issues: issues.map((issue) => ({
+        transfer_id: issue.transferId,
+        issue_code: issue.issueCode,
+        details: issue.details,
+        detected_at: issue.detectedAt
+      }))
     });
   });
 
@@ -119,10 +121,10 @@ export async function buildReconciliationApp(): Promise<FastifyInstance> {
       });
     }
 
-    const query = request.query as { since?: string; limit?: string };
-    const limit = Math.min(Math.max(Number(query.limit ?? '200'), 1), 1000);
+    const queryParams = request.query as { since?: string; limit?: string };
+    const limit = Math.min(Math.max(Number(queryParams.limit ?? '200'), 1), 1000);
 
-    const sinceDate = query.since ? new Date(query.since) : null;
+    const sinceDate = queryParams.since ? new Date(queryParams.since) : null;
     if (sinceDate && Number.isNaN(sinceDate.valueOf())) {
       return deny({
         request,
@@ -133,20 +135,20 @@ export async function buildReconciliationApp(): Promise<FastifyInstance> {
       });
     }
 
-    const result = await getPool().query(
-      `
-      select ri.run_id, ri.transfer_id, ri.issue_code, ri.details, ri.detected_at
-      from reconciliation_issue ri
-      where ($1::timestamptz is null or ri.detected_at >= $1)
-      order by ri.detected_at desc
-      limit $2
-      `,
-      [sinceDate ? sinceDate.toISOString() : null, limit]
-    );
+    const result = await repository.listIssues({
+      since: sinceDate,
+      limit
+    });
 
     return reply.send({
-      items: result.rows,
-      count: result.rowCount ?? 0
+      items: result.map((issue) => ({
+        run_id: issue.runId,
+        transfer_id: issue.transferId,
+        issue_code: issue.issueCode,
+        details: issue.details,
+        detected_at: issue.detectedAt
+      })),
+      count: result.length
     });
   });
 
@@ -193,7 +195,7 @@ export async function buildReconciliationApp(): Promise<FastifyInstance> {
     const actorHeader = typeof request.headers['x-ops-actor'] === 'string' ? request.headers['x-ops-actor'] : claims.sub;
 
     const result = await withIdempotency({
-      db: getPool(),
+      db: { query },
       scope: 'reconciliation-worker:run',
       idempotencyKey: idempotencyHeader,
       requestId: request.id,
@@ -202,7 +204,7 @@ export async function buildReconciliationApp(): Promise<FastifyInstance> {
         const run = await service.runOnce(parsed.data.outputPath);
 
         await appendAuditLog({
-          db: getPool(),
+          db: { query },
           actorType: 'admin',
           actorId: claims.sub,
           action: 'ops_reconciliation_run_triggered',
@@ -261,7 +263,7 @@ export async function buildReconciliationApp(): Promise<FastifyInstance> {
     const result = await runRetentionJob();
 
     await appendAuditLog({
-      db: getPool(),
+      db: { query },
       actorType: 'admin',
       actorId: claims.sub,
       action: 'ops_retention_job_triggered',
@@ -307,7 +309,7 @@ export async function buildReconciliationApp(): Promise<FastifyInstance> {
     const result = await runKeyVerification();
 
     await appendAuditLog({
-      db: getPool(),
+      db: { query },
       actorType: 'admin',
       actorId: claims.sub,
       action: 'ops_key_verification_job_triggered',

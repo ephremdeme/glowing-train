@@ -15,10 +15,12 @@
   },
   "dependencies": {
     "@cryptopay/auth": "workspace:*",
+    "@cryptopay/config": "workspace:*",
     "@cryptopay/db": "workspace:*",
     "@cryptopay/http": "workspace:*",
+    "@cryptopay/ops-jobs": "workspace:*",
     "@cryptopay/observability": "workspace:*",
-    "@cryptopay/security": "workspace:*",
+    "drizzle-orm": "^0.45.1",
     "fastify": "^5.2.1",
     "tsx": "^4.21.0",
     "zod": "^3.24.1"

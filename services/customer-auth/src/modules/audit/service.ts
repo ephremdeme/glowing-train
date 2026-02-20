@@ -1,4 +1,4 @@
-import { getPool } from '@cryptopay/db';
+import { query, type QueryResult } from '@cryptopay/db';
 import { appendAuditLog } from '@cryptopay/http';
 
 export async function appendCustomerAuthAudit(params: {
@@ -11,7 +11,9 @@ export async function appendCustomerAuthAudit(params: {
   metadata?: Record<string, unknown>;
 }): Promise<void> {
   const payload: {
-    db: ReturnType<typeof getPool>;
+    db: {
+      query: (sql: string, params?: unknown[]) => Promise<QueryResult<Record<string, unknown>>>;
+    };
     actorType: 'customer' | 'system';
     actorId: string;
     action: string;
@@ -20,7 +22,7 @@ export async function appendCustomerAuthAudit(params: {
     reason?: string;
     metadata?: Record<string, unknown>;
   } = {
-    db: getPool(),
+    db: { query },
     actorType: params.actorType,
     actorId: params.actorId,
     action: params.action,

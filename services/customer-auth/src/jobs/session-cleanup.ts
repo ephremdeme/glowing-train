@@ -6,7 +6,7 @@
  * session-exchange lookups.
  */
 
-import { getPool } from '@cryptopay/db';
+import { query } from '@cryptopay/db';
 import { log } from '@cryptopay/observability';
 
 export interface SessionCleanupConfig {
@@ -30,10 +30,9 @@ function defaultConfig(): SessionCleanupConfig {
 export async function runSessionCleanupJob(
   config: SessionCleanupConfig = defaultConfig()
 ): Promise<SessionCleanupResult> {
-  const pool = getPool();
 
   // Delete expired sessions (past expiry + grace period)
-  const expiredResult = await pool.query(
+  const expiredResult = await query(
     `
     delete from session
     where ctid in (

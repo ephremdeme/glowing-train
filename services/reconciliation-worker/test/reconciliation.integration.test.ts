@@ -1,4 +1,4 @@
-import { closePool, getPool } from '@cryptopay/db';
+import { closeDb, query } from '@cryptopay/db';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -6,9 +6,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ReconciliationService } from '../src/modules/reconcile/index.js';
 
 async function ensureTables(): Promise<void> {
-  const pool = getPool();
 
-  await pool.query(`
+  await query(`
     create table if not exists quotes (
       quote_id text primary key,
       chain text,
@@ -22,7 +21,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists transfers (
       transfer_id text primary key,
       quote_id text,
@@ -33,7 +32,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists onchain_funding_event (
       event_id text primary key,
       chain text,
@@ -48,7 +47,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists payout_instruction (
       payout_id text primary key,
       transfer_id text,
@@ -64,7 +63,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists ledger_journal (
       journal_id text primary key,
       transfer_id text,
@@ -73,7 +72,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists ledger_entry (
       id bigserial primary key,
       journal_id text,
@@ -85,7 +84,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists reconciliation_run (
       run_id text primary key,
       started_at timestamptz not null,
@@ -97,7 +96,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists reconciliation_issue (
       id bigserial primary key,
       run_id text,
@@ -124,29 +123,29 @@ describe('reconciliation integration', () => {
   });
 
   beforeEach(async () => {
-    await getPool().query(
+    await query(
       'truncate table reconciliation_issue, reconciliation_run, payout_instruction, onchain_funding_event, ledger_entry, ledger_journal, transfers, quotes restart identity cascade'
     );
   });
 
   afterAll(async () => {
-    await closePool();
+    await closeDb();
   });
 
   it('produces reconciliation issues and csv output with required columns', async () => {
-    await getPool().query(
+    await query(
       "insert into quotes (quote_id, chain, token, send_amount_usd, fx_rate_usd_to_etb, fee_usd, recipient_amount_etb, expires_at) values ('q_1','base','USDC',100,140,1,13860,'2027-01-01T00:00:00.000Z')"
     );
 
-    await getPool().query(
+    await query(
       "insert into transfers (transfer_id, quote_id, sender_id, receiver_id, sender_kyc_status, receiver_kyc_status, receiver_national_id_verified, chain, token, send_amount_usd, status) values ('tr_1', 'q_1', 's_1', 'r_1', 'approved', 'approved', true, 'base', 'USDC', 100, 'PAYOUT_INITIATED')"
     );
 
-    await getPool().query(
+    await query(
       "insert into ledger_journal (journal_id, transfer_id, description) values ('lj_1', 'tr_1', 'test')"
     );
 
-    await getPool().query(
+    await query(
       "insert into ledger_entry (journal_id, transfer_id, account_code, entry_type, amount_usd) values ('lj_1', 'tr_1', 'cash', 'debit', 100), ('lj_1', 'tr_1', 'liability', 'credit', 90)"
     );
 
@@ -163,27 +162,27 @@ describe('reconciliation integration', () => {
   });
 
   it('returns zero issues for balanced transfer with funding and payout record', async () => {
-    await getPool().query(
+    await query(
       "insert into quotes (quote_id, chain, token, send_amount_usd, fx_rate_usd_to_etb, fee_usd, recipient_amount_etb, expires_at) values ('q_2','base','USDT',200,140,1,27860,'2027-01-01T00:00:00.000Z')"
     );
 
-    await getPool().query(
+    await query(
       "insert into transfers (transfer_id, quote_id, sender_id, receiver_id, sender_kyc_status, receiver_kyc_status, receiver_national_id_verified, chain, token, send_amount_usd, status) values ('tr_2', 'q_2', 's_2', 'r_2', 'approved', 'approved', true, 'base', 'USDT', 200, 'PAYOUT_INITIATED')"
     );
 
-    await getPool().query(
+    await query(
       "insert into onchain_funding_event (event_id, chain, token, tx_hash, log_index, transfer_id, deposit_address, amount_usd, confirmed_at) values ('evt_2','base','USDT','0x2',1,'tr_2','dep_2',200,now())"
     );
 
-    await getPool().query(
+    await query(
       "insert into payout_instruction (payout_id, transfer_id, status, method, recipient_account_ref, amount_etb, attempt_count) values ('pay_2','tr_2','PAYOUT_INITIATED','bank','CBE-2',27860,1)"
     );
 
-    await getPool().query(
+    await query(
       "insert into ledger_journal (journal_id, transfer_id, description) values ('lj_2', 'tr_2', 'test')"
     );
 
-    await getPool().query(
+    await query(
       "insert into ledger_entry (journal_id, transfer_id, account_code, entry_type, amount_usd) values ('lj_2', 'tr_2', 'cash', 'debit', 200), ('lj_2', 'tr_2', 'liability', 'credit', 200)"
     );
 

@@ -16,6 +16,7 @@
   "dependencies": {
     "@cryptopay/adapters": "workspace:*",
     "@cryptopay/auth": "workspace:*",
+    "@cryptopay/config": "workspace:*",
     "@cryptopay/db": "workspace:*",
     "@cryptopay/domain": "workspace:*",
     "@cryptopay/http": "workspace:*",
