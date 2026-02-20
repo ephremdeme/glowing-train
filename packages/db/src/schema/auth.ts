@@ -29,10 +29,10 @@ export const authAccounts = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
   },
-  (table) => ({
-    providerAccountUnique: uniqueIndex('idx_account_provider_account').on(table.providerId, table.accountId),
-    userIdx: index('idx_account_user_id').on(table.userId)
-  })
+  (table) => [
+    uniqueIndex('idx_account_provider_account').on(table.providerId, table.accountId),
+    index('idx_account_user_id').on(table.userId)
+  ]
 );
 
 export const authSessions = pgTable(
@@ -49,10 +49,10 @@ export const authSessions = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
   },
-  (table) => ({
-    userIdx: index('idx_session_user_id').on(table.userId),
-    expiresIdx: index('idx_session_expires_at').on(table.expiresAt)
-  })
+  (table) => [
+    index('idx_session_user_id').on(table.userId),
+    index('idx_session_expires_at').on(table.expiresAt)
+  ]
 );
 
 export const authVerifications = pgTable(
@@ -65,8 +65,8 @@ export const authVerifications = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
   },
-  (table) => ({
-    identifierIdx: index('idx_verification_identifier').on(table.identifier),
-    expiresIdx: index('idx_verification_expires_at').on(table.expiresAt)
-  })
+  (table) => [
+    index('idx_verification_identifier').on(table.identifier),
+    index('idx_verification_expires_at').on(table.expiresAt)
+  ]
 );

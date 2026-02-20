@@ -5,14 +5,13 @@ import {
   type PayoutRequest,
   type PayoutResponse
 } from '@cryptopay/adapters';
-import { closePool, getPool } from '@cryptopay/db';
+import { closeDb, query } from '@cryptopay/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PayoutRepository, PayoutService } from '../src/modules/payouts/index.js';
 
 async function ensureTables(): Promise<void> {
-  const pool = getPool();
 
-  await pool.query(`
+  await query(`
     create table if not exists idempotency_record (
       key text primary key,
       request_hash text not null,
@@ -23,7 +22,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists audit_log (
       id bigserial primary key,
       actor_type text not null,
@@ -37,7 +36,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists transfer_transition (
       id bigserial primary key,
       transfer_id text not null,
@@ -48,7 +47,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists quotes (
       quote_id text primary key,
       chain text not null check (chain in ('base', 'solana')),
@@ -62,7 +61,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists transfers (
       transfer_id text primary key,
       quote_id text,
@@ -79,7 +78,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists payout_instruction (
       payout_id text primary key,
       transfer_id text not null unique references transfers(transfer_id),
@@ -95,7 +94,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists payout_status_event (
       id bigserial primary key,
       payout_id text not null references payout_instruction(payout_id),
@@ -111,7 +110,7 @@ async function ensureTables(): Promise<void> {
 async function seedTransfer(transferId: string, status: string = 'FUNDING_CONFIRMED'): Promise<void> {
   const quoteId = `q_${transferId}`;
 
-  await getPool().query(
+  await query(
     `
     insert into quotes (
       quote_id, chain, token, send_amount_usd, fx_rate_usd_to_etb, fee_usd, recipient_amount_etb, expires_at
@@ -121,7 +120,7 @@ async function seedTransfer(transferId: string, status: string = 'FUNDING_CONFIR
     [quoteId]
   );
 
-  await getPool().query(
+  await query(
     `
     insert into transfers (
       transfer_id, quote_id, sender_id, receiver_id,
@@ -145,11 +144,11 @@ describe('payout orchestration integration', () => {
   });
 
   beforeEach(async () => {
-    await getPool().query('truncate table payout_status_event, payout_instruction, transfer_transition, audit_log, idempotency_record, transfers restart identity cascade');
+    await query('truncate table payout_status_event, payout_instruction, transfer_transition, audit_log, idempotency_record, transfers restart identity cascade');
   });
 
   afterAll(async () => {
-    await closePool();
+    await closeDb();
   });
 
   it('initiates bank payout and records payout initiated state', async () => {
@@ -175,7 +174,7 @@ describe('payout orchestration integration', () => {
     expect(result.status).toBe('initiated');
     expect(result.providerReference).toBe('bank_ref_1');
 
-    const transfer = await getPool().query('select status from transfers where transfer_id = $1', ['tr_pay_success']);
+    const transfer = await query('select status from transfers where transfer_id = $1', ['tr_pay_success']);
     expect(transfer.rows[0]?.status).toBe('PAYOUT_INITIATED');
   });
 
@@ -232,7 +231,7 @@ describe('payout orchestration integration', () => {
 
     expect(result.status).toBe('review_required');
 
-    const transfer = await getPool().query('select status from transfers where transfer_id = $1', ['tr_pay_review']);
+    const transfer = await query('select status from transfers where transfer_id = $1', ['tr_pay_review']);
     expect(transfer.rows[0]?.status).toBe('PAYOUT_REVIEW_REQUIRED');
   });
 

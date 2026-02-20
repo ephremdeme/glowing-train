@@ -1,4 +1,4 @@
-import { getPool } from '@cryptopay/db';
+import { query, withTransaction } from '@cryptopay/db';
 import type {
   DepositRouteRecord,
   IdempotencyRecord,
@@ -10,8 +10,6 @@ import type {
 } from './types.js';
 
 const IDEMPOTENCY_TTL_HOURS = 24;
-
-type Pool = ReturnType<typeof getPool>;
 type DbRow = Record<string, unknown>;
 
 function mapQuote(row: DbRow): QuoteSnapshot {
@@ -55,10 +53,8 @@ function mapDepositRoute(row: DbRow): DepositRouteRecord {
 }
 
 export class TransferRepository implements TransferRepositoryPort {
-  constructor(private readonly pool: Pool = getPool()) {}
-
   async findQuoteById(quoteId: string): Promise<QuoteSnapshot | null> {
-    const result = await this.pool.query('select quote_id, chain, token, send_amount_usd, expires_at from quotes where quote_id = $1', [
+    const result = await query('select quote_id, chain, token, send_amount_usd, expires_at from quotes where quote_id = $1', [
       quoteId
     ]);
 
@@ -71,7 +67,7 @@ export class TransferRepository implements TransferRepositoryPort {
 
   async findReceiverKycProfile(receiverId: string): Promise<ReceiverKycProfileSnapshot | null> {
     try {
-      const result = await this.pool.query(
+      const result = await query(
         `
         select receiver_id, kyc_status, national_id_verified
         from receiver_kyc_profile
@@ -109,7 +105,7 @@ export class TransferRepository implements TransferRepositoryPort {
   }
 
   async findIdempotency(key: string): Promise<IdempotencyRecord | null> {
-    const result = await this.pool.query(
+    const result = await query(
       'select key, request_hash, response_status, response_body, expires_at from idempotency_record where key = $1',
       [key]
     );
@@ -140,11 +136,8 @@ export class TransferRepository implements TransferRepositoryPort {
     transfer: Omit<TransferRecord, 'createdAt'>;
     route: Omit<DepositRouteRecord, 'createdAt'>;
   }): Promise<TransferCreationResult> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('begin');
-
-      const transferInsert = await client.query(
+    return withTransaction(async (tx) => {
+      const transferInsert = await tx.query(
         `
         insert into transfers (
           transfer_id,
@@ -176,7 +169,7 @@ export class TransferRepository implements TransferRepositoryPort {
         ]
       );
 
-      const routeInsert = await client.query(
+      const routeInsert = await tx.query(
         `
         insert into deposit_routes (
           route_id,
@@ -200,18 +193,11 @@ export class TransferRepository implements TransferRepositoryPort {
         ]
       );
 
-      await client.query('commit');
-
       return {
         transfer: mapTransfer(transferInsert.rows[0] as DbRow),
         depositRoute: mapDepositRoute(routeInsert.rows[0] as DbRow)
       };
-    } catch (error) {
-      await client.query('rollback');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async saveIdempotencyRecord(params: {
@@ -223,7 +209,7 @@ export class TransferRepository implements TransferRepositoryPort {
   }): Promise<void> {
     const expiresAt = new Date(params.now.getTime() + IDEMPOTENCY_TTL_HOURS * 3600 * 1000);
 
-    await this.pool.query(
+    await query(
       `
       insert into idempotency_record (
         key,
@@ -239,6 +225,6 @@ export class TransferRepository implements TransferRepositoryPort {
   }
 
   async clearTransferDataForTests(): Promise<void> {
-    await this.pool.query('truncate table deposit_routes, transfers, idempotency_record cascade');
+    await query('truncate table deposit_routes, transfers, idempotency_record cascade');
   }
 }

@@ -24,9 +24,9 @@ export const senderKycProfiles = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
   },
-  (table) => ({
-    statusIdx: index('idx_sender_kyc_profile_status').on(table.kycStatus)
-  })
+  (table) => [
+    index('idx_sender_kyc_profile_status').on(table.kycStatus)
+  ]
 );
 
 export const customerAuthLinks = pgTable(
@@ -41,8 +41,8 @@ export const customerAuthLinks = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
   },
-  (table) => ({
-    userUnique: uniqueIndex('idx_customer_auth_link_user_id').on(table.userId),
-    customerUnique: uniqueIndex('idx_customer_auth_link_customer_id').on(table.customerId)
-  })
+  (table) => [
+    uniqueIndex('idx_customer_auth_link_user_id').on(table.userId),
+    uniqueIndex('idx_customer_auth_link_customer_id').on(table.customerId)
+  ]
 );

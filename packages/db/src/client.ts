@@ -151,12 +151,3 @@ export async function closeDb(): Promise<void> {
     singletonDb = undefined;
   }
 }
-
-// Temporary compatibility aliases during hard-cut rollout.
-export function getPool(): Queryable {
-  return createQueryAdapter(getSql());
-}
-
-export async function closePool(): Promise<void> {
-  await closeDb();
-}

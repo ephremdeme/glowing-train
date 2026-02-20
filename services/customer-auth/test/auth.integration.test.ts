@@ -1,10 +1,10 @@
 import { authenticateBearerToken } from '@cryptopay/auth';
-import { closeDb, getPool } from '@cryptopay/db';
+import { closeDb, query } from '@cryptopay/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildCustomerAuthApp } from '../src/app.js';
 
 async function ensureTables(): Promise<void> {
-  await getPool().query(`
+  await query(`
     create table if not exists idempotency_record (
       key text primary key,
       request_hash text not null,
@@ -15,7 +15,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await getPool().query(`
+  await query(`
     create table if not exists audit_log (
       id bigserial primary key,
       actor_type text not null,
@@ -29,7 +29,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await getPool().query(`
+  await query(`
     create table if not exists customer_account (
       customer_id text primary key,
       full_name text not null,
@@ -40,7 +40,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await getPool().query(`
+  await query(`
     create table if not exists sender_kyc_profile (
       customer_id text primary key references customer_account(customer_id) on delete cascade,
       provider text not null,
@@ -53,7 +53,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await getPool().query(`
+  await query(`
     create table if not exists "user" (
       id text primary key,
       name text not null,
@@ -65,7 +65,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await getPool().query(`
+  await query(`
     create table if not exists account (
       id text primary key,
       account_id text not null,
@@ -84,7 +84,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await getPool().query(`
+  await query(`
     create table if not exists session (
       id text primary key,
       token text not null unique,
@@ -97,7 +97,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await getPool().query(`
+  await query(`
     create table if not exists verification (
       id text primary key,
       identifier text not null,
@@ -108,7 +108,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await getPool().query(`
+  await query(`
     create table if not exists customer_auth_link (
       user_id text not null unique references "user"(id) on delete cascade,
       customer_id text not null unique references customer_account(customer_id) on delete cascade,
@@ -135,15 +135,15 @@ describe('customer-auth integration', () => {
   });
 
   beforeEach(async () => {
-    await getPool().query('truncate table customer_auth_link cascade');
-    await getPool().query('truncate table session cascade');
-    await getPool().query('truncate table account cascade');
-    await getPool().query('truncate table verification cascade');
-    await getPool().query('truncate table "user" cascade');
-    await getPool().query('truncate table sender_kyc_profile cascade');
-    await getPool().query('truncate table customer_account cascade');
-    await getPool().query('truncate table idempotency_record cascade');
-    await getPool().query('truncate table audit_log cascade');
+    await query('truncate table customer_auth_link cascade');
+    await query('truncate table session cascade');
+    await query('truncate table account cascade');
+    await query('truncate table verification cascade');
+    await query('truncate table "user" cascade');
+    await query('truncate table sender_kyc_profile cascade');
+    await query('truncate table customer_account cascade');
+    await query('truncate table idempotency_record cascade');
+    await query('truncate table audit_log cascade');
   });
 
   afterAll(async () => {

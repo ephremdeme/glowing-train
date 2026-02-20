@@ -1,10 +1,9 @@
-import { closePool, getPool } from '@cryptopay/db';
+import { closeDb, query } from '@cryptopay/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LedgerService } from '../src/modules/ledger/index.js';
 
 async function ensureTables(): Promise<void> {
-  const pool = getPool();
-  await pool.query(`
+  await query(`
     create table if not exists ledger_journal (
       journal_id text primary key,
       transfer_id text not null,
@@ -13,7 +12,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists ledger_entry (
       id bigserial primary key,
       journal_id text not null references ledger_journal(journal_id) on delete cascade,
@@ -41,11 +40,11 @@ describe('ledger integration', () => {
   });
 
   beforeEach(async () => {
-    await getPool().query('truncate table ledger_entry, ledger_journal restart identity cascade');
+    await query('truncate table ledger_entry, ledger_journal restart identity cascade');
   });
 
   afterAll(async () => {
-    await closePool();
+    await closeDb();
   });
 
   it('posts balanced double-entry journal', async () => {

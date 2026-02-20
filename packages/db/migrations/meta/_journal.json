@@ -1,0 +1,90 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1700000000001,
+      "tag": "0001_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1700000000002,
+      "tag": "0002_create_quotes",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1700000000003,
+      "tag": "0003_create_transfers_and_routes",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1700000000004,
+      "tag": "0004_create_onchain_funding_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1700000000005,
+      "tag": "0005_create_payout_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1700000000006,
+      "tag": "0006_create_ledger_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1700000000007,
+      "tag": "0007_create_reconciliation_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1700000000008,
+      "tag": "0008_create_watcher_checkpoint",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1700000000009,
+      "tag": "0009_create_receiver_kyc_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1700000000010,
+      "tag": "0010_create_customer_auth_and_recipient_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1700000000011,
+      "tag": "0011_reset_customer_auth_for_better_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1700000000012,
+      "tag": "0012_perf_indexes_and_transfer_updated_at",
+      "breakpoints": true
+    }
+  ]
+}

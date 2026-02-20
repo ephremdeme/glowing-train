@@ -1,12 +1,8 @@
-import { getPool } from '@cryptopay/db';
+import { query, withTransaction } from '@cryptopay/db';
 import { randomUUID } from 'node:crypto';
 import type { LedgerJournalResult, LedgerPosting } from '@cryptopay/domain';
 
-type Pool = ReturnType<typeof getPool>;
-
 export class LedgerService {
-  constructor(private readonly pool: Pool = getPool()) {}
-
   async postDoubleEntry(input: LedgerPosting): Promise<LedgerJournalResult> {
     if (input.amountUsd <= 0) {
       throw new Error('Ledger amount must be positive.');
@@ -19,44 +15,33 @@ export class LedgerService {
     const journalId = `lj_${randomUUID()}`;
     const amount = Number(input.amountUsd.toFixed(2));
 
-    const client = await this.pool.connect();
-
-    try {
-      await client.query('begin');
-
-      await client.query('insert into ledger_journal (journal_id, transfer_id, description) values ($1, $2, $3)', [
+    await withTransaction(async (tx) => {
+      await tx.query('insert into ledger_journal (journal_id, transfer_id, description) values ($1, $2, $3)', [
         journalId,
         input.transferId,
         input.description ?? null
       ]);
 
-      await client.query(
+      await tx.query(
         `
         insert into ledger_entry (journal_id, transfer_id, account_code, entry_type, amount_usd)
         values ($1, $2, $3, 'debit', $4), ($1, $2, $5, 'credit', $4)
         `,
         [journalId, input.transferId, input.debitAccount, amount, input.creditAccount]
       );
+    });
 
-      await client.query('commit');
-
-      return {
-        journalId,
-        transferId: input.transferId,
-        totalDebitUsd: amount,
-        totalCreditUsd: amount,
-        balanced: true
-      };
-    } catch (error) {
-      await client.query('rollback');
-      throw error;
-    } finally {
-      client.release();
-    }
+    return {
+      journalId,
+      transferId: input.transferId,
+      totalDebitUsd: amount,
+      totalCreditUsd: amount,
+      balanced: true
+    };
   }
 
   async getJournalBalance(journalId: string): Promise<LedgerJournalResult | null> {
-    const result = await this.pool.query(
+    const result = await query(
       `
       select
         j.journal_id,

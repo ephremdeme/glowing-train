@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { closePool, dbHealthcheck } from '../src/client.js';
+import { closeDb, dbHealthcheck } from '../src/client.js';
 
 describe('database healthcheck', () => {
   beforeAll(() => {
@@ -11,7 +11,7 @@ describe('database healthcheck', () => {
   });
 
   afterAll(async () => {
-    await closePool();
+    await closeDb();
   });
 
   it('connects to postgres and returns ok', async () => {

@@ -1,9 +1,7 @@
 export {
   closeDb,
-  closePool,
   dbHealthcheck,
   getDb,
-  getPool,
   getSql,
   query,
   withTransaction,

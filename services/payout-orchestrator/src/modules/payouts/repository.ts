@@ -1,4 +1,4 @@
-import { getPool } from '@cryptopay/db';
+import { query, withTransaction } from '@cryptopay/db';
 import { randomUUID } from 'node:crypto';
 import type {
   IdempotencySnapshot,
@@ -8,7 +8,6 @@ import type {
   TransferStatusSnapshot
 } from './types.js';
 
-type Pool = ReturnType<typeof getPool>;
 type Row = Record<string, unknown>;
 
 function mapInstruction(row: Row): PayoutInstructionRecord {
@@ -26,10 +25,8 @@ function mapInstruction(row: Row): PayoutInstructionRecord {
 }
 
 export class PayoutRepository {
-  constructor(private readonly pool: Pool = getPool()) { }
-
   async findTransferStatus(transferId: string): Promise<TransferStatusSnapshot | null> {
-    const result = await this.pool.query('select transfer_id, status from transfers where transfer_id = $1', [transferId]);
+    const result = await query('select transfer_id, status from transfers where transfer_id = $1', [transferId]);
     const row = result.rows[0] as Row | undefined;
     if (!row) {
       return null;
@@ -42,7 +39,7 @@ export class PayoutRepository {
   }
 
   async getOrCreateInstruction(input: InitiatePayoutInput): Promise<PayoutInstructionRecord> {
-    const existing = await this.pool.query('select * from payout_instruction where transfer_id = $1 limit 1', [input.transferId]);
+    const existing = await query('select * from payout_instruction where transfer_id = $1 limit 1', [input.transferId]);
     const existingRow = existing.rows[0] as Row | undefined;
     if (existingRow) {
       return mapInstruction(existingRow);
@@ -50,7 +47,7 @@ export class PayoutRepository {
 
     const payoutId = `pay_${randomUUID()}`;
 
-    const inserted = await this.pool.query(
+    const inserted = await query(
       `
       insert into payout_instruction (
         payout_id,
@@ -70,7 +67,7 @@ export class PayoutRepository {
   }
 
   async findIdempotency(key: string): Promise<IdempotencySnapshot | null> {
-    const result = await this.pool.query('select key, request_hash, response_body from idempotency_record where key = $1 limit 1', [key]);
+    const result = await query('select key, request_hash, response_body from idempotency_record where key = $1 limit 1', [key]);
     const row = result.rows[0] as Row | undefined;
     if (!row) {
       return null;
@@ -88,12 +85,8 @@ export class PayoutRepository {
     providerReference: string;
     attempts: number;
   }): Promise<void> {
-    const client = await this.pool.connect();
-
-    try {
-      await client.query('begin');
-
-      await client.query(
+    await withTransaction(async (tx) => {
+      await tx.query(
         `
         update payout_instruction
         set status = 'PAYOUT_INITIATED',
@@ -106,12 +99,12 @@ export class PayoutRepository {
         [params.instruction.payoutId, params.providerReference, params.attempts]
       );
 
-      await client.query(
+      await tx.query(
         "update transfers set status = 'PAYOUT_INITIATED' where transfer_id = $1 and status = 'FUNDING_CONFIRMED'",
         [params.instruction.transferId]
       );
 
-      await client.query(
+      await tx.query(
         `
         insert into transfer_transition (transfer_id, from_state, to_state, metadata)
         values ($1, $2, $3, $4)
@@ -128,7 +121,7 @@ export class PayoutRepository {
         ]
       );
 
-      await client.query(
+      await tx.query(
         `
         insert into payout_status_event (payout_id, transfer_id, from_status, to_status, metadata)
         values ($1, $2, $3, $4, $5)
@@ -145,7 +138,7 @@ export class PayoutRepository {
         ]
       );
 
-      await client.query(
+      await tx.query(
         `
         insert into audit_log (actor_type, actor_id, action, entity_type, entity_id, reason, metadata)
         values ($1,$2,$3,$4,$5,$6,$7)
@@ -164,14 +157,7 @@ export class PayoutRepository {
           }
         ]
       );
-
-      await client.query('commit');
-    } catch (error) {
-      await client.query('rollback');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async markReviewRequired(params: {
@@ -179,12 +165,8 @@ export class PayoutRepository {
     attempts: number;
     errorMessage: string;
   }): Promise<void> {
-    const client = await this.pool.connect();
-
-    try {
-      await client.query('begin');
-
-      await client.query(
+    await withTransaction(async (tx) => {
+      await tx.query(
         `
         update payout_instruction
         set status = 'PAYOUT_REVIEW_REQUIRED',
@@ -196,12 +178,12 @@ export class PayoutRepository {
         [params.instruction.payoutId, params.attempts, params.errorMessage]
       );
 
-      await client.query(
+      await tx.query(
         "update transfers set status = 'PAYOUT_REVIEW_REQUIRED' where transfer_id = $1 and status in ('FUNDING_CONFIRMED', 'PAYOUT_INITIATED')",
         [params.instruction.transferId]
       );
 
-      await client.query(
+      await tx.query(
         `
         insert into transfer_transition (transfer_id, from_state, to_state, metadata)
         values ($1, $2, $3, $4)
@@ -218,7 +200,7 @@ export class PayoutRepository {
         ]
       );
 
-      await client.query(
+      await tx.query(
         `
         insert into payout_status_event (payout_id, transfer_id, from_status, to_status, metadata)
         values ($1, $2, $3, $4, $5)
@@ -235,7 +217,7 @@ export class PayoutRepository {
         ]
       );
 
-      await client.query(
+      await tx.query(
         `
         insert into audit_log (actor_type, actor_id, action, entity_type, entity_id, reason, metadata)
         values ($1,$2,$3,$4,$5,$6,$7)
@@ -254,20 +236,13 @@ export class PayoutRepository {
           }
         ]
       );
-
-      await client.query('commit');
-    } catch (error) {
-      await client.query('rollback');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async saveIdempotency(params: { key: string; requestHash: string; result: PayoutResult; now: Date }): Promise<void> {
     const expiresAt = new Date(params.now.getTime() + 24 * 3600 * 1000);
 
-    await this.pool.query(
+    await query(
       `
       insert into idempotency_record (key, request_hash, response_status, response_body, expires_at)
       values ($1, $2, 202, $3, $4)
@@ -278,7 +253,7 @@ export class PayoutRepository {
   }
 
   async findByPayoutId(payoutId: string): Promise<PayoutInstructionRecord | null> {
-    const result = await this.pool.query('select * from payout_instruction where payout_id = $1 limit 1', [payoutId]);
+    const result = await query('select * from payout_instruction where payout_id = $1 limit 1', [payoutId]);
     const row = result.rows[0] as Row | undefined;
     if (!row) {
       return null;
@@ -292,12 +267,8 @@ export class PayoutRepository {
     providerReference: string;
     metadata?: Record<string, unknown>;
   }): Promise<void> {
-    const client = await this.pool.connect();
-
-    try {
-      await client.query('begin');
-
-      await client.query(
+    await withTransaction(async (tx) => {
+      await tx.query(
         `
         update payout_instruction
         set status = 'PAYOUT_COMPLETED',
@@ -309,12 +280,12 @@ export class PayoutRepository {
         [params.instruction.payoutId, params.providerReference]
       );
 
-      await client.query(
+      await tx.query(
         "update transfers set status = 'PAYOUT_COMPLETED' where transfer_id = $1 and status = 'PAYOUT_INITIATED'",
         [params.instruction.transferId]
       );
 
-      await client.query(
+      await tx.query(
         `
         insert into transfer_transition (transfer_id, from_state, to_state, metadata)
         values ($1, 'PAYOUT_INITIATED', 'PAYOUT_COMPLETED', $2)
@@ -322,7 +293,7 @@ export class PayoutRepository {
         [params.instruction.transferId, params.metadata ?? {}]
       );
 
-      await client.query(
+      await tx.query(
         `
         insert into payout_status_event (payout_id, transfer_id, from_status, to_status, metadata)
         values ($1, $2, $3, 'PAYOUT_COMPLETED', $4)
@@ -330,7 +301,7 @@ export class PayoutRepository {
         [params.instruction.payoutId, params.instruction.transferId, params.instruction.status, params.metadata ?? {}]
       );
 
-      await client.query(
+      await tx.query(
         `
         insert into audit_log (actor_type, actor_id, action, entity_type, entity_id, reason, metadata)
         values ($1,$2,$3,$4,$5,$6,$7)
@@ -349,14 +320,7 @@ export class PayoutRepository {
           }
         ]
       );
-
-      await client.query('commit');
-    } catch (error) {
-      await client.query('rollback');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async markFailed(params: {
@@ -364,12 +328,8 @@ export class PayoutRepository {
     errorMessage: string;
     metadata?: Record<string, unknown>;
   }): Promise<void> {
-    const client = await this.pool.connect();
-
-    try {
-      await client.query('begin');
-
-      await client.query(
+    await withTransaction(async (tx) => {
+      await tx.query(
         `
         update payout_instruction
         set status = 'PAYOUT_FAILED',
@@ -380,12 +340,12 @@ export class PayoutRepository {
         [params.instruction.payoutId, params.errorMessage]
       );
 
-      await client.query(
+      await tx.query(
         "update transfers set status = 'PAYOUT_FAILED' where transfer_id = $1 and status = 'PAYOUT_INITIATED'",
         [params.instruction.transferId]
       );
 
-      await client.query(
+      await tx.query(
         `
         insert into transfer_transition (transfer_id, from_state, to_state, metadata)
         values ($1, 'PAYOUT_INITIATED', 'PAYOUT_FAILED', $2)
@@ -393,7 +353,7 @@ export class PayoutRepository {
         [params.instruction.transferId, { errorMessage: params.errorMessage, ...params.metadata }]
       );
 
-      await client.query(
+      await tx.query(
         `
         insert into payout_status_event (payout_id, transfer_id, from_status, to_status, metadata)
         values ($1, $2, $3, 'PAYOUT_FAILED', $4)
@@ -406,7 +366,7 @@ export class PayoutRepository {
         ]
       );
 
-      await client.query(
+      await tx.query(
         `
         insert into audit_log (actor_type, actor_id, action, entity_type, entity_id, reason, metadata)
         values ($1,$2,$3,$4,$5,$6,$7)
@@ -425,13 +385,6 @@ export class PayoutRepository {
           }
         ]
       );
-
-      await client.query('commit');
-    } catch (error) {
-      await client.query('rollback');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 }

@@ -1,4 +1,4 @@
-import { closePool, getPool } from '@cryptopay/db';
+import { closeDb, query } from '@cryptopay/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   IdempotencyConflictError,
@@ -9,9 +9,8 @@ import {
 } from '../src/modules/transfers/index.js';
 
 async function ensureTables(): Promise<void> {
-  const pool = getPool();
 
-  await pool.query(`
+  await query(`
     create table if not exists idempotency_record (
       key text primary key,
       request_hash text not null,
@@ -22,7 +21,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists quotes (
       quote_id text primary key,
       chain text not null check (chain in ('base', 'solana')),
@@ -36,7 +35,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists transfers (
       transfer_id text primary key,
       quote_id text not null references quotes(quote_id),
@@ -63,7 +62,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists deposit_routes (
       route_id text primary key,
       transfer_id text not null unique references transfers(transfer_id) on delete cascade,
@@ -76,11 +75,11 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(
+  await query(
     'create unique index if not exists idx_deposit_routes_chain_token_address on deposit_routes(chain, token, deposit_address)'
   );
 
-  await pool.query(`
+  await query(`
     create table if not exists receiver_kyc_profile (
       receiver_id text primary key,
       kyc_status text not null check (kyc_status in ('approved', 'pending', 'rejected')),
@@ -99,7 +98,7 @@ async function seedQuote(params?: { quoteId?: string; expiresAt?: string; chain?
   const chain = params?.chain ?? 'base';
   const token = params?.token ?? 'USDC';
 
-  await getPool().query(
+  await query(
     `
     insert into quotes (
       quote_id,
@@ -136,13 +135,13 @@ describe('transfer creation integration', () => {
   });
 
   beforeEach(async () => {
-    await getPool().query('truncate table quotes cascade');
+    await query('truncate table quotes cascade');
     await repository.clearTransferDataForTests();
-    await getPool().query('truncate table receiver_kyc_profile');
+    await query('truncate table receiver_kyc_profile');
   });
 
   afterAll(async () => {
-    await closePool();
+    await closeDb();
   });
 
   it('creates transfer with unique active deposit route', async () => {
@@ -266,7 +265,7 @@ describe('transfer creation integration', () => {
   it('uses receiver kyc profile over client-provided verification flags', async () => {
     const quoteId = await seedQuote({ quoteId: 'q_profile_override' });
 
-    await getPool().query(
+    await query(
       `
       insert into receiver_kyc_profile (receiver_id, kyc_status, national_id_verified)
       values ('receiver_profile_1', 'pending', false)
