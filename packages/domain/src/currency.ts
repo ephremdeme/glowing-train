@@ -54,10 +54,10 @@ export const PAYOUT_CORRIDORS: PayoutCorridor[] = [
         id: 'USD_ETB',
         sendCurrency: 'USD',
         receiveCurrency: 'ETB',
-        payoutMethods: ['bank_transfer', 'telebirr'],
+        payoutMethods: ['bank_transfer'],
         active: true,
         minSendAmount: 1,
-        maxSendAmount: 10_000
+        maxSendAmount: 2_000
     },
     {
         id: 'USD_KES',

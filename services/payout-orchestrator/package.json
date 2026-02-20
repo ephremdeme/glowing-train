@@ -18,6 +18,7 @@
     "@cryptopay/auth": "workspace:*",
     "@cryptopay/db": "workspace:*",
     "@cryptopay/domain": "workspace:*",
+    "@cryptopay/http": "workspace:*",
     "@cryptopay/observability": "workspace:*",
     "@cryptopay/security": "workspace:*",
     "fastify": "^5.2.1",

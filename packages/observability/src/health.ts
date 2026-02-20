@@ -6,7 +6,7 @@
  * Returns structured status for each dependency.
  */
 
-import { getPool, dbHealthcheck } from '@cryptopay/db';
+import { dbHealthcheck, getSql, loadDbConfig } from '@cryptopay/db';
 import { log } from '@cryptopay/observability';
 
 export type DependencyStatus = 'healthy' | 'degraded' | 'unhealthy';
@@ -47,25 +47,22 @@ async function checkDatabase(): Promise<DependencyCheck> {
     }
 }
 
-async function checkPoolStats(): Promise<DependencyCheck> {
-    const pool = getPool();
+async function checkDbClient(): Promise<DependencyCheck> {
+    const sql = getSql();
+    const config = loadDbConfig();
     const start = Date.now();
     try {
-        // pg Pool exposes these stats
-        const total = (pool as unknown as { totalCount: number }).totalCount ?? 0;
-        const idle = (pool as unknown as { idleCount: number }).idleCount ?? 0;
-        const waiting = (pool as unknown as { waitingCount: number }).waitingCount ?? 0;
+        await sql.unsafe('select 1');
 
-        const status: DependencyStatus = waiting > 5 ? 'degraded' : 'healthy';
         return {
-            name: 'db_pool',
-            status,
+            name: 'db_client',
+            status: 'healthy',
             latencyMs: Date.now() - start,
-            message: `total=${total} idle=${idle} waiting=${waiting}`
+            message: `postgres.js max=${config.maxConnections}`
         };
     } catch (error) {
         return {
-            name: 'db_pool',
+            name: 'db_client',
             status: 'unhealthy',
             latencyMs: Date.now() - start,
             message: (error as Error).message
@@ -76,7 +73,7 @@ async function checkPoolStats(): Promise<DependencyCheck> {
 export async function deepHealthCheck(serviceName: string): Promise<DeepHealthResult> {
     const checks = await Promise.all([
         checkDatabase(),
-        checkPoolStats()
+        checkDbClient()
     ]);
 
     const overallStatus: DependencyStatus = checks.some((c) => c.status === 'unhealthy')

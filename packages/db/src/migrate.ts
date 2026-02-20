@@ -2,17 +2,22 @@ import { loadRuntimeConfig } from '@cryptopay/config';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Pool } from 'pg';
+import postgres from 'postgres';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function runMigrations(): Promise<void> {
   const config = loadRuntimeConfig();
-  const pool = new Pool({ connectionString: config.DATABASE_URL });
+  const sql = postgres(config.DATABASE_URL, {
+    max: 1,
+    idle_timeout: 5,
+    connect_timeout: 10,
+    prepare: false
+  });
 
   try {
-    await pool.query(`
+    await sql.unsafe(`
       create table if not exists schema_migrations (
         version text primary key,
         applied_at timestamptz not null default now()
@@ -25,32 +30,26 @@ async function runMigrations(): Promise<void> {
       .sort((a, b) => a.localeCompare(b));
 
     for (const filename of migrationFiles) {
-      const alreadyApplied = await pool.query(
+      const alreadyApplied = await sql.unsafe<{ version: string }[]>(
         'select 1 from schema_migrations where version = $1 limit 1',
         [filename]
       );
 
-      if (alreadyApplied.rowCount) {
+      if (alreadyApplied.length > 0) {
         continue;
       }
 
-      const sql = await readFile(path.join(migrationDir, filename), 'utf8');
-
-      await pool.query('begin');
-      try {
-        await pool.query(sql);
-        await pool.query('insert into schema_migrations(version) values ($1)', [filename]);
-        await pool.query('commit');
-        console.log(`Applied migration: ${filename}`);
-      } catch (error) {
-        await pool.query('rollback');
-        throw error;
-      }
+      const migrationSql = await readFile(path.join(migrationDir, filename), 'utf8');
+      await sql.begin(async (transaction) => {
+        await transaction.unsafe(migrationSql);
+        await transaction.unsafe('insert into schema_migrations(version) values ($1)', [filename]);
+      });
+      console.log(`Applied migration: ${filename}`);
     }
 
     console.log('Migration run complete.');
   } finally {
-    await pool.end();
+    await sql.end({ timeout: 5 });
   }
 }
 

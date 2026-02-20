@@ -1,4 +1,4 @@
-export type PayoutMethod = 'bank' | 'telebirr';
+export type PayoutMethod = 'bank';
 
 export interface PayoutRequest {
   payoutId: string;
