@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:contract": "vitest run src/test/contracts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
