@@ -48,8 +48,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      customer-auth:
-        condition: service_started
 
   customer-auth:
     image: node:22-alpine
@@ -187,11 +185,14 @@ services:
       HOSTNAME: "0.0.0.0"
       PORT: 3000
       WEB_CORE_API_URL: http://core-api:3001
+      WEB_CUSTOMER_AUTH_URL: http://customer-auth:3005
       WEB_OFFSHORE_COLLECTOR_URL: http://offshore-collector:3002
     ports:
       - '3000:3000'
     depends_on:
       core-api:
+        condition: service_started
+      customer-auth:
         condition: service_started
 
 volumes:

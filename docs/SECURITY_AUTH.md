@@ -2,7 +2,7 @@
 
 ## Scope
 This document defines authentication, authorization, and trust boundaries for internal/admin operations in the MVP.
-Customer auth is in scope for this phase using the dedicated `customer-auth` service and `core-api` public proxy routes.
+Customer auth is in scope for this phase using the dedicated `customer-auth` service directly (no `core-api` auth proxy).
 
 ## Token model
 Three JWT token types are supported:
@@ -34,10 +34,9 @@ Current write actions requiring `ops_admin`:
 - `POST /internal/v1/ops/reconciliation/run`
 
 Customer session model:
-- Access JWT + refresh token rotation.
-- Refresh token stored hashed in `customer_session`.
-- Cookie support (`cp_refresh_token` + `cp_csrf`) and JSON token payload for non-cookie clients.
-- Refresh reuse detection revokes active session chain.
+- Cookie-backed auth session in `customer_auth_session`.
+- Short-lived customer JWT (`exp = now + 300s`) is minted through `/auth/session/exchange`.
+- `core-api` remains a resource server and validates exchanged customer JWTs.
 
 ## Signed watcher callback
 `POST /internal/v1/funding-confirmed` requires:

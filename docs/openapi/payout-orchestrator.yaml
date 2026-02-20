@@ -30,7 +30,7 @@ components:
         transferId: { type: string }
         method:
           type: string
-          enum: [bank, telebirr]
+          enum: [bank]
         recipientAccountRef: { type: string }
         amountEtb:
           type: number

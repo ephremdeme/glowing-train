@@ -11,7 +11,7 @@ CryptoPay enables diaspora-funded remittances to Ethiopia using a legal-first mo
 2. Sender funds transfer non-custodially from their own wallet.
 3. Offshore entity receives USDC/USDT on Base or Solana.
 4. Offshore entity converts to USD and settles with Ethiopia payout partner through legal rails.
-5. Ethiopia payout partner sends ETB to recipient bank account (Telebirr later).
+5. Ethiopia payout partner sends ETB to recipient bank account.
 
 Revenue model (MVP assumption): FX spread + service fee embedded in quote.
 
@@ -30,7 +30,6 @@ Revenue model (MVP assumption): FX spread + service fee embedded in quote.
 - Confirmation detection on Base and Solana via dedicated watchers.
 - Payout orchestration using adapter interface:
   - Bank payout enabled.
-  - Telebirr behind feature flag and disabled by default.
 - Double-entry ledger for money movement accounting.
 - Audit logging for sensitive actions and state transitions.
 - Reconciliation job with CSV output for operations/compliance review.

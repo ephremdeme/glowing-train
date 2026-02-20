@@ -2,7 +2,7 @@
 
 ## Critical Flow
 1. Quote created (`QUOTE_CREATED` context).
-2. Customer authenticates via `core-api /v1/auth/*` (proxied to `customer-auth`).
+2. Customer authenticates via `customer-auth /auth/*` and exchanges a short-lived customer JWT.
 3. Sender KYC approved before first transfer.
 4. Transfer created with unique deposit route (`AWAITING_FUNDING`).
 5. Funding confirmed by watcher -> `FUNDING_CONFIRMED`.
@@ -34,9 +34,10 @@
 All write actions require `ops_admin` and are audited with actor + reason.
 
 ## Customer Auth Operations
-- Validate customer session issuance/rotation:
-  - `POST /v1/auth/register`
-  - `POST /v1/auth/refresh`
+- Validate customer session issuance and exchange:
+  - `POST /auth/sign-up/email`
+  - `POST /auth/sign-in/email`
+  - `POST /auth/session/exchange`
 - Validate sender KYC status gate:
   - `GET /v1/kyc/sender/status`
   - `POST /v1/kyc/sender/sumsub-token`

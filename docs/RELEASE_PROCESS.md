@@ -21,7 +21,6 @@
 - No high/critical security findings.
 - No Ethiopia boundary violations.
 - Migration plan is additive and reversible.
-- Feature flags verified (`PAYOUT_TELEBIRR_ENABLED=false` by default).
 - Customer auth is in scope for this release line and is released through `core-api` as the single public entrypoint.
 
 ## Rollback

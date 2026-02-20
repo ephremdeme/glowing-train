@@ -16,8 +16,6 @@ flowchart LR
     D --> E[Core Remittance API]
     E --> F[Payout Orchestrator]
     F --> G[Bank Payout Adapter]
-    F --> H[Telebirr Adapter
-Feature Flag Off by Default]
     G --> I[Ethiopia Payout Partner]
     E --> J[Ledger Service]
     E --> K[Audit Log]
@@ -50,7 +48,7 @@ Feature Flag Off by Default]
 - Adapts transfer intent into payout partner requests.
 - Calls payout adapter interface with retry and idempotency controls.
 - Tracks payout status lifecycle and terminal outcomes.
-- Bank adapter active in MVP; Telebirr adapter hidden behind feature flag.
+- Bank transfer adapter is the only supported v1 payout path.
 
 ### 3.5 Reconciliation Worker (Node.js/TypeScript)
 - Periodically compares transfer records, on-chain confirmations, ledger entries, and payout status.
@@ -154,7 +152,6 @@ Feature Flag Off by Default]
 | Solana RPC | Real in non-local; mock emitter in local tests | Same as Base |
 | KYC provider | Mock adapter first, real adapter behind env switch | Store only status + reference + timestamps |
 | Bank payout partner | Mock sandbox adapter first, real adapter when credentials available | Interface stable from day 1 |
-| Telebirr payout | Stubbed adapter behind feature flag (disabled) | No production path in MVP |
 | FX/settlement provider | Mock in MVP | Offshore finance flow represented as integration boundary |
 
 ## 10. Data and Privacy Constraints

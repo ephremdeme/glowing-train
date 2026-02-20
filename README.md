@@ -50,9 +50,9 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Frontend Environment Variables
 - `WEB_CORE_API_URL` default `http://localhost:3001`
+- `WEB_CUSTOMER_AUTH_URL` default `http://localhost:3005`
 - `WEB_OFFSHORE_COLLECTOR_URL` default `http://localhost:3002`
 - `WEB_OPS_READ_TOKEN` optional ops token (legacy route support)
-- `NEXT_PUBLIC_TELEBIRR_ENABLED` keep `false` for MVP
 - `NEXT_PUBLIC_SOLANA_CLUSTER` default `mainnet-beta`
 - `NEXT_PUBLIC_LANDING_USDC_ETB_RATE` default `140`
 - `NEXT_PUBLIC_LANDING_USDT_ETB_RATE` default `140`

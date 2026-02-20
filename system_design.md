@@ -1,6 +1,6 @@
 # CryptoPay System Design (Fast Launch)
 
-Customer login/auth is handled by the dedicated `customer-auth` service and exposed to clients through `core-api` public routes.
+Customer login/auth is handled by the dedicated `customer-auth` service and consumed directly by the web BFF/client auth routes.
 
 ## 1) System Context
 ```mermaid
@@ -14,7 +14,6 @@ flowchart LR
     solWatcher --> core
     core --> payoutOrch["Payout Orchestrator"]
     payoutOrch --> bank["Bank Payout Adapter"]
-    payoutOrch --> telebirr["Telebirr Adapter (Feature-flag off)"]
     bank --> partner["Ethiopia Payout Partner"]
     partner --> recipient["Recipient (ETB)"]
     core --> recon["Reconciliation Worker"]
@@ -25,7 +24,7 @@ The sender funds with their own wallet (non-custodial). Watchers confirm funding
 
 ## 2) Service Responsibility Map
 - `core-api`: quote lifecycle, funding confirmation intake, transfer ops API gateway, audit and SLA views.
-- `customer-auth`: customer registration/login, session rotation, OTP/magic-link challenges, optional TOTP MFA.
+- `customer-auth`: customer sign-up/sign-in (email + Google), session lifecycle, and short-lived customer JWT exchange.
 - `offshore-collector`: transfer creation and unique deposit route assignment; enforces transfer preconditions.
 - `payout-orchestrator`: payout initiation state machine with retry policy and adapter routing.
 - `reconciliation-worker`: detects state mismatches, writes reconciliation issues, and outputs CSV reports.
@@ -71,9 +70,10 @@ sequenceDiagram
     participant P as Payout Orchestrator
     participant B as Bank Adapter
 
-    U->>C: POST /v1/auth/register or /v1/auth/login/*
-    C->>A: proxy auth request
-    A-->>C: customer session
+    U->>A: POST /auth/sign-up/email or /auth/sign-in/email
+    A-->>U: cookie-backed auth session
+    U->>A: POST /auth/session/exchange
+    A-->>U: short-lived customer JWT
     U->>C: POST /v1/quotes
     C-->>U: quoteId + expiry
     U->>O: POST /v1/transfers (idempotency-key)

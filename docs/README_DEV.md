@@ -78,7 +78,7 @@ pnpm dev:web
 - Offshore Collector: `http://localhost:3002`
 - Payout Orchestrator: `http://localhost:3003`
 - Reconciliation Worker: `http://localhost:3004`
-- Customer Auth (internal): `http://localhost:3005`
+- Customer Auth: `http://localhost:3005`
 - Web Client: `http://localhost:3000`
 
 Each service exposes:
@@ -104,8 +104,7 @@ pnpm --filter @cryptopay/ops-cli dev transfers list --api-url http://localhost:3
 
 ## Notes
 - Keep `ETHIOPIA_SERVICES_CRYPTO_DISABLED=true` for Ethiopia-side processes.
-- Telebirr remains feature-flagged off for MVP (`PAYOUT_TELEBIRR_ENABLED=false`).
-- Customer auth is in scope in this stage (`customer-auth` service + `core-api` `/v1/auth/*` proxy).
+- Customer auth is in scope in this stage through the dedicated `customer-auth` service (`/auth/*` routes).
 
 ## Frontend Validation
 ```bash
@@ -132,7 +131,6 @@ pnpm --filter @cryptopay/web test:e2e
 ## Wallet + UI env flags
 - `NEXT_PUBLIC_WALLET_MODE=real|mock` (`mock` used by `dev:e2e`)
 - `NEXT_PUBLIC_SOLANA_CLUSTER=mainnet-beta|devnet|testnet`
-- `NEXT_PUBLIC_TELEBIRR_ENABLED=false` (MVP default)
 - `NEXT_PUBLIC_LANDING_USDC_ETB_RATE=140`
 - `NEXT_PUBLIC_LANDING_USDT_ETB_RATE=140`
 - `NEXT_PUBLIC_LANDING_FEE_USD=1`

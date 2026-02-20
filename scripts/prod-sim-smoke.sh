@@ -163,61 +163,7 @@ echo "Bringing up dependencies..."
 retry_cmd "dependencies startup" compose_up postgres redis
 
 echo "Running migrations..."
-compose run --rm --no-deps core-api sh -lc '
-cd /app/node_modules/@cryptopay/db
-node <<'"'"'EOF'"'"'
-const { readdirSync, readFileSync } = require("node:fs");
-const path = require("node:path");
-const { Pool } = require("pg");
-
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error("DATABASE_URL is required for migrations");
-}
-
-const pool = new Pool({ connectionString });
-const migrationDir = "./migrations";
-
-(async () => {
-  try {
-    await pool.query(
-      "create table if not exists schema_migrations (version text primary key, applied_at timestamptz not null default now())"
-    );
-
-    const files = readdirSync(migrationDir)
-      .filter((name) => name.endsWith(".sql"))
-      .sort((a, b) => a.localeCompare(b));
-
-    for (const filename of files) {
-      const alreadyApplied = await pool.query(
-        "select 1 from schema_migrations where version = $1 limit 1",
-        [filename]
-      );
-      if (alreadyApplied.rowCount) continue;
-
-      const sql = readFileSync(path.join(migrationDir, filename), "utf8");
-      await pool.query("begin");
-      try {
-        await pool.query(sql);
-        await pool.query("insert into schema_migrations(version) values ($1)", [filename]);
-        await pool.query("commit");
-        console.log("Applied migration: " + filename);
-      } catch (error) {
-        await pool.query("rollback");
-        throw error;
-      }
-    }
-
-    console.log("Migration run complete.");
-  } finally {
-    await pool.end();
-  }
-})().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
-EOF
-'
+compose run --rm --no-deps core-api node --experimental-strip-types /app/node_modules/@cryptopay/db/src/migrate.ts
 
 echo "Bringing up full stack..."
 retry_cmd "full stack startup" compose_up
