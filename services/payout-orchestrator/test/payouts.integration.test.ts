@@ -2,7 +2,6 @@ import {
   BankPayoutAdapter,
   NonRetryableAdapterError,
   RetryableAdapterError,
-  TelebirrPayoutAdapter,
   type PayoutRequest,
   type PayoutResponse
 } from '@cryptopay/adapters';
@@ -141,7 +140,6 @@ describe('payout orchestration integration', () => {
     process.env.DATABASE_URL = 'postgres://cryptopay:cryptopay@localhost:55432/cryptopay';
     process.env.REDIS_URL = 'redis://localhost:6379';
     process.env.ETHIOPIA_SERVICES_CRYPTO_DISABLED = 'true';
-    process.env.PAYOUT_TELEBIRR_ENABLED = 'false';
 
     await ensureTables();
   });
@@ -163,8 +161,7 @@ describe('payout orchestration integration', () => {
     });
 
     const service = new PayoutService(new PayoutRepository(), {
-      bank: new BankPayoutAdapter(transport),
-      telebirr: new TelebirrPayoutAdapter(false)
+      bank: new BankPayoutAdapter(transport)
     });
 
     const result = await service.initiatePayout({
@@ -199,8 +196,7 @@ describe('payout orchestration integration', () => {
     };
 
     const service = new PayoutService(new PayoutRepository(), {
-      bank: new BankPayoutAdapter(transport),
-      telebirr: new TelebirrPayoutAdapter(false)
+      bank: new BankPayoutAdapter(transport)
     });
 
     const result = await service.initiatePayout({
@@ -223,8 +219,7 @@ describe('payout orchestration integration', () => {
     };
 
     const service = new PayoutService(new PayoutRepository(), {
-      bank: new BankPayoutAdapter(transport),
-      telebirr: new TelebirrPayoutAdapter(false)
+      bank: new BankPayoutAdapter(transport)
     });
 
     const result = await service.initiatePayout({
@@ -241,31 +236,11 @@ describe('payout orchestration integration', () => {
     expect(transfer.rows[0]?.status).toBe('PAYOUT_REVIEW_REQUIRED');
   });
 
-  it('keeps telebirr disabled by default', async () => {
-    await seedTransfer('tr_pay_telebirr');
-
-    const service = new PayoutService(new PayoutRepository(), {
-      bank: new BankPayoutAdapter(async () => ({ providerReference: 'unused', acceptedAt: new Date() })),
-      telebirr: new TelebirrPayoutAdapter(false)
-    });
-
-    await expect(
-      service.initiatePayout({
-        transferId: 'tr_pay_telebirr',
-        method: 'telebirr',
-        recipientAccountRef: 'TEL-ACC',
-        amountEtb: 10000,
-        idempotencyKey: 'idem-payout-004'
-      })
-    ).rejects.toThrow(/disabled/);
-  });
-
   it('returns idempotent response for duplicate payout initiation', async () => {
     await seedTransfer('tr_pay_idem');
 
     const service = new PayoutService(new PayoutRepository(), {
-      bank: new BankPayoutAdapter(async () => ({ providerReference: 'bank_ref_idem', acceptedAt: new Date() })),
-      telebirr: new TelebirrPayoutAdapter(false)
+      bank: new BankPayoutAdapter(async () => ({ providerReference: 'bank_ref_idem', acceptedAt: new Date() }))
     });
 
     const first = await service.initiatePayout({

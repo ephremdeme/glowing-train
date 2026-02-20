@@ -114,7 +114,15 @@ export class TransferRepository implements TransferRepositoryPort {
       [key]
     );
 
-    const row = result.rows[0];
+    const row = result.rows[0] as
+      | {
+          key: string;
+          request_hash: string;
+          response_status: number;
+          response_body: unknown;
+          expires_at: string | Date;
+        }
+      | undefined;
     if (!row) {
       return null;
     }

@@ -1,8 +1,8 @@
 import { assertTokenType, authenticateBearerToken, type AuthClaims } from '@cryptopay/auth';
 import { getPool } from '@cryptopay/db';
-import { createServiceMetrics, log } from '@cryptopay/observability';
-import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
-import { createHash } from 'node:crypto';
+import { deny, errorEnvelope, registerServiceMetrics, withIdempotency } from '@cryptopay/http';
+import { log } from '@cryptopay/observability';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { TransferRepository, TransferService } from './modules/transfers/index.js';
 import { buildTransferRoutes } from './routes/transfers.js';
@@ -17,95 +17,12 @@ const createTransferSchema = z.object({
   idempotencyKey: z.string().min(8)
 });
 
-function hashPayload(payload: unknown): string {
-  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
-}
-
 function requiredIdempotencyKey(request: FastifyRequest): string {
   const key = request.headers['idempotency-key'];
   if (!key || typeof key !== 'string') {
     throw new Error('Missing idempotency-key header.');
   }
   return key;
-}
-
-function errorEnvelope(request: FastifyRequest, code: string, message: string, details?: unknown): { error: Record<string, unknown> } {
-  const error: Record<string, unknown> = {
-    code,
-    message,
-    requestId: request.id
-  };
-
-  if (details !== undefined) {
-    error.details = details;
-  }
-
-  return { error };
-}
-
-async function withIdempotency(params: {
-  scope: string;
-  idempotencyKey: string;
-  requestId: string;
-  requestPayload: unknown;
-  execute: () => Promise<{ status: number; body: unknown }>;
-}): Promise<{ status: number; body: unknown }> {
-  const key = `${params.scope}:${params.idempotencyKey}`;
-  const requestHash = hashPayload(params.requestPayload);
-
-  const existing = await getPool().query('select request_hash, response_status, response_body from idempotency_record where key = $1', [key]);
-  const row = existing.rows[0] as
-    | {
-        request_hash: string;
-        response_status: number;
-        response_body: unknown;
-      }
-    | undefined;
-
-  if (row) {
-    if (row.request_hash !== requestHash) {
-      return {
-        status: 409,
-        body: {
-          error: {
-            code: 'IDEMPOTENCY_CONFLICT',
-            message: 'Idempotency key reused with different payload.',
-            requestId: params.requestId
-          }
-        }
-      };
-    }
-
-    return {
-      status: row.response_status,
-      body: row.response_body
-    };
-  }
-
-  const result = await params.execute();
-  const expiresAt = new Date(Date.now() + 24 * 3600 * 1000);
-
-  await getPool().query(
-    `
-    insert into idempotency_record (key, request_hash, response_status, response_body, expires_at)
-    values ($1, $2, $3, $4, $5)
-    on conflict (key) do nothing
-    `,
-    [key, requestHash, result.status, result.body, expiresAt]
-  );
-
-  return result;
-}
-
-function deny(params: {
-  request: FastifyRequest;
-  reply: FastifyReply;
-  code: string;
-  message: string;
-  status?: number;
-  details?: unknown;
-}): FastifyReply {
-  return params.reply.status(params.status ?? 400).send(errorEnvelope(params.request, params.code, params.message, params.details));
 }
 
 function toAuthClaims(request: FastifyRequest): AuthClaims {
@@ -134,26 +51,8 @@ function assertScope(claims: AuthClaims, scope: string): void {
 export async function buildOffshoreCollectorApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
 
-  const metrics = createServiceMetrics('offshore-collector');
+  const metrics = registerServiceMetrics(app, 'offshore-collector');
   const transferRoutes = buildTransferRoutes(new TransferService(new TransferRepository()));
-
-  app.addHook('onRequest', async (request) => {
-    request.headers['x-request-start'] = String(Date.now());
-  });
-
-  app.addHook('onResponse', async (request, reply) => {
-    const started = Number(request.headers['x-request-start'] ?? Date.now());
-    const duration = Math.max(Date.now() - started, 0);
-    const route = request.routeOptions.url ?? request.url;
-    const status = String(reply.statusCode);
-
-    metrics.requestDurationMs.labels(request.method, route, status).observe(duration);
-    metrics.requestCount.labels(request.method, route, status).inc();
-
-    if (reply.statusCode >= 400) {
-      metrics.errorCount.labels(status).inc();
-    }
-  });
 
   app.get('/healthz', async () => ({ ok: true, service: 'offshore-collector' }));
   app.get('/readyz', async () => ({ ok: true }));
@@ -179,6 +78,7 @@ export async function buildOffshoreCollectorApp(): Promise<FastifyInstance> {
       const key = requiredIdempotencyKey(request);
 
       const response = await withIdempotency({
+        db: getPool(),
         scope: 'offshore-collector:transfers:create',
         idempotencyKey: key,
         requestId: request.id,
@@ -234,6 +134,7 @@ export async function buildOffshoreCollectorApp(): Promise<FastifyInstance> {
       const key = requiredIdempotencyKey(request);
 
       const response = await withIdempotency({
+        db: getPool(),
         scope: 'offshore-collector:internal:transfers:create',
         idempotencyKey: key,
         requestId: request.id,

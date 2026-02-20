@@ -2,18 +2,17 @@ import {
   assertHasRole,
   assertTokenType,
   authenticateBearerToken,
-  createAuthRateLimiter,
   createHs256Jwt,
   createRateLimiter,
-  registerCors,
   registerVersionHeaders,
   verifySignedPayloadSignature,
   type AuthClaims
 } from '@cryptopay/auth';
 import { getPool } from '@cryptopay/db';
-import { createServiceMetrics, deepHealthCheck, log } from '@cryptopay/observability';
-import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
-import { createHash, randomBytes } from 'node:crypto';
+import { deny, errorEnvelope, registerCors, registerServiceMetrics, withIdempotency } from '@cryptopay/http';
+import { deepHealthCheck, log } from '@cryptopay/observability';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { AuditService } from './modules/audit/index.js';
 import { FundingConfirmationRepository, FundingConfirmationService } from './modules/funding-confirmations/index.js';
@@ -79,58 +78,6 @@ const watcherRouteResolveSchema = z.object({
   depositAddress: z.string().min(1)
 });
 
-const authRegisterSchema = z.object({
-  fullName: z.string().min(1),
-  countryCode: z.string().min(2).max(3),
-  email: z.string().email().optional(),
-  phoneE164: z.string().min(8).max(20).optional(),
-  password: z.string().min(8).max(200).optional()
-});
-
-const authPasswordLoginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  totpCode: z.string().length(6).optional()
-});
-
-const authEmailRequestSchema = z.object({
-  email: z.string().email()
-});
-
-const authEmailVerifySchema = z.object({
-  challengeId: z.string().min(1),
-  token: z.string().min(6),
-  totpCode: z.string().length(6).optional()
-});
-
-const authPhoneRequestSchema = z.object({
-  phoneE164: z.string().min(8).max(20)
-});
-
-const authPhoneVerifySchema = z.object({
-  challengeId: z.string().min(1),
-  code: z.string().length(6),
-  totpCode: z.string().length(6).optional()
-});
-
-const authGoogleStartSchema = z.object({
-  redirectUri: z.string().url().optional()
-});
-
-const authGoogleCallbackSchema = z.object({
-  state: z.string().min(1),
-  code: z.string().min(1)
-});
-
-const authTotpCodeSchema = z.object({
-  code: z.string().length(6)
-});
-
-const authRefreshSchema = z.object({
-  refreshToken: z.string().min(20).optional(),
-  csrfToken: z.string().min(8).optional()
-});
-
 const recipientCreateSchema = z.object({
   fullName: z.string().min(1),
   bankAccountName: z.string().min(1),
@@ -181,70 +128,6 @@ const meUpdateSchema = z
     message: 'At least one field is required.'
   });
 
-function sha256(input: unknown): string {
-  return createHash('sha256').update(JSON.stringify(input)).digest('hex');
-}
-
-type IdempotentResponse = {
-  status: number;
-  body: unknown;
-};
-
-async function withIdempotency(params: {
-  scope: string;
-  idempotencyKey: string;
-  requestId: string;
-  requestPayload: unknown;
-  execute: () => Promise<IdempotentResponse>;
-}): Promise<IdempotentResponse> {
-  const pool = getPool();
-  const key = `${params.scope}:${params.idempotencyKey}`;
-  const requestHash = sha256(params.requestPayload);
-
-  const existing = await pool.query('select request_hash, response_status, response_body from idempotency_record where key = $1', [key]);
-  const row = existing.rows[0] as
-    | {
-      request_hash: string;
-      response_status: number;
-      response_body: unknown;
-    }
-    | undefined;
-
-  if (row) {
-    if (row.request_hash !== requestHash) {
-      return {
-        status: 409,
-        body: {
-          error: {
-            code: 'IDEMPOTENCY_CONFLICT',
-            message: 'Idempotency key was reused with a different payload.',
-            requestId: params.requestId
-          }
-        }
-      };
-    }
-
-    return {
-      status: row.response_status,
-      body: row.response_body
-    };
-  }
-
-  const response = await params.execute();
-  const expiresAt = new Date(Date.now() + 24 * 3600 * 1000);
-
-  await pool.query(
-    `
-    insert into idempotency_record (key, request_hash, response_status, response_body, expires_at)
-    values ($1, $2, $3, $4, $5)
-    on conflict (key) do nothing
-    `,
-    [key, requestHash, response.status, response.body, expiresAt]
-  );
-
-  return response;
-}
-
 function requiredIdempotencyKey(request: FastifyRequest): string {
   const value = request.headers['idempotency-key'];
   if (!value || typeof value !== 'string') {
@@ -273,31 +156,6 @@ function toCustomerClaims(request: FastifyRequest): AuthClaims {
   const claims = toAuthClaims(request);
   assertTokenType(claims, ['customer']);
   return claims;
-}
-
-function errorEnvelope(request: FastifyRequest, code: string, message: string, details?: unknown): { error: Record<string, unknown> } {
-  const error: Record<string, unknown> = {
-    code,
-    message,
-    requestId: request.id
-  };
-
-  if (details !== undefined) {
-    error.details = details;
-  }
-
-  return { error };
-}
-
-function deny(params: {
-  request: FastifyRequest;
-  reply: FastifyReply;
-  code: string;
-  message: string;
-  status?: number;
-  details?: unknown;
-}): FastifyReply {
-  return params.reply.status(params.status ?? 401).send(errorEnvelope(params.request, params.code, params.message, params.details));
 }
 
 function buildInternalServiceToken(scope: string): string {
@@ -369,138 +227,11 @@ async function forwardToReconciliationWorker(params: {
   return fetch(`${baseUrl}${params.path}`, init);
 }
 
-function parseCookieHeader(cookieHeader: string | undefined): Record<string, string> {
-  if (!cookieHeader) {
-    return {};
-  }
-
-  const pairs = cookieHeader
-    .split(';')
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-
-  const out: Record<string, string> = {};
-  for (const pair of pairs) {
-    const eq = pair.indexOf('=');
-    if (eq <= 0) {
-      continue;
-    }
-    const key = pair.slice(0, eq).trim();
-    const value = pair.slice(eq + 1).trim();
-    out[key] = value;
-  }
-  return out;
-}
-
-function refreshCookieConfig(): { secure: boolean; sameSite: 'Lax' | 'Strict'; path: string } {
-  return {
-    secure: (process.env.AUTH_COOKIE_SECURE ?? 'false').toLowerCase() === 'true',
-    sameSite: 'Lax',
-    path: '/v1/auth/refresh'
-  };
-}
-
-function buildRefreshSetCookie(name: string, value: string, maxAgeSeconds: number): string {
-  const config = refreshCookieConfig();
-  const attrs = [
-    `${name}=${value}`,
-    `Path=${config.path}`,
-    'HttpOnly',
-    `Max-Age=${maxAgeSeconds}`,
-    `SameSite=${config.sameSite}`
-  ];
-  if (config.secure) {
-    attrs.push('Secure');
-  }
-  return attrs.join('; ');
-}
-
-function buildCsrfSetCookie(value: string, maxAgeSeconds: number): string {
-  const config = refreshCookieConfig();
-  const attrs = [`cp_csrf=${value}`, `Path=${config.path}`, `Max-Age=${maxAgeSeconds}`, `SameSite=${config.sameSite}`];
-  if (config.secure) {
-    attrs.push('Secure');
-  }
-  return attrs.join('; ');
-}
-
-function refreshCookieMaxAgeSeconds(): number {
-  const value = Number(process.env.AUTH_CUSTOMER_REFRESH_TTL_SECONDS ?? String(30 * 24 * 3600));
-  if (!Number.isFinite(value) || value <= 0) {
-    return 30 * 24 * 3600;
-  }
-  return value;
-}
-
-function applySessionCookies(reply: FastifyReply, session: { refreshToken: string; csrfToken: string }): void {
-  const maxAge = refreshCookieMaxAgeSeconds();
-  reply.header('set-cookie', [
-    buildRefreshSetCookie('cp_refresh_token', session.refreshToken, maxAge),
-    buildCsrfSetCookie(session.csrfToken, maxAge)
-  ]);
-}
-
-function clearSessionCookies(reply: FastifyReply): void {
-  reply.header('set-cookie', [
-    buildRefreshSetCookie('cp_refresh_token', '', 0),
-    buildCsrfSetCookie('', 0)
-  ]);
-}
-
-async function forwardToCustomerAuth(params: {
-  path: string;
-  method: 'GET' | 'POST';
-  request: FastifyRequest;
-  body?: unknown;
-  query?: Record<string, string | undefined>;
-}): Promise<Response> {
-  const baseUrl = process.env.CUSTOMER_AUTH_URL ?? 'http://localhost:3005';
-  const token = buildInternalServiceToken('customer-auth:proxy');
-
-  const headers: Record<string, string> = {
-    'x-service-authorization': `Bearer ${token}`
-  };
-
-  const idempotencyKey = params.request.headers['idempotency-key'];
-  if (typeof idempotencyKey === 'string') {
-    headers['idempotency-key'] = idempotencyKey;
-  }
-
-  if (params.request.headers.authorization) {
-    headers.authorization = params.request.headers.authorization;
-  }
-
-  let body: string | undefined;
-  if (params.body !== undefined) {
-    headers['content-type'] = 'application/json';
-    body = JSON.stringify(params.body);
-  }
-
-  const init: RequestInit = {
-    method: params.method,
-    headers
-  };
-  if (body !== undefined) {
-    init.body = body;
-  }
-
-  const url = new URL(`${baseUrl}${params.path}`);
-  if (params.query) {
-    for (const [key, value] of Object.entries(params.query)) {
-      if (value !== undefined) {
-        url.searchParams.set(key, value);
-      }
-    }
-  }
-
-  return fetch(url, init);
-}
-
 export async function buildCoreApiApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
 
   // -- Security middleware --
-  registerCors(app);
+  await registerCors(app);
   registerVersionHeaders(app);
   const generalLimiter = createRateLimiter({
     max: Number(process.env['RATE_LIMIT_MAX'] ?? 200),
@@ -508,7 +239,7 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
   });
   generalLimiter.register(app);
 
-  const metrics = createServiceMetrics('core-api');
+  const metrics = registerServiceMetrics(app, 'core-api');
   const fxProvider = new ExchangeRateApiProvider({
     cacheTtlMs: Number(process.env['FX_RATE_CACHE_TTL_MS'] ?? 3_600_000)
   });
@@ -520,24 +251,6 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
   const auditService = new AuditService();
   const receiverKycService = new ReceiverKycService(new ReceiverKycRepository());
 
-  app.addHook('onRequest', async (request) => {
-    request.headers['x-request-start'] = String(Date.now());
-  });
-
-  app.addHook('onResponse', async (request, reply) => {
-    const start = Number(request.headers['x-request-start'] ?? Date.now());
-    const duration = Math.max(Date.now() - start, 0);
-    const route = request.routeOptions.url ?? request.url;
-    const status = String(reply.statusCode);
-
-    metrics.requestDurationMs.labels(request.method, route, status).observe(duration);
-    metrics.requestCount.labels(request.method, route, status).inc();
-
-    if (reply.statusCode >= 400) {
-      metrics.errorCount.labels(status).inc();
-    }
-  });
-
   app.get('/healthz', async () => ({ ok: true, service: 'core-api' }));
   app.get('/readyz', async (_request, reply) => {
     const health = await deepHealthCheck('core-api');
@@ -547,418 +260,6 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
   app.get('/metrics', async (_request, reply) => {
     reply.header('content-type', metrics.registry.contentType);
     return metrics.registry.metrics();
-  });
-
-  app.post('/v1/auth/register', async (request, reply) => {
-    const parsed = authRegisterSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_PAYLOAD',
-        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-        status: 400,
-        details: parsed.error.issues
-      });
-    }
-
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/register',
-      method: 'POST',
-      request,
-      body: parsed.data
-    });
-    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    const session = payload.session as { refreshToken?: string; csrfToken?: string } | undefined;
-    if (session?.refreshToken && session.csrfToken) {
-      applySessionCookies(reply, {
-        refreshToken: session.refreshToken,
-        csrfToken: session.csrfToken
-      });
-    }
-    return reply.status(response.status).send(payload);
-  });
-
-  app.post('/v1/auth/login/password', async (request, reply) => {
-    const parsed = authPasswordLoginSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_PAYLOAD',
-        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-        status: 400,
-        details: parsed.error.issues
-      });
-    }
-
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/login/password',
-      method: 'POST',
-      request,
-      body: parsed.data
-    });
-    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    const session = payload.session as { refreshToken?: string; csrfToken?: string } | undefined;
-    if (session?.refreshToken && session.csrfToken) {
-      applySessionCookies(reply, {
-        refreshToken: session.refreshToken,
-        csrfToken: session.csrfToken
-      });
-    }
-    return reply.status(response.status).send(payload);
-  });
-
-  app.post('/v1/auth/login/magic-link/request', async (request, reply) => {
-    const parsed = authEmailRequestSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_PAYLOAD',
-        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-        status: 400,
-        details: parsed.error.issues
-      });
-    }
-
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/login/magic-link/request',
-      method: 'POST',
-      request,
-      body: parsed.data
-    });
-    const payload = await response.json().catch(() => ({}));
-    return reply.status(response.status).send(payload);
-  });
-
-  app.post('/v1/auth/login/magic-link/verify', async (request, reply) => {
-    const parsed = authEmailVerifySchema.safeParse(request.body);
-    if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_PAYLOAD',
-        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-        status: 400,
-        details: parsed.error.issues
-      });
-    }
-
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/login/magic-link/verify',
-      method: 'POST',
-      request,
-      body: parsed.data
-    });
-    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    const session = payload.session as { refreshToken?: string; csrfToken?: string } | undefined;
-    if (session?.refreshToken && session.csrfToken) {
-      applySessionCookies(reply, {
-        refreshToken: session.refreshToken,
-        csrfToken: session.csrfToken
-      });
-    }
-    return reply.status(response.status).send(payload);
-  });
-
-  app.post('/v1/auth/login/phone/request-otp', async (request, reply) => {
-    const parsed = authPhoneRequestSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_PAYLOAD',
-        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-        status: 400,
-        details: parsed.error.issues
-      });
-    }
-
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/login/phone/request-otp',
-      method: 'POST',
-      request,
-      body: parsed.data
-    });
-    const payload = await response.json().catch(() => ({}));
-    return reply.status(response.status).send(payload);
-  });
-
-  app.post('/v1/auth/login/phone/verify-otp', async (request, reply) => {
-    const parsed = authPhoneVerifySchema.safeParse(request.body);
-    if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_PAYLOAD',
-        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-        status: 400,
-        details: parsed.error.issues
-      });
-    }
-
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/login/phone/verify-otp',
-      method: 'POST',
-      request,
-      body: parsed.data
-    });
-    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    const session = payload.session as { refreshToken?: string; csrfToken?: string } | undefined;
-    if (session?.refreshToken && session.csrfToken) {
-      applySessionCookies(reply, {
-        refreshToken: session.refreshToken,
-        csrfToken: session.csrfToken
-      });
-    }
-    return reply.status(response.status).send(payload);
-  });
-
-  app.get('/v1/auth/oauth/google/start', async (request, reply) => {
-    const parsed = authGoogleStartSchema.safeParse(request.query ?? {});
-    if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_QUERY',
-        message: parsed.error.issues[0]?.message ?? 'Invalid query.',
-        status: 400,
-        details: parsed.error.issues
-      });
-    }
-
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/oauth/google/start',
-      method: 'GET',
-      request,
-      query: {
-        redirectUri: parsed.data.redirectUri
-      }
-    });
-    const payload = await response.json().catch(() => ({}));
-    return reply.status(response.status).send(payload);
-  });
-
-  app.get('/v1/auth/oauth/google/callback', async (request, reply) => {
-    const parsed = authGoogleCallbackSchema.safeParse(request.query ?? {});
-    if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_QUERY',
-        message: parsed.error.issues[0]?.message ?? 'Invalid query.',
-        status: 400,
-        details: parsed.error.issues
-      });
-    }
-
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/oauth/google/callback',
-      method: 'GET',
-      request,
-      query: parsed.data
-    });
-    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    const session = payload.session as { refreshToken?: string; csrfToken?: string } | undefined;
-    if (session?.refreshToken && session.csrfToken) {
-      applySessionCookies(reply, {
-        refreshToken: session.refreshToken,
-        csrfToken: session.csrfToken
-      });
-    }
-    return reply.status(response.status).send(payload);
-  });
-
-  app.post('/v1/auth/mfa/totp/setup', async (request, reply) => {
-    try {
-      toCustomerClaims(request);
-    } catch (error) {
-      return deny({
-        request,
-        reply,
-        code: 'UNAUTHORIZED',
-        message: (error as Error).message,
-        status: 401
-      });
-    }
-
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/mfa/totp/setup',
-      method: 'POST',
-      request,
-      body: {}
-    });
-    const payload = await response.json().catch(() => ({}));
-    return reply.status(response.status).send(payload);
-  });
-
-  app.post('/v1/auth/mfa/totp/enable', async (request, reply) => {
-    const parsed = authTotpCodeSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_PAYLOAD',
-        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-        status: 400,
-        details: parsed.error.issues
-      });
-    }
-
-    try {
-      toCustomerClaims(request);
-    } catch (error) {
-      return deny({
-        request,
-        reply,
-        code: 'UNAUTHORIZED',
-        message: (error as Error).message,
-        status: 401
-      });
-    }
-
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/mfa/totp/enable',
-      method: 'POST',
-      request,
-      body: parsed.data
-    });
-    const payload = await response.json().catch(() => ({}));
-    return reply.status(response.status).send(payload);
-  });
-
-  app.post('/v1/auth/mfa/totp/disable', async (request, reply) => {
-    const parsed = authTotpCodeSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_PAYLOAD',
-        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-        status: 400,
-        details: parsed.error.issues
-      });
-    }
-
-    try {
-      toCustomerClaims(request);
-    } catch (error) {
-      return deny({
-        request,
-        reply,
-        code: 'UNAUTHORIZED',
-        message: (error as Error).message,
-        status: 401
-      });
-    }
-
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/mfa/totp/disable',
-      method: 'POST',
-      request,
-      body: parsed.data
-    });
-    const payload = await response.json().catch(() => ({}));
-    return reply.status(response.status).send(payload);
-  });
-
-  app.post('/v1/auth/refresh', async (request, reply) => {
-    const parsed = authRefreshSchema.safeParse(request.body ?? {});
-    if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_PAYLOAD',
-        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-        status: 400,
-        details: parsed.error.issues
-      });
-    }
-
-    const cookies = parseCookieHeader(request.headers.cookie);
-    const refreshToken = parsed.data.refreshToken ?? cookies.cp_refresh_token;
-    const csrfToken = parsed.data.csrfToken ?? request.headers['x-csrf-token']?.toString() ?? cookies.cp_csrf;
-
-    if (!refreshToken || !csrfToken) {
-      return deny({
-        request,
-        reply,
-        code: 'MISSING_REFRESH_CONTEXT',
-        message: 'refreshToken and csrfToken are required.',
-        status: 400
-      });
-    }
-
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/refresh',
-      method: 'POST',
-      request,
-      body: {
-        refreshToken,
-        csrfToken
-      }
-    });
-    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    const session = payload.session as { refreshToken?: string; csrfToken?: string } | undefined;
-    if (session?.refreshToken && session.csrfToken) {
-      applySessionCookies(reply, {
-        refreshToken: session.refreshToken,
-        csrfToken: session.csrfToken
-      });
-    }
-    return reply.status(response.status).send(payload);
-  });
-
-  app.post('/v1/auth/logout', async (request, reply) => {
-    try {
-      toCustomerClaims(request);
-    } catch (error) {
-      return deny({
-        request,
-        reply,
-        code: 'UNAUTHORIZED',
-        message: (error as Error).message,
-        status: 401
-      });
-    }
-
-    const cookies = parseCookieHeader(request.headers.cookie);
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/logout',
-      method: 'POST',
-      request,
-      body: {
-        refreshToken: cookies.cp_refresh_token
-      }
-    });
-    const payload = await response.json().catch(() => ({}));
-    clearSessionCookies(reply);
-    return reply.status(response.status).send(payload);
-  });
-
-  app.post('/v1/auth/logout-all', async (request, reply) => {
-    try {
-      toCustomerClaims(request);
-    } catch (error) {
-      return deny({
-        request,
-        reply,
-        code: 'UNAUTHORIZED',
-        message: (error as Error).message,
-        status: 401
-      });
-    }
-
-    const response = await forwardToCustomerAuth({
-      path: '/internal/v1/auth/logout-all',
-      method: 'POST',
-      request,
-      body: {}
-    });
-    const payload = await response.json().catch(() => ({}));
-    clearSessionCookies(reply);
-    return reply.status(response.status).send(payload);
   });
 
   app.get('/v1/me', async (request, reply) => {
@@ -1714,6 +1015,7 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
       });
     }
     const response = await withIdempotency({
+      db: getPool(),
       scope: 'core-api:sender-kyc:sumsub-webhook',
       idempotencyKey: idemKey,
       requestId: request.id,
@@ -2377,6 +1679,7 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
       const idempotencyKey = requiredIdempotencyKey(request);
 
       const response = await withIdempotency({
+        db: getPool(),
         scope: 'core-api:quotes:create',
         idempotencyKey,
         requestId: request.id,
@@ -2472,6 +1775,7 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
       (typeof request.headers['idempotency-key'] === 'string' && request.headers['idempotency-key']) || parsed.data.eventId;
 
     const response = await withIdempotency({
+      db: getPool(),
       scope: 'core-api:funding-confirmed',
       idempotencyKey,
       requestId: request.id,
@@ -2947,7 +2251,7 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     const existing = await getPool().query('select * from payout_instruction where transfer_id = $1 limit 1', [transferId]);
     const payoutInstruction = existing.rows[0] as
       | {
-        method: 'bank' | 'telebirr';
+        method: 'bank';
         recipient_account_ref: string;
         amount_etb: string;
       }

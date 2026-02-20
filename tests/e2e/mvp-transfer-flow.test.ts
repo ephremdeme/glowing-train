@@ -3,7 +3,7 @@ import { isWithinSlaMinutes } from '../../packages/observability/src/index.js';
 import { FundingConfirmationRepository, FundingConfirmationService } from '../../services/core-api/src/modules/funding-confirmations/index.js';
 import { QuoteRepository, QuoteService } from '../../services/core-api/src/modules/quotes/index.js';
 import { TransferRepository, TransferService } from '../../services/offshore-collector/src/modules/transfers/index.js';
-import { BankPayoutAdapter, TelebirrPayoutAdapter } from '../../packages/adapters/src/index.js';
+import { BankPayoutAdapter } from '../../packages/adapters/src/index.js';
 import { PayoutRepository, PayoutService } from '../../services/payout-orchestrator/src/modules/payouts/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -14,7 +14,6 @@ describe('MVP e2e transfer flow', () => {
     process.env.DATABASE_URL = 'postgres://cryptopay:cryptopay@localhost:55432/cryptopay';
     process.env.REDIS_URL = 'redis://localhost:6379';
     process.env.ETHIOPIA_SERVICES_CRYPTO_DISABLED = 'true';
-    process.env.PAYOUT_TELEBIRR_ENABLED = 'false';
   });
 
   beforeEach(async () => {
@@ -36,8 +35,7 @@ describe('MVP e2e transfer flow', () => {
       bank: new BankPayoutAdapter(async () => ({
         providerReference: 'bank_e2e_ref_1',
         acceptedAt: new Date()
-      })),
-      telebirr: new TelebirrPayoutAdapter(false)
+      }))
     });
 
     const quote = await quoteService.createQuote({

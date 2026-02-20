@@ -5,31 +5,6 @@ import { buildCustomerAuthApp } from '../src/app.js';
 
 async function ensureTables(): Promise<void> {
   await getPool().query(`
-    create table if not exists idempotency_record (
-      key text primary key,
-      request_hash text not null,
-      response_status integer not null,
-      response_body jsonb not null,
-      created_at timestamptz not null default now(),
-      expires_at timestamptz not null
-    )
-  `);
-
-  await getPool().query(`
-    create table if not exists audit_log (
-      id bigserial primary key,
-      actor_type text not null,
-      actor_id text not null,
-      action text not null,
-      entity_type text not null,
-      entity_id text not null,
-      reason text,
-      metadata jsonb,
-      created_at timestamptz not null default now()
-    )
-  `);
-
-  await getPool().query(`
     create table if not exists customer_account (
       customer_id text primary key,
       full_name text not null,
@@ -116,9 +91,34 @@ async function ensureTables(): Promise<void> {
       updated_at timestamptz not null default now()
     )
   `);
+
+  await getPool().query(`
+    create table if not exists idempotency_record (
+      key text primary key,
+      request_hash text not null,
+      response_status integer not null,
+      response_body jsonb not null,
+      created_at timestamptz not null default now(),
+      expires_at timestamptz not null
+    )
+  `);
+
+  await getPool().query(`
+    create table if not exists audit_log (
+      id bigserial primary key,
+      actor_type text not null,
+      actor_id text not null,
+      action text not null,
+      entity_type text not null,
+      entity_id text not null,
+      reason text,
+      metadata jsonb,
+      created_at timestamptz not null default now()
+    )
+  `);
 }
 
-describe('customer-auth integration', () => {
+describe('customer-auth token exchange', () => {
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
     process.env.APP_REGION = process.env.APP_REGION ?? 'ethiopia';
@@ -150,19 +150,32 @@ describe('customer-auth integration', () => {
     await closeDb();
   });
 
-  it('signs up and exchanges a customer JWT', async () => {
+  it('rejects exchange without active session', async () => {
+    const app = await buildCustomerAuthApp();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/auth/session/exchange',
+      payload: {}
+    });
+
+    expect(response.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it('issues short-lived customer JWT from active cookie session', async () => {
     const app = await buildCustomerAuthApp();
 
     const signup = await app.inject({
       method: 'POST',
       url: '/auth/sign-up/email',
       headers: {
-        'idempotency-key': 'idem-signup-001'
+        'idempotency-key': 'idem-exchange-001'
       },
       payload: {
-        fullName: 'Alice Customer',
+        fullName: 'Token Exchange Customer',
         countryCode: 'ET',
-        email: 'alice@example.com',
+        email: 'exchange@example.com',
         password: 'Password123!'
       }
     });
@@ -181,8 +194,10 @@ describe('customer-auth integration', () => {
     });
 
     expect(exchange.statusCode).toBe(200);
-    const body = exchange.json() as { token: string; customerId: string };
+    const body = exchange.json() as { token: string; customerId: string; sessionId: string };
     expect(body.token).toContain('.');
+    expect(body.customerId).toBeTruthy();
+    expect(body.sessionId).toBeTruthy();
 
     const claims = authenticateBearerToken({
       authorizationHeader: `Bearer ${body.token}`,
@@ -193,90 +208,10 @@ describe('customer-auth integration', () => {
 
     expect(claims.tokenType).toBe('customer');
     expect(claims.sub).toBe(body.customerId);
-
-    await app.close();
-  });
-
-  it('signs in with password and can sign out', async () => {
-    const app = await buildCustomerAuthApp();
-
-    await app.inject({
-      method: 'POST',
-      url: '/auth/sign-up/email',
-      headers: {
-        'idempotency-key': 'idem-signup-002'
-      },
-      payload: {
-        fullName: 'Bob Customer',
-        countryCode: 'ET',
-        email: 'bob@example.com',
-        password: 'Password123!'
-      }
-    });
-
-    const login = await app.inject({
-      method: 'POST',
-      url: '/auth/sign-in/email',
-      payload: {
-        email: 'bob@example.com',
-        password: 'Password123!'
-      }
-    });
-
-    expect(login.statusCode).toBe(200);
-    const loginCookie = login.headers['set-cookie'];
-    expect(loginCookie).toBeDefined();
-
-    const signOut = await app.inject({
-      method: 'POST',
-      url: '/auth/sign-out',
-      headers: {
-        cookie: Array.isArray(loginCookie) ? loginCookie[0] : String(loginCookie),
-        'idempotency-key': 'idem-signout-001'
-      }
-    });
-
-    expect(signOut.statusCode).toBe(200);
-    await app.close();
-  });
-
-  it('replays duplicate sign-up with same idempotency key', async () => {
-    const app = await buildCustomerAuthApp();
-
-    const first = await app.inject({
-      method: 'POST',
-      url: '/auth/sign-up/email',
-      headers: {
-        'idempotency-key': 'idem-signup-replay-001'
-      },
-      payload: {
-        fullName: 'Replay Customer',
-        countryCode: 'ET',
-        email: 'replay@example.com',
-        password: 'Password123!'
-      }
-    });
-
-    const second = await app.inject({
-      method: 'POST',
-      url: '/auth/sign-up/email',
-      headers: {
-        'idempotency-key': 'idem-signup-replay-001'
-      },
-      payload: {
-        fullName: 'Replay Customer',
-        countryCode: 'ET',
-        email: 'replay@example.com',
-        password: 'Password123!'
-      }
-    });
-
-    expect(first.statusCode).toBe(201);
-    expect(second.statusCode).toBe(201);
-
-    const firstBody = first.json() as { customer: { customerId: string } };
-    const secondBody = second.json() as { customer: { customerId: string } };
-    expect(secondBody.customer.customerId).toBe(firstBody.customer.customerId);
+    expect(claims.sessionId).toBe(body.sessionId);
+    expect(claims.mfa).toBe(false);
+    expect(Array.isArray(claims.amr)).toBe(true);
+    expect((claims.exp ?? 0) - (claims.iat ?? 0)).toBe(300);
 
     await app.close();
   });

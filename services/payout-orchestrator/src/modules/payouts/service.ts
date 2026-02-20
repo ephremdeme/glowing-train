@@ -1,5 +1,4 @@
 import {
-  FeatureDisabledError,
   NonRetryableAdapterError,
   RetryableAdapterError,
   type PayoutAdapter,
@@ -9,7 +8,6 @@ import {
 import { withRetry } from '@cryptopay/domain';
 import { log } from '@cryptopay/observability';
 import { createHash } from 'node:crypto';
-import { isTelebirrEnabled } from '../../feature-flags.js';
 import { PayoutRepository } from './repository.js';
 import type { InitiatePayoutInput, PayoutResult } from './types.js';
 
@@ -21,22 +19,14 @@ function fingerprint(input: Omit<InitiatePayoutInput, 'idempotencyKey'>): string
   return createHash('sha256').update(JSON.stringify(input)).digest('hex');
 }
 
-function resolveAdapter(method: PayoutMethod, adapters: { bank: PayoutAdapter; telebirr: PayoutAdapter }): PayoutAdapter {
-  if (method === 'telebirr') {
-    if (!isTelebirrEnabled()) {
-      throw new FeatureDisabledError('Telebirr payout');
-    }
-
-    return adapters.telebirr;
-  }
-
+function resolveAdapter(_method: PayoutMethod, adapters: { bank: PayoutAdapter }): PayoutAdapter {
   return adapters.bank;
 }
 
 export class PayoutService {
   constructor(
     private readonly repository: PayoutRepository,
-    private readonly adapters: { bank: PayoutAdapter; telebirr: PayoutAdapter }
+    private readonly adapters: { bank: PayoutAdapter }
   ) { }
 
   async initiatePayout(input: InitiatePayoutInput, now: Date = new Date()): Promise<PayoutResult> {
@@ -119,10 +109,6 @@ export class PayoutService {
 
       return result;
     } catch (error) {
-      // Re-throw feature-flag and unexpected errors
-      if (error instanceof FeatureDisabledError) {
-        throw error;
-      }
       if (!(error instanceof RetryableAdapterError) && !(error instanceof NonRetryableAdapterError)) {
         throw error;
       }

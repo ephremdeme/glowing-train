@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const payoutLinkSchema = z.object({
   transferId: z.string().min(1),
-  method: z.enum(['bank', 'telebirr']),
+  method: z.literal('bank'),
   recipientAccountRef: z.string().min(3),
   amountEtb: z.number().positive(),
   idempotencyKey: z.string().min(8)
@@ -11,7 +11,7 @@ const payoutLinkSchema = z.object({
 export interface PayoutOrchestratorClient {
   initiate(input: {
     transferId: string;
-    method: 'bank' | 'telebirr';
+    method: 'bank';
     recipientAccountRef: string;
     amountEtb: number;
     idempotencyKey: string;

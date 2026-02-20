@@ -71,7 +71,14 @@ export class LedgerService {
       [journalId]
     );
 
-    const row = result.rows[0];
+    const row = result.rows[0] as
+      | {
+          journal_id: string;
+          transfer_id: string;
+          total_debit: string | number;
+          total_credit: string | number;
+        }
+      | undefined;
     if (!row) {
       return null;
     }

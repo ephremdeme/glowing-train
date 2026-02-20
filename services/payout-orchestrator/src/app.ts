@@ -1,9 +1,9 @@
-import { BankPayoutAdapter, TelebirrPayoutAdapter } from '@cryptopay/adapters';
+import { BankPayoutAdapter } from '@cryptopay/adapters';
 import { assertHasRole, assertTokenType, authenticateBearerToken, type AuthClaims } from '@cryptopay/auth';
 import { getPool } from '@cryptopay/db';
-import { createServiceMetrics, log } from '@cryptopay/observability';
-import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
-import { createHash } from 'node:crypto';
+import { deny, errorEnvelope, registerServiceMetrics, withIdempotency } from '@cryptopay/http';
+import { log } from '@cryptopay/observability';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { PayoutRepository, PayoutService } from './modules/payouts/index.js';
 import { verifyWebhookSignature, type WebhookVerifierConfig } from './webhook-verifier.js';
@@ -18,15 +18,11 @@ const statusCallbackSchema = z.object({
 
 const initiateSchema = z.object({
   transferId: z.string().min(1),
-  method: z.enum(['bank', 'telebirr']),
+  method: z.literal('bank'),
   recipientAccountRef: z.string().min(3),
   amountEtb: z.number().positive(),
   idempotencyKey: z.string().min(8)
 });
-
-function sha256(payload: unknown): string {
-  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
-}
 
 function authClaims(request: FastifyRequest): AuthClaims {
   const previousSecret = process.env.AUTH_JWT_PREVIOUS_SECRET;
@@ -39,95 +35,17 @@ function authClaims(request: FastifyRequest): AuthClaims {
   });
 }
 
-function errorEnvelope(request: FastifyRequest, code: string, message: string, details?: unknown): { error: Record<string, unknown> } {
-  const error: Record<string, unknown> = {
-    code,
-    message,
-    requestId: request.id
-  };
-
-  if (details !== undefined) {
-    error.details = details;
-  }
-
-  return { error };
-}
-
-function deny(params: {
-  request: FastifyRequest;
-  reply: FastifyReply;
-  code: string;
-  message: string;
-  status?: number;
-  details?: unknown;
-}): FastifyReply {
-  return params.reply.status(params.status ?? 400).send(errorEnvelope(params.request, params.code, params.message, params.details));
-}
-
-async function withIdempotency(params: {
-  scope: string;
-  idempotencyKey: string;
-  requestId: string;
-  requestPayload: unknown;
-  execute: () => Promise<{ status: number; body: unknown }>;
-}): Promise<{ status: number; body: unknown }> {
-  const key = `${params.scope}:${params.idempotencyKey}`;
-  const hash = sha256(params.requestPayload);
-
-  const existing = await getPool().query('select request_hash, response_status, response_body from idempotency_record where key = $1', [key]);
-  const row = existing.rows[0] as
-    | {
-      request_hash: string;
-      response_status: number;
-      response_body: unknown;
-    }
-    | undefined;
-
-  if (row) {
-    if (row.request_hash !== hash) {
-      return {
-        status: 409,
-        body: {
-          error: {
-            code: 'IDEMPOTENCY_CONFLICT',
-            message: 'Idempotency key reused with different payload.',
-            requestId: params.requestId
-          }
-        }
-      };
-    }
-
-    return {
-      status: row.response_status,
-      body: row.response_body
-    };
-  }
-
-  const result = await params.execute();
-  const expiresAt = new Date(Date.now() + 24 * 3600 * 1000);
-  await getPool().query(
-    `
-    insert into idempotency_record (key, request_hash, response_status, response_body, expires_at)
-    values ($1, $2, $3, $4, $5)
-    on conflict (key) do nothing
-    `,
-    [key, hash, result.status, result.body, expiresAt]
-  );
-
-  return result;
-}
 
 export async function buildPayoutOrchestratorApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
 
-  const metrics = createServiceMetrics('payout-orchestrator');
+  const metrics = registerServiceMetrics(app, 'payout-orchestrator');
   const repository = new PayoutRepository();
   const service = new PayoutService(repository, {
     bank: new BankPayoutAdapter(async (_request, idempotencyKey) => ({
       providerReference: `bank_ref_${idempotencyKey}`,
       acceptedAt: new Date()
-    })),
-    telebirr: new TelebirrPayoutAdapter(process.env.PAYOUT_TELEBIRR_ENABLED === 'true')
+    }))
   });
 
   // Webhook signature verification config (optional, feature-flagged)
@@ -150,24 +68,6 @@ export async function buildPayoutOrchestratorApp(): Promise<FastifyInstance> {
       done(null, json);
     } catch (error) {
       done(error as Error, undefined);
-    }
-  });
-
-  app.addHook('onRequest', async (request) => {
-    request.headers['x-request-start'] = String(Date.now());
-  });
-
-  app.addHook('onResponse', async (request, reply) => {
-    const start = Number(request.headers['x-request-start'] ?? Date.now());
-    const duration = Math.max(Date.now() - start, 0);
-    const route = request.routeOptions.url ?? request.url;
-    const status = String(reply.statusCode);
-
-    metrics.requestDurationMs.labels(request.method, route, status).observe(duration);
-    metrics.requestCount.labels(request.method, route, status).inc();
-
-    if (reply.statusCode >= 400) {
-      metrics.errorCount.labels(status).inc();
     }
   });
 
@@ -219,6 +119,7 @@ export async function buildPayoutOrchestratorApp(): Promise<FastifyInstance> {
     }
 
     const response = await withIdempotency({
+      db: getPool(),
       scope: 'payout-orchestrator:initiate',
       idempotencyKey: headerKey,
       requestId: request.id,
@@ -325,11 +226,19 @@ export async function buildPayoutOrchestratorApp(): Promise<FastifyInstance> {
     }
 
     if (status === 'completed') {
-      await repository.markCompleted({
+      const completedParams: {
+        instruction: typeof instruction;
+        providerReference: string;
+        metadata?: Record<string, unknown>;
+      } = {
         instruction,
-        providerReference,
-        metadata
-      });
+        providerReference
+      };
+      if (metadata !== undefined) {
+        completedParams.metadata = metadata;
+      }
+
+      await repository.markCompleted(completedParams);
 
       log('info', 'Payout completed via callback', {
         payoutId,
@@ -345,11 +254,19 @@ export async function buildPayoutOrchestratorApp(): Promise<FastifyInstance> {
     }
 
     // status === 'failed'
-    await repository.markFailed({
+    const failedParams: {
+      instruction: typeof instruction;
+      errorMessage: string;
+      metadata?: Record<string, unknown>;
+    } = {
       instruction,
-      errorMessage: errorMessage ?? 'Payout failed (no details from provider)',
-      metadata
-    });
+      errorMessage: errorMessage ?? 'Payout failed (no details from provider)'
+    };
+    if (metadata !== undefined) {
+      failedParams.metadata = metadata;
+    }
+
+    await repository.markFailed(failedParams);
 
     log('warn', 'Payout failed via callback', {
       payoutId,

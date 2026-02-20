@@ -1,8 +1,8 @@
 import { assertHasRole, assertTokenType, authenticateBearerToken, type AuthClaims } from '@cryptopay/auth';
 import { getPool } from '@cryptopay/db';
-import { createServiceMetrics, log } from '@cryptopay/observability';
-import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
-import { createHash } from 'node:crypto';
+import { appendAuditLog, deny, errorEnvelope, registerServiceMetrics, withIdempotency } from '@cryptopay/http';
+import { log } from '@cryptopay/observability';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { runKeyVerification } from './jobs/key-verification.js';
 import { runRetentionJob } from './jobs/retention.js';
 import { ReconciliationService } from './modules/reconcile/index.js';
@@ -16,10 +16,6 @@ const runSchema = z.object({
 const jobRunSchema = z.object({
   reason: z.string().min(3)
 });
-
-function sha256(payload: unknown): string {
-  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
-}
 
 function parseAuth(request: FastifyRequest): AuthClaims {
   const previousSecret = process.env.AUTH_JWT_PREVIOUS_SECRET;
@@ -58,125 +54,11 @@ function assertOpsWriteAuthorized(claims: AuthClaims): void {
   assertHasRole(claims, ['ops_admin']);
 }
 
-function errorEnvelope(request: FastifyRequest, code: string, message: string, details?: unknown): { error: Record<string, unknown> } {
-  const error: Record<string, unknown> = {
-    code,
-    message,
-    requestId: request.id
-  };
-
-  if (details !== undefined) {
-    error.details = details;
-  }
-
-  return { error };
-}
-
-function deny(params: {
-  request: FastifyRequest;
-  reply: FastifyReply;
-  code: string;
-  message: string;
-  status?: number;
-  details?: unknown;
-}): FastifyReply {
-  return params.reply.status(params.status ?? 400).send(errorEnvelope(params.request, params.code, params.message, params.details));
-}
-
-async function withIdempotency(params: {
-  scope: string;
-  idempotencyKey: string;
-  requestId: string;
-  requestPayload: unknown;
-  execute: () => Promise<{ status: number; body: unknown }>;
-}): Promise<{ status: number; body: unknown }> {
-  const key = `${params.scope}:${params.idempotencyKey}`;
-  const hash = sha256(params.requestPayload);
-
-  const existing = await getPool().query('select request_hash, response_status, response_body from idempotency_record where key = $1', [key]);
-  const row = existing.rows[0] as
-    | {
-        request_hash: string;
-        response_status: number;
-        response_body: unknown;
-      }
-    | undefined;
-
-  if (row) {
-    if (row.request_hash !== hash) {
-      return {
-        status: 409,
-        body: {
-          error: {
-            code: 'IDEMPOTENCY_CONFLICT',
-            message: 'Idempotency key reused with a different payload.',
-            requestId: params.requestId
-          }
-        }
-      };
-    }
-
-    return {
-      status: row.response_status,
-      body: row.response_body
-    };
-  }
-
-  const result = await params.execute();
-  const expiresAt = new Date(Date.now() + 24 * 3600 * 1000);
-
-  await getPool().query(
-    `
-    insert into idempotency_record (key, request_hash, response_status, response_body, expires_at)
-    values ($1, $2, $3, $4, $5)
-    on conflict (key) do nothing
-    `,
-    [key, hash, result.status, result.body, expiresAt]
-  );
-
-  return result;
-}
-
-async function appendAudit(input: {
-  actorId: string;
-  action: string;
-  entityType: string;
-  entityId: string;
-  reason: string;
-  metadata?: Record<string, unknown>;
-}): Promise<void> {
-  await getPool().query(
-    `
-    insert into audit_log (actor_type, actor_id, action, entity_type, entity_id, reason, metadata)
-    values ($1, $2, $3, $4, $5, $6, $7)
-    `,
-    ['admin', input.actorId, input.action, input.entityType, input.entityId, input.reason, input.metadata ?? null]
-  );
-}
-
 export async function buildReconciliationApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
 
-  const metrics = createServiceMetrics('reconciliation-worker');
+  const metrics = registerServiceMetrics(app, 'reconciliation-worker');
   const service = new ReconciliationService();
-
-  app.addHook('onRequest', async (request) => {
-    request.headers['x-request-start'] = String(Date.now());
-  });
-
-  app.addHook('onResponse', async (request, reply) => {
-    const start = Number(request.headers['x-request-start'] ?? Date.now());
-    const duration = Math.max(Date.now() - start, 0);
-    const route = request.routeOptions.url ?? request.url;
-    const status = String(reply.statusCode);
-
-    metrics.requestDurationMs.labels(request.method, route, status).observe(duration);
-    metrics.requestCount.labels(request.method, route, status).inc();
-
-    if (reply.statusCode >= 400) {
-      metrics.errorCount.labels(status).inc();
-    }
-  });
 
   app.get('/healthz', async () => ({ ok: true, service: 'reconciliation-worker' }));
   app.get('/readyz', async () => ({ ok: true }));
@@ -311,6 +193,7 @@ export async function buildReconciliationApp(): Promise<FastifyInstance> {
     const actorHeader = typeof request.headers['x-ops-actor'] === 'string' ? request.headers['x-ops-actor'] : claims.sub;
 
     const result = await withIdempotency({
+      db: getPool(),
       scope: 'reconciliation-worker:run',
       idempotencyKey: idempotencyHeader,
       requestId: request.id,
@@ -318,7 +201,9 @@ export async function buildReconciliationApp(): Promise<FastifyInstance> {
       execute: async () => {
         const run = await service.runOnce(parsed.data.outputPath);
 
-        await appendAudit({
+        await appendAuditLog({
+          db: getPool(),
+          actorType: 'admin',
           actorId: claims.sub,
           action: 'ops_reconciliation_run_triggered',
           entityType: 'reconciliation_run',
@@ -375,7 +260,9 @@ export async function buildReconciliationApp(): Promise<FastifyInstance> {
 
     const result = await runRetentionJob();
 
-    await appendAudit({
+    await appendAuditLog({
+      db: getPool(),
+      actorType: 'admin',
       actorId: claims.sub,
       action: 'ops_retention_job_triggered',
       entityType: 'job',
@@ -419,7 +306,9 @@ export async function buildReconciliationApp(): Promise<FastifyInstance> {
 
     const result = await runKeyVerification();
 
-    await appendAudit({
+    await appendAuditLog({
+      db: getPool(),
+      actorType: 'admin',
       actorId: claims.sub,
       action: 'ops_key_verification_job_triggered',
       entityType: 'job',

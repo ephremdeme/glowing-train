@@ -18,6 +18,19 @@ type TransferSnapshot = {
   credit_total: number;
 };
 
+const OPEN_TRANSFER_STATUSES = ['AWAITING_FUNDING', 'FUNDING_CONFIRMED', 'PAYOUT_INITIATED', 'REVIEW_REQUIRED'] as const;
+
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return fallback;
+  }
+  return Math.floor(parsed);
+}
+
 export class ReconciliationService {
   constructor(private readonly pool: Pool = getPool()) {}
 
@@ -140,32 +153,78 @@ export class ReconciliationService {
   }
 
   private async fetchSnapshots(): Promise<TransferSnapshot[]> {
-    const result = await this.pool.query(`
-      with ledger as (
+    const lookbackDays = parsePositiveInt(process.env.RECONCILIATION_LOOKBACK_DAYS, 14);
+    const pageSize = Math.min(parsePositiveInt(process.env.RECONCILIATION_PAGE_SIZE, 500), 2_000);
+    const snapshots: TransferSnapshot[] = [];
+    let offset = 0;
+
+    while (true) {
+      const page = await this.fetchSnapshotPage({
+        lookbackDays,
+        pageSize,
+        offset
+      });
+      snapshots.push(...page);
+
+      if (page.length < pageSize) {
+        break;
+      }
+
+      offset += pageSize;
+    }
+
+    return snapshots;
+  }
+
+  private async fetchSnapshotPage(params: {
+    lookbackDays: number;
+    pageSize: number;
+    offset: number;
+  }): Promise<TransferSnapshot[]> {
+    const result = await this.pool.query(
+      `
+      with target_transfers as (
         select
-          transfer_id,
-          coalesce(sum(case when entry_type = 'debit' then amount_usd else 0 end), 0)::numeric as debit_total,
-          coalesce(sum(case when entry_type = 'credit' then amount_usd else 0 end), 0)::numeric as credit_total
-        from ledger_entry
-        group by transfer_id
+          t.transfer_id,
+          t.quote_id,
+          t.status,
+          t.chain,
+          t.token
+        from transfers t
+        where t.status = any($1::text[])
+           or t.created_at >= now() - ($2::int * interval '1 day')
+        order by t.created_at desc
+        limit $3
+        offset $4
+      ),
+      ledger as (
+        select
+          le.transfer_id,
+          coalesce(sum(case when le.entry_type = 'debit' then le.amount_usd else 0 end), 0)::numeric as debit_total,
+          coalesce(sum(case when le.entry_type = 'credit' then le.amount_usd else 0 end), 0)::numeric as credit_total
+        from ledger_entry le
+        join target_transfers tt on tt.transfer_id = le.transfer_id
+        group by le.transfer_id
       )
       select
-        t.transfer_id,
-        t.quote_id,
-        t.status,
-        t.chain,
-        t.token,
+        tt.transfer_id,
+        tt.quote_id,
+        tt.status,
+        tt.chain,
+        tt.token,
         q.recipient_amount_etb as expected_etb,
         ofe.amount_usd as funded_amount_usd,
         pi.status as payout_status,
         coalesce(l.debit_total, 0) as debit_total,
         coalesce(l.credit_total, 0) as credit_total
-      from transfers t
-      left join quotes q on q.quote_id = t.quote_id
-      left join onchain_funding_event ofe on ofe.transfer_id = t.transfer_id
-      left join payout_instruction pi on pi.transfer_id = t.transfer_id
-      left join ledger l on l.transfer_id = t.transfer_id
-    `);
+      from target_transfers tt
+      left join quotes q on q.quote_id = tt.quote_id
+      left join onchain_funding_event ofe on ofe.transfer_id = tt.transfer_id
+      left join payout_instruction pi on pi.transfer_id = tt.transfer_id
+      left join ledger l on l.transfer_id = tt.transfer_id
+      `,
+      [OPEN_TRANSFER_STATUSES, params.lookbackDays, params.pageSize, params.offset]
+    );
 
     return result.rows as TransferSnapshot[];
   }

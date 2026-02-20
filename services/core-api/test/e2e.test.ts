@@ -55,7 +55,7 @@ describe('Core API E2E', () => {
     it('POST with invalid payload returns 400 with structured error', async () => {
         const response = await app.inject({
             method: 'POST',
-            url: '/v1/auth/register',
+            url: '/v1/quotes',
             payload: { invalid: true }
         });
 
@@ -68,12 +68,13 @@ describe('Core API E2E', () => {
     it('rate limiting headers are present on API routes', async () => {
         const response = await app.inject({
             method: 'POST',
-            url: '/v1/auth/register',
+            url: '/v1/quotes',
             payload: {
-                fullName: 'Test User',
-                countryCode: 'ET',
-                email: 'test@example.com',
-                password: 'password123'
+                chain: 'base',
+                token: 'USDC',
+                sendAmountUsd: 100,
+                fxRateUsdToEtb: 140,
+                feeUsd: 1
             }
         });
 
