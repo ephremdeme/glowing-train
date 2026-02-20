@@ -1,12 +1,11 @@
-import { closePool, getPool } from '@cryptopay/db';
+import { closeDb, query } from '@cryptopay/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { QuoteExpiredError, QuoteRepository, QuoteService } from '../src/modules/quotes/index.js';
 import { buildQuoteRoutes } from '../src/routes/quotes.js';
 
 async function applyQuoteTableMigration(): Promise<void> {
-  const pool = getPool();
 
-  await pool.query(`
+  await query(`
     create table if not exists quotes (
       quote_id text primary key,
       chain text not null check (chain in ('base', 'solana')),
@@ -33,11 +32,11 @@ describe('quotes integration', () => {
   });
 
   beforeEach(async () => {
-    await getPool().query('truncate table quotes cascade');
+    await query('truncate table quotes cascade');
   });
 
   afterAll(async () => {
-    await closePool();
+    await closeDb();
   });
 
   it('persists and retrieves a quote', async () => {

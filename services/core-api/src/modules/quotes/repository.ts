@@ -1,7 +1,5 @@
-import { getPool } from '@cryptopay/db';
+import { query } from '@cryptopay/db';
 import type { QuoteRecord, QuoteRepositoryPort } from './types.js';
-
-type Pool = ReturnType<typeof getPool>;
 
 function toQuoteRecord(row: Record<string, unknown>): QuoteRecord {
   return {
@@ -18,10 +16,8 @@ function toQuoteRecord(row: Record<string, unknown>): QuoteRecord {
 }
 
 export class QuoteRepository implements QuoteRepositoryPort {
-  constructor(private readonly pool: Pool = getPool()) {}
-
   async insert(input: QuoteRecord): Promise<void> {
-    await this.pool.query(
+    await query(
       `
       insert into quotes (
         quote_id,
@@ -50,7 +46,7 @@ export class QuoteRepository implements QuoteRepositoryPort {
   }
 
   async findById(quoteId: string): Promise<QuoteRecord | null> {
-    const result = await this.pool.query('select * from quotes where quote_id = $1 limit 1', [quoteId]);
+    const result = await query('select * from quotes where quote_id = $1 limit 1', [quoteId]);
     const row = result.rows[0];
 
     if (!row) {

@@ -1,9 +1,9 @@
-import { closePool, getPool } from '@cryptopay/db';
+import { closeDb, query } from '@cryptopay/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AuditService } from '../src/modules/audit/index.js';
 
 async function ensureAuditTable(): Promise<void> {
-  await getPool().query(`
+  await query(`
     create table if not exists audit_log (
       id bigserial primary key,
       actor_type text not null,
@@ -33,11 +33,11 @@ describe('audit integration', () => {
   });
 
   beforeEach(async () => {
-    await getPool().query('truncate table audit_log restart identity');
+    await query('truncate table audit_log restart identity');
   });
 
   afterAll(async () => {
-    await closePool();
+    await closeDb();
   });
 
   it('appends audit entries and redacts sensitive metadata keys', async () => {

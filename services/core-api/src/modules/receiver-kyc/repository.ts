@@ -1,8 +1,6 @@
-import { getPool } from '@cryptopay/db';
+import { query } from '@cryptopay/db';
 import type { EncryptedField } from '@cryptopay/security';
 import type { ReceiverKycProfile, ReceiverKycRepositoryPort } from './types.js';
-
-type Pool = ReturnType<typeof getPool>;
 
 type DbRow = {
   receiver_id: string;
@@ -27,10 +25,8 @@ function mapRow(row: DbRow): ReceiverKycProfile {
 }
 
 export class ReceiverKycRepository implements ReceiverKycRepositoryPort {
-  constructor(private readonly pool: Pool = getPool()) {}
-
   async getByReceiverId(receiverId: string): Promise<ReceiverKycProfile | null> {
-    const result = await this.pool.query('select * from receiver_kyc_profile where receiver_id = $1 limit 1', [receiverId]);
+    const result = await query('select * from receiver_kyc_profile where receiver_id = $1 limit 1', [receiverId]);
     const row = result.rows[0] as DbRow | undefined;
     return row ? mapRow(row) : null;
   }
@@ -42,7 +38,7 @@ export class ReceiverKycRepository implements ReceiverKycRepositoryPort {
     nationalIdHash: string | null;
     nationalIdEncrypted: EncryptedField | null;
   }): Promise<ReceiverKycProfile> {
-    const result = await this.pool.query(
+    const result = await query(
       `
       insert into receiver_kyc_profile (
         receiver_id,

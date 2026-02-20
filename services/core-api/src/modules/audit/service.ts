@@ -1,6 +1,4 @@
-import { getPool } from '@cryptopay/db';
-
-type Pool = ReturnType<typeof getPool>;
+import { query } from '@cryptopay/db';
 
 type AuditMetadata = Record<string, unknown>;
 
@@ -20,8 +18,6 @@ function sanitizeMetadata(metadata: AuditMetadata): AuditMetadata {
 }
 
 export class AuditService {
-  constructor(private readonly pool: Pool = getPool()) {}
-
   async append(input: {
     actorType: string;
     actorId: string;
@@ -31,7 +27,7 @@ export class AuditService {
     reason?: string;
     metadata?: AuditMetadata;
   }): Promise<void> {
-    await this.pool.query(
+    await query(
       `
       insert into audit_log (actor_type, actor_id, action, entity_type, entity_id, reason, metadata)
       values ($1, $2, $3, $4, $5, $6, $7)
@@ -49,7 +45,7 @@ export class AuditService {
   }
 
   async findByEntity(entityType: string, entityId: string): Promise<Array<Record<string, unknown>>> {
-    const result = await this.pool.query(
+    const result = await query(
       'select actor_type, actor_id, action, entity_type, entity_id, reason, metadata from audit_log where entity_type = $1 and entity_id = $2 order by id asc',
       [entityType, entityId]
     );

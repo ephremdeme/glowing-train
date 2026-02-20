@@ -1,4 +1,4 @@
-import { closePool, getPool } from '@cryptopay/db';
+import { closeDb, query } from '@cryptopay/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   FundingConfirmationRepository,
@@ -6,9 +6,8 @@ import {
 } from '../src/modules/funding-confirmations/index.js';
 
 async function ensureTables(): Promise<void> {
-  const pool = getPool();
 
-  await pool.query(`
+  await query(`
     create table if not exists quotes (
       quote_id text primary key,
       chain text not null check (chain in ('base', 'solana')),
@@ -22,7 +21,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists transfers (
       transfer_id text primary key,
       quote_id text not null references quotes(quote_id),
@@ -39,7 +38,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists deposit_routes (
       route_id text primary key,
       transfer_id text not null unique references transfers(transfer_id) on delete cascade,
@@ -52,7 +51,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists onchain_funding_event (
       event_id text primary key,
       chain text not null,
@@ -68,7 +67,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists transfer_transition (
       id bigserial primary key,
       transfer_id text not null,
@@ -79,7 +78,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists audit_log (
       id bigserial primary key,
       actor_type text not null,
@@ -95,11 +94,10 @@ async function ensureTables(): Promise<void> {
 }
 
 async function seedTransfer(routeAddress: string): Promise<string> {
-  const pool = getPool();
   const quoteId = `q_fc_${Math.random().toString(36).slice(2, 10)}`;
   const transferId = `tr_fc_${Math.random().toString(36).slice(2, 10)}`;
 
-  await pool.query(
+  await query(
     `
     insert into quotes (
       quote_id, chain, token, send_amount_usd, fx_rate_usd_to_etb, fee_usd, recipient_amount_etb, expires_at
@@ -108,7 +106,7 @@ async function seedTransfer(routeAddress: string): Promise<string> {
     [quoteId]
   );
 
-  await pool.query(
+  await query(
     `
     insert into transfers (
       transfer_id, quote_id, sender_id, receiver_id,
@@ -122,7 +120,7 @@ async function seedTransfer(routeAddress: string): Promise<string> {
     [transferId, quoteId]
   );
 
-  await pool.query(
+  await query(
     `
     insert into deposit_routes (
       route_id, transfer_id, chain, token, deposit_address, deposit_memo, status
@@ -151,11 +149,11 @@ describe('funding confirmation integration', () => {
   });
 
   beforeEach(async () => {
-    await getPool().query('truncate table onchain_funding_event, transfer_transition, audit_log, deposit_routes, transfers, quotes cascade');
+    await query('truncate table onchain_funding_event, transfer_transition, audit_log, deposit_routes, transfers, quotes cascade');
   });
 
   afterAll(async () => {
-    await closePool();
+    await closeDb();
   });
 
   it('confirms transfer once and persists transition + audit + event', async () => {
@@ -175,16 +173,16 @@ describe('funding confirmation integration', () => {
     expect(result.status).toBe('confirmed');
     expect(result.transferId).toBe(transferId);
 
-    const statusRow = await getPool().query('select status from transfers where transfer_id = $1', [transferId]);
+    const statusRow = await query('select status from transfers where transfer_id = $1', [transferId]);
     expect(statusRow.rows[0]?.status).toBe('FUNDING_CONFIRMED');
 
-    const transitionCount = await getPool().query(
+    const transitionCount = await query(
       "select count(*)::int as count from transfer_transition where transfer_id = $1 and to_state = 'FUNDING_CONFIRMED'",
       [transferId]
     );
     expect(transitionCount.rows[0]?.count).toBe(1);
 
-    const eventCount = await getPool().query('select count(*)::int as count from onchain_funding_event where transfer_id = $1', [transferId]);
+    const eventCount = await query('select count(*)::int as count from onchain_funding_event where transfer_id = $1', [transferId]);
     expect(eventCount.rows[0]?.count).toBe(1);
   });
 
@@ -217,7 +215,7 @@ describe('funding confirmation integration', () => {
     expect(second.status).toBe('duplicate');
     expect(second.transferId).toBe(transferId);
 
-    const transitionCount = await getPool().query(
+    const transitionCount = await query(
       "select count(*)::int as count from transfer_transition where transfer_id = $1 and to_state = 'FUNDING_CONFIRMED'",
       [transferId]
     );

@@ -1,12 +1,11 @@
 import { createHs256Jwt } from '@cryptopay/auth';
-import { closePool, getPool } from '@cryptopay/db';
+import { closeDb, query } from '@cryptopay/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildCoreApiApp } from '../src/app.js';
 
 async function ensureTables(): Promise<void> {
-  const pool = getPool();
 
-  await pool.query(`
+  await query(`
     create table if not exists customer_account (
       customer_id text primary key,
       full_name text not null,
@@ -17,7 +16,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists sender_kyc_profile (
       customer_id text primary key references customer_account(customer_id) on delete cascade,
       provider text not null default 'sumsub',
@@ -30,7 +29,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists recipient (
       recipient_id text primary key,
       customer_id text not null references customer_account(customer_id) on delete cascade,
@@ -46,7 +45,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists receiver_kyc_profile (
       receiver_id text primary key,
       recipient_id text,
@@ -58,9 +57,9 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query('alter table receiver_kyc_profile add column if not exists recipient_id text');
+  await query('alter table receiver_kyc_profile add column if not exists recipient_id text');
 
-  await pool.query(`
+  await query(`
     create table if not exists quotes (
       quote_id text primary key,
       chain text not null check (chain in ('base', 'solana')),
@@ -74,7 +73,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists transfers (
       transfer_id text primary key,
       quote_id text not null references quotes(quote_id),
@@ -91,7 +90,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists deposit_routes (
       route_id text primary key,
       transfer_id text not null unique references transfers(transfer_id) on delete cascade,
@@ -104,7 +103,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists onchain_funding_event (
       event_id text primary key,
       chain text not null,
@@ -120,7 +119,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists payout_instruction (
       payout_id text primary key,
       transfer_id text not null unique references transfers(transfer_id),
@@ -136,7 +135,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists transfer_transition (
       id bigserial primary key,
       transfer_id text not null,
@@ -147,7 +146,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists audit_log (
       id bigserial primary key,
       actor_type text not null,
@@ -161,7 +160,7 @@ async function ensureTables(): Promise<void> {
     )
   `);
 
-  await pool.query(`
+  await query(`
     create table if not exists idempotency_record (
       key text primary key,
       request_hash text not null,
@@ -189,18 +188,18 @@ function customerToken(customerId: string): string {
 }
 
 async function seedCustomer(customerId: string, fullName: string): Promise<void> {
-  await getPool().query(
+  await query(
     "insert into customer_account (customer_id, full_name, country_code, status) values ($1, $2, 'US', 'active')",
     [customerId, fullName]
   );
-  await getPool().query(
+  await query(
     "insert into sender_kyc_profile (customer_id, provider, kyc_status, updated_at) values ($1, 'sumsub', 'approved', now())",
     [customerId]
   );
 }
 
 async function seedRecipient(recipientId: string, customerId: string): Promise<void> {
-  await getPool().query(
+  await query(
     `
       insert into recipient (
         recipient_id, customer_id, full_name, bank_account_name, bank_account_number, bank_code, country_code, status
@@ -209,7 +208,7 @@ async function seedRecipient(recipientId: string, customerId: string): Promise<v
     [recipientId, customerId]
   );
 
-  await getPool().query(
+  await query(
     `
       insert into receiver_kyc_profile (receiver_id, recipient_id, kyc_status, national_id_verified)
       values ($1, $1, 'pending', false)
@@ -221,7 +220,7 @@ async function seedRecipient(recipientId: string, customerId: string): Promise<v
 
 async function seedTransfer(transferId: string, senderId: string, recipientId: string, status: string = 'AWAITING_FUNDING'): Promise<void> {
   const quoteId = `q_${transferId}`;
-  await getPool().query(
+  await query(
     `
       insert into quotes (
         quote_id, chain, token, send_amount_usd, fx_rate_usd_to_etb, fee_usd, recipient_amount_etb, expires_at
@@ -230,7 +229,7 @@ async function seedTransfer(transferId: string, senderId: string, recipientId: s
     [quoteId]
   );
 
-  await getPool().query(
+  await query(
     `
       insert into transfers (
         transfer_id, quote_id, sender_id, receiver_id,
@@ -241,7 +240,7 @@ async function seedTransfer(transferId: string, senderId: string, recipientId: s
     [transferId, quoteId, senderId, recipientId, status]
   );
 
-  await getPool().query(
+  await query(
     `
       insert into deposit_routes (route_id, transfer_id, chain, token, deposit_address, status)
       values ($1, $2, 'base', 'USDC', $3, 'active')
@@ -249,7 +248,7 @@ async function seedTransfer(transferId: string, senderId: string, recipientId: s
     [`route_${transferId}`, transferId, `dep_${transferId}`]
   );
 
-  await getPool().query(
+  await query(
     `
       insert into transfer_transition (transfer_id, from_state, to_state, metadata)
       values ($1, 'AWAITING_FUNDING', $2, '{}')
@@ -257,7 +256,7 @@ async function seedTransfer(transferId: string, senderId: string, recipientId: s
     [transferId, status]
   );
 
-  await getPool().query(
+  await query(
     `
       insert into onchain_funding_event (event_id, chain, token, tx_hash, log_index, transfer_id, deposit_address, amount_usd, confirmed_at)
       values ($1, 'base', 'USDC', $2, 1, $3, $4, 100, now())
@@ -266,7 +265,7 @@ async function seedTransfer(transferId: string, senderId: string, recipientId: s
     [`evt_${transferId}`, `0x${transferId}`, transferId, `dep_${transferId}`]
   );
 
-  await getPool().query(
+  await query(
     `
       insert into payout_instruction (payout_id, transfer_id, method, recipient_account_ref, amount_etb, status)
       values ($1, $2, 'bank', 'CBE-001', 13860, 'PAYOUT_INITIATED')
@@ -294,7 +293,7 @@ describe('customer transfer APIs integration', () => {
   });
 
   beforeEach(async () => {
-    await getPool().query(
+    await query(
       'truncate table transfer_transition, onchain_funding_event, payout_instruction, deposit_routes, transfers, quotes, receiver_kyc_profile, recipient, sender_kyc_profile, customer_account, audit_log, idempotency_record cascade'
     );
   });
@@ -303,7 +302,7 @@ describe('customer transfer APIs integration', () => {
     if (app) {
       await app.close();
     }
-    await closePool();
+    await closeDb();
   });
 
   it('lists sender-owned transfer history only', async () => {
@@ -394,14 +393,14 @@ describe('customer transfer APIs integration', () => {
     expect(body.receiverKyc?.kycStatus).toBe('approved');
     expect(body.receiverKyc?.nationalIdVerified).toBe(true);
 
-    const kyc = await getPool().query(
+    const kyc = await query(
       'select kyc_status, national_id_verified from receiver_kyc_profile where receiver_id = $1 limit 1',
       ['rcp_patch']
     );
     expect(kyc.rows[0]?.kyc_status).toBe('approved');
     expect(kyc.rows[0]?.national_id_verified).toBe(true);
 
-    const audit = await getPool().query(
+    const audit = await query(
       "select count(*)::int as count from audit_log where action = 'recipient_kyc_updated' and entity_id = $1",
       ['rcp_patch']
     );
