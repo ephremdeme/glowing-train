@@ -14,7 +14,7 @@ TIMEOUT_SECONDS=120
 DELAY_SECONDS=2
 BUILD_ARGS="--build"
 KEEP_RUNNING=0
-RETRY_ATTEMPTS=3
+RETRY_ATTEMPTS=1
 RETRY_BASE_DELAY_SECONDS=5
 
 usage() {
@@ -162,8 +162,17 @@ wait_for() {
 echo "Bringing up dependencies..."
 retry_cmd "dependencies startup" compose_up postgres redis
 
+if [ -n "$BUILD_ARGS" ]; then
+  echo "Building core-api image for migration step..."
+  retry_cmd "core-api image build" compose build core-api
+fi
+
 echo "Running migrations..."
-compose run --rm --no-deps core-api node --experimental-strip-types /app/node_modules/@cryptopay/db/src/migrate.ts
+if ! compose run --rm --no-deps core-api node --import tsx /app/node_modules/@cryptopay/db/src/migrate.ts; then
+  echo "Primary migration runner failed; retrying with copied DB sources..."
+  compose run --rm --no-deps core-api sh -lc \
+    'cp -r /app/node_modules/@cryptopay/db/src /app/db-src && node --experimental-strip-types /app/db-src/migrate.ts'
+fi
 
 echo "Bringing up full stack..."
 retry_cmd "full stack startup" compose_up

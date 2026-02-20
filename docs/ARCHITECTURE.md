@@ -55,6 +55,15 @@ flowchart LR
 - Flags mismatches/stuck transfers.
 - Outputs CSV report for operations/compliance.
 
+## 3.6 Implementation Defaults (Current)
+- Customer auth endpoints are owned by `customer-auth`; web BFF talks to it directly.
+- `core-api` remains a resource server (customer JWT bearer validation), not an auth proxy.
+- Node DB stack is `postgres.js` + Drizzle via `@cryptopay/db`.
+- Shared HTTP concerns (CORS, idempotency, metrics, bootstrap) live in `@cryptopay/http`.
+- Shared scheduled operations logic (retention, key verification) lives in `@cryptopay/ops-jobs`.
+- `services/core-api/src/app.ts` is composition-only; grouped handlers are in `services/core-api/src/routes/*`.
+- v1 payout method is `bank` only.
+
 ## 4. Trust Boundaries
 
 ### 4.1 Boundary A: External User-Controlled Wallets

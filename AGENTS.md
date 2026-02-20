@@ -79,6 +79,15 @@ Primary goal: fast, compliant ETB payout to recipients in Ethiopia, funded by di
 - Preferred integration style: event-driven
 - If no broker is used, use DB outbox pattern
 
+## Repository Defaults (Post-Refactor)
+- Customer auth ownership is `services/customer-auth` only; `core-api` must not proxy or own customer auth routes.
+- Better Auth is the canonical customer session/auth store, with explicit bridge table `customer_auth_link` to `customer_account`.
+- DB standard for Node services is `postgres.js` + Drizzle via `@cryptopay/db`; do not introduce new `pg` dependencies.
+- Shared HTTP primitives (CORS, errors, idempotency, metrics, bootstrap) must come from `@cryptopay/http` instead of service-local copies.
+- Service entrypoints should use shared bootstrap (`runService`/`runServiceAndExit`) rather than per-service duplicated shutdown wiring.
+- `services/core-api/src/app.ts` is composition-only; grouped route modules belong under `services/core-api/src/routes/*`.
+- v1 payout rail is bank-only implementation; do not re-introduce Telebirr runtime paths or feature flags in v1 scope.
+
 ## Reliability Requirements
 ### Idempotency
 - All state-changing API routes and webhook handlers must enforce idempotency keys.

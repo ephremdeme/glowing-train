@@ -45,7 +45,7 @@ export class ExchangeRateApiProvider implements FxRateProvider {
         }
 
         try {
-            const url = `https://open.er-api.com/v6/latest/${base}`;
+            const url = `https://v6.exchangerate-api.com/v6/aa256e9ac544e84811784989/latest/${base}`;
             const response = await fetch(url);
 
             if (!response.ok) {
@@ -54,22 +54,22 @@ export class ExchangeRateApiProvider implements FxRateProvider {
 
             const data = (await response.json()) as {
                 result: string;
-                rates: Record<string, number>;
+                conversion_rates: Record<string, number>;
             };
 
-            if (data.result !== 'success' || !data.rates) {
+            if (data.result !== 'success' || !data.conversion_rates) {
                 throw new Error(`ExchangeRate-API returned unexpected payload: ${data.result}`);
             }
 
             const entry: CacheEntry = {
-                rates: data.rates,
+                rates: data.conversion_rates,
                 fetchedAt: new Date()
             };
 
             this.cache.set(base, entry);
-            log('info', 'FX rates fetched and cached', { base, currencyCount: Object.keys(data.rates).length });
+            log('info', 'FX rates fetched and cached', { base, currencyCount: Object.keys(data.conversion_rates).length });
 
-            return data.rates;
+            return data.conversion_rates;
         } catch (error) {
             // Fallback to stale cache if fetch fails and cache exists (even if expired)
             if (cached) {
