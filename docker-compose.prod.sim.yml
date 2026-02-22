@@ -83,6 +83,9 @@ services:
       dockerfile: workers/base-watcher/Dockerfile
     env_file:
       - .env.prod.local
+    environment:
+      CORE_API_URL: http://core-api:3001
+      CORE_API_FUNDING_CALLBACK_URL: http://core-api:3001/internal/v1/funding-confirmed
 
   solana-watcher:
     image: cryptopay/solana-watcher:prod-sim
@@ -91,6 +94,9 @@ services:
       dockerfile: workers/solana-watcher/Dockerfile
     env_file:
       - .env.prod.local
+    environment:
+      CORE_API_URL: http://core-api:3001
+      CORE_API_FUNDING_CALLBACK_URL: http://core-api:3001/internal/v1/funding-confirmed
 
   web:
     image: cryptopay/web:prod-sim

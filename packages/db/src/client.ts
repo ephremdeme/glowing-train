@@ -25,6 +25,17 @@ export interface Queryable {
   connect: () => Promise<QueryClient>;
 }
 
+function normalizeParam(param: unknown): unknown {
+  if (param instanceof Date) {
+    return param.toISOString();
+  }
+  return param;
+}
+
+export function normalizeQueryParams(params: unknown[] = []): unknown[] {
+  return params.map((param) => normalizeParam(param));
+}
+
 function withStatementTimeout(connectionString: string, statementTimeoutMs: number): string {
   try {
     const url = new URL(connectionString);
@@ -59,7 +70,8 @@ function createQueryAdapter(sql: PostgresSql): Queryable {
     queryText: string,
     params: unknown[] = []
   ): Promise<QueryResult<Row>> => {
-    const rows = (await sql.unsafe(queryText, params as never[])) as unknown as QueryRow[] & {
+    const normalizedParams = normalizeQueryParams(params);
+    const rows = (await sql.unsafe(queryText, normalizedParams as never[])) as unknown as QueryRow[] & {
       count?: unknown;
       length: number;
     };

@@ -131,6 +131,9 @@ services:
     working_dir: /workspace/workers/base-watcher
     env_file:
       - .env
+    environment:
+      CORE_API_URL: http://core-api:3001
+      CORE_API_FUNDING_CALLBACK_URL: http://core-api:3001/internal/v1/funding-confirmed
     command: ["sh", "-lc", "go run ./cmd/main.go"]
     volumes:
       - ./:/workspace
@@ -146,6 +149,9 @@ services:
     working_dir: /workspace/workers/solana-watcher
     env_file:
       - .env
+    environment:
+      CORE_API_URL: http://core-api:3001
+      CORE_API_FUNDING_CALLBACK_URL: http://core-api:3001/internal/v1/funding-confirmed
     command: ["sh", "-lc", "go run ./cmd/main.go"]
     volumes:
       - ./:/workspace

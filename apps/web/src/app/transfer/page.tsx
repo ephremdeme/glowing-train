@@ -75,6 +75,7 @@ export default function TransferPage() {
         body: JSON.stringify({
           quoteId: quote.quoteId,
           recipientId: recipient.recipientId,
+          quote,
           walletAddress: walletAddress ?? undefined
         })
       });
@@ -157,9 +158,9 @@ export default function TransferPage() {
               </CardHeader>
               <CardContent>
                 <WalletConnectPanel
-                chain={quote?.chain ?? 'base'}
-                onStateChange={(state: WalletConnectionState) => setWalletAddress(state.address)}
-              />
+                  chain={quote?.chain ?? 'base'}
+                  onStateChange={(state: WalletConnectionState) => setWalletAddress(state.address)}
+                />
               </CardContent>
             </Card>
           )}

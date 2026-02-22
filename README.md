@@ -53,7 +53,12 @@ Open [http://localhost:3000](http://localhost:3000).
 - `WEB_CUSTOMER_AUTH_URL` default `http://localhost:3005`
 - `WEB_OFFSHORE_COLLECTOR_URL` default `http://localhost:3002`
 - `WEB_OPS_READ_TOKEN` optional ops token (legacy route support)
-- `NEXT_PUBLIC_SOLANA_CLUSTER` default `mainnet-beta`
+- `NEXT_PUBLIC_SOLANA_CLUSTER` default `devnet`
+- `NEXT_PUBLIC_SOLANA_PROGRAM_ID` optional override (defaults to `apps/web/config/devnet.json` on devnet)
+- `NEXT_PUBLIC_SOLANA_USDT_MINT` optional override
+- `NEXT_PUBLIC_SOLANA_USDC_MINT` optional override
+- `NEXT_PUBLIC_SOLANA_USDT_TREASURY_ATA` optional override
+- `NEXT_PUBLIC_SOLANA_USDC_TREASURY_ATA` optional override
 - `NEXT_PUBLIC_LANDING_USDC_ETB_RATE` default `140`
 - `NEXT_PUBLIC_LANDING_USDT_ETB_RATE` default `140`
 - `NEXT_PUBLIC_LANDING_FEE_USD` default `1`
@@ -62,6 +67,20 @@ Open [http://localhost:3000](http://localhost:3000).
   - `mock` simulates wallet state (recommended for e2e)
 - `GOOGLE_OAUTH_REDIRECT_URL` should target web callback:
   - `http://localhost:3000/auth/google/callback`
+
+## Solana Anchor Devnet Pay Integration
+- Source-of-truth files:
+  - `apps/web/config/devnet.json`
+  - `apps/web/config/remittance_acceptor.json`
+- Required for local devnet pay flow:
+  - `NEXT_PUBLIC_SOLANA_CLUSTER=devnet`
+  - Keep `apps/web/config/devnet.json` values or set the `NEXT_PUBLIC_SOLANA_*` overrides above.
+- Run:
+```bash
+pnpm install
+pnpm dev:web
+```
+- In `/transfer`, create a transfer with `chain=solana`, then use **Pay with Solana wallet** in deposit instructions.
 
 ## Google OAuth
 - Available from landing, signup, and login as `Continue with Google`.

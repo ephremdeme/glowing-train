@@ -13,12 +13,28 @@ import (
 	"github.com/cryptopay/solana-watcher/internal"
 )
 
+const (
+	// Keep defaults aligned with apps/web/config/devnet.json.
+	defaultDevnetUSDCMint = "6bDUveKHvCojQNt5VzsvLpScyQyDwScFVzw7mGTRP3Km"
+	defaultDevnetUSDTMint = "2Seg9ZgkCyyqdEgTkNcxG2kszh9S2GrAzcY6XjPhtGJn"
+)
+
 func envOrDefault(name string, fallback string) string {
 	value := os.Getenv(name)
 	if value == "" {
 		return fallback
 	}
 	return value
+}
+
+func envFirstOrDefault(names []string, fallback string) string {
+	for _, name := range names {
+		value := os.Getenv(name)
+		if value != "" {
+			return value
+		}
+	}
+	return fallback
 }
 
 func envIntOrDefault(name string, fallback int) int {
@@ -63,8 +79,8 @@ func main() {
 		Chain:      "solana",
 		Limit:      envIntOrDefault("SOLANA_SIGNATURE_LIMIT", 100),
 		TokenMints: map[string]string{
-			"USDC": os.Getenv("SOLANA_USDC_MINT"),
-			"USDT": os.Getenv("SOLANA_USDT_MINT"),
+			"USDC": envFirstOrDefault([]string{"SOLANA_USDC_MINT", "NEXT_PUBLIC_SOLANA_USDC_MINT"}, defaultDevnetUSDCMint),
+			"USDT": envFirstOrDefault([]string{"SOLANA_USDT_MINT", "NEXT_PUBLIC_SOLANA_USDT_MINT"}, defaultDevnetUSDTMint),
 		},
 	}
 

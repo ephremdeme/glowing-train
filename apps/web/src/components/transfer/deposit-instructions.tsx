@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { Route } from 'next';
 import {
@@ -8,13 +8,23 @@ import {
   CheckCircle,
   Copy,
   ExternalLink,
+  Loader2,
   ShieldAlert
 } from 'lucide-react';
+import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { getMintConfig } from '@/lib/solana/remittance-config';
+import {
+  submitPayTransaction,
+  type SubmitPayTransactionResult
+} from '@/lib/solana/remittance-acceptor';
 import type { QuoteSummary, TransferSummary } from '@/lib/contracts';
+import { walletMode } from '@/lib/wallet/evm';
 
 interface DepositInstructionsProps {
   transfer: TransferSummary;
@@ -49,6 +59,144 @@ function CopyRow({ label, value }: { label: string; value: string }) {
 
 function currencyEtb(value: number): string {
   return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(value);
+}
+
+function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
+  const { quote } = transfer;
+  const { connection } = useConnection();
+  const wallet = useWallet();
+  const [externalReference, setExternalReference] = useState(transfer.transferId);
+  const [submitting, setSubmitting] = useState(false);
+  const [solanaError, setSolanaError] = useState<string | null>(null);
+  const [solanaResult, setSolanaResult] = useState<SubmitPayTransactionResult | null>(null);
+
+  useEffect(() => {
+    setExternalReference(transfer.transferId);
+    setSolanaError(null);
+    setSolanaResult(null);
+  }, [transfer.transferId]);
+
+  const mintConfigValidation = useMemo(() => {
+    if (quote.chain !== 'solana') {
+      return { valid: true, message: null as string | null };
+    }
+
+    try {
+      getMintConfig(quote.token);
+      return { valid: true, message: null as string | null };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Token config is invalid for this Solana payment.';
+      return { valid: false, message };
+    }
+  }, [quote.chain, quote.token]);
+
+  async function submitSolanaPayment(): Promise<void> {
+    const reference = externalReference.trim();
+    if (!reference) {
+      setSolanaError('External reference is required.');
+      return;
+    }
+
+    setSubmitting(true);
+    setSolanaError(null);
+
+    try {
+      const result = await submitPayTransaction({
+        connection,
+        wallet,
+        token: quote.token,
+        amountDecimal: String(quote.sendAmountUsd),
+        transferId: transfer.transferId,
+        externalReference: reference
+      });
+      setSolanaResult(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Solana payment failed.';
+      setSolanaError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="grid gap-4 rounded-2xl border border-border/70 bg-muted/20 p-4">
+      <div className="grid gap-1.5">
+        <p className="text-sm font-semibold">Pay on Solana</p>
+        <p className="text-xs text-muted-foreground">
+          Sign a wallet transaction to call the on-chain `pay(...)` instruction.
+        </p>
+      </div>
+
+      <div className="grid gap-2">
+        <label htmlFor="external-reference" className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+          External reference
+        </label>
+        <Input
+          id="external-reference"
+          value={externalReference}
+          onChange={(event) => setExternalReference(event.target.value)}
+          placeholder="Enter external reference"
+        />
+      </div>
+
+      {!wallet.connected ? (
+        <div className="w-fit">
+          <WalletMultiButton />
+        </div>
+      ) : null}
+
+      {!mintConfigValidation.valid && mintConfigValidation.message ? (
+        <Alert variant="destructive">
+          <AlertTitle>Unsupported token config</AlertTitle>
+          <AlertDescription>{mintConfigValidation.message}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {solanaError ? (
+        <Alert variant="destructive">
+          <AlertTitle>Payment failed</AlertTitle>
+          <AlertDescription>{solanaError}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {solanaResult ? (
+        <Alert>
+          <AlertTitle>Payment submitted</AlertTitle>
+          <AlertDescription>
+            <span className="block break-all">Signature: {solanaResult.signature}</span>
+            <a href={solanaResult.explorerUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-primary underline">
+              View on Solana Explorer
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Button
+        onClick={submitSolanaPayment}
+        disabled={
+          submitting ||
+          Boolean(solanaResult) ||
+          !wallet.connected ||
+          !wallet.publicKey ||
+          !externalReference.trim() ||
+          !mintConfigValidation.valid
+        }
+      >
+        {submitting ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Submitting on-chain payment...
+          </>
+        ) : (
+          'Pay with Solana wallet'
+        )}
+      </Button>
+    </div>
+  );
 }
 
 export function DepositInstructions({ transfer }: DepositInstructionsProps) {
@@ -106,6 +254,8 @@ export function DepositInstructions({ transfer }: DepositInstructionsProps) {
             <strong>{quote.chain}</strong> network. Sending the wrong token or using the wrong chain may result in lost funds.
           </AlertDescription>
         </Alert>
+
+        {quote.chain === 'solana' && walletMode() !== 'mock' ? <SolanaPayPanel transfer={transfer} /> : null}
 
         {/* Actions */}
         <div className="flex flex-wrap gap-2">
