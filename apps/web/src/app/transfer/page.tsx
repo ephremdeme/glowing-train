@@ -29,24 +29,17 @@ function currencyEtb(value: number): string {
   return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(value);
 }
 
-export default function TransferPage() {
-  const router = useRouter();
-  const [quote, setQuote] = useState<QuoteSummary | null>(null);
+function TransferInner({ token }: { token: string }) {
+  const [quote, setQuote] = useState<QuoteSummary | null>(() => readFlowDraft().quote ?? null);
   const [recipient, setRecipient] = useState<RecipientDetail | null>(null);
-  const [transfer, setTransfer] = useState<TransferSummary | null>(null);
+  const [transfer, setTransfer] = useState<TransferSummary | null>(() => readFlowDraft().transfer ?? null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [kycStatus, setKycStatus] = useState<KycStatus>('NOT_STARTED');
 
   useEffect(() => {
-    const draft = readFlowDraft();
-    if (draft?.quote) setQuote(draft.quote);
-    if (draft?.transfer) setTransfer(draft.transfer);
-
-    const token = readAccessToken();
     if (!token) return;
-
     (async () => {
       const response = await fetch('/api/client/me', {
         headers: { authorization: `Bearer ${token}` }
@@ -56,14 +49,13 @@ export default function TransferPage() {
         setKycStatus(payload.senderKyc.kycStatus.toUpperCase() as KycStatus);
       }
     })();
-  }, []);
+  }, [token]);
 
   async function createTransfer(): Promise<void> {
     if (!quote || !recipient) return;
 
     setBusy(true);
     setMessage(null);
-    const token = readAccessToken();
 
     try {
       const response = await fetch('/api/client/transfers', {
@@ -97,101 +89,107 @@ export default function TransferPage() {
   }
 
   return (
-    <RouteGuard requireAuth requireQuote>
-      <div className="mx-auto max-w-2xl">
-        <div className="grid gap-6">
-          {/* Header */}
-          <div>
-            <h1 className="text-2xl font-semibold tracking-[-0.022em]">Create transfer</h1>
-            <p className="mt-1 text-[15px] text-muted-foreground">
-              Set up your recipient and fund the transfer.
-            </p>
-          </div>
-
-          {/* Illustration */}
-          <TransferJourneyScene className="h-[140px]" />
-
-          {/* Quote summary */}
-          {quote && (
-            <Card>
-              <CardContent className="flex items-center justify-between p-4">
-                <div className="text-sm">
-                  <span className="font-medium">{quote.sendAmountUsd} USD</span>
-                  <span className="mx-2 text-muted-foreground">→</span>
-                  <span className="font-medium">{currencyEtb((quote.sendAmountUsd - quote.feeUsd) * quote.fxRateUsdToEtb)}</span>
-                </div>
-                <span className="text-xs text-muted-foreground">{quote.chain}/{quote.token}</span>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* KYC warning */}
-          {kycStatus !== 'APPROVED' && kycStatus !== 'NOT_STARTED' && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Verification {kycStatus === 'PENDING' ? 'pending' : 'required'}</AlertTitle>
-              <AlertDescription>
-                {kycStatus === 'PENDING'
-                  ? 'Your identity check is still being reviewed.'
-                  : 'Complete identity verification before creating a transfer.'}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Recipient */}
-          {!transfer && (
-            <RecipientSection
-              token={quote?.token ?? 'USDC'}
-              initialRecipientId={recipient?.recipientId ?? null}
-              onRecipientReady={(r: RecipientDetail | null) => setRecipient(r)}
-            />
-          )}
-
-          {/* Wallet */}
-          {!transfer && recipient && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Wallet className="h-4 w-4" />
-                  Connect wallet (optional)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <WalletConnectPanel
-                  chain={quote?.chain ?? 'base'}
-                  onStateChange={(state: WalletConnectionState) => setWalletAddress(state.address)}
-                />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Create transfer button */}
-          {!transfer && recipient && kycStatus === 'APPROVED' && (
-            <Button onClick={createTransfer} disabled={busy} className="w-full">
-              {busy ? 'Creating...' : 'Create transfer'}
-            </Button>
-          )}
-
-          {message ? (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Transfer error</AlertTitle>
-              <AlertDescription>{message}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          {/* Deposit instructions after transfer created */}
-          {transfer && quote && (
-            <div className="grid gap-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-green-700">
-                <CheckCircle className="h-4 w-4" />
-                Transfer created successfully
-              </div>
-              <DepositInstructions transfer={transfer} quote={quote} />
-            </div>
-          )}
+    <div className="mx-auto max-w-2xl">
+      <div className="grid gap-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl font-semibold tracking-[-0.022em]">Create transfer</h1>
+          <p className="mt-1 text-[15px] text-muted-foreground">
+            Set up your recipient and fund the transfer.
+          </p>
         </div>
+
+        {/* Illustration */}
+        <TransferJourneyScene className="h-[140px]" />
+
+        {/* Quote summary */}
+        {quote && (
+          <Card>
+            <CardContent className="flex items-center justify-between p-4">
+              <div className="text-sm">
+                <span className="font-medium">{quote.sendAmountUsd} USD</span>
+                <span className="mx-2 text-muted-foreground">→</span>
+                <span className="font-medium">{currencyEtb((quote.sendAmountUsd - quote.feeUsd) * quote.fxRateUsdToEtb)}</span>
+              </div>
+              <span className="text-xs text-muted-foreground">{quote.chain}/{quote.token}</span>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* KYC warning */}
+        {kycStatus !== 'APPROVED' && kycStatus !== 'NOT_STARTED' && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Verification {kycStatus === 'PENDING' ? 'pending' : 'required'}</AlertTitle>
+            <AlertDescription>
+              {kycStatus === 'PENDING'
+                ? 'Your identity check is still being reviewed.'
+                : 'Complete identity verification before creating a transfer.'}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Recipient */}
+        {!transfer && (
+          <RecipientSection
+            token={token}
+            initialRecipientId={recipient?.recipientId ?? null}
+            onRecipientReady={(r: RecipientDetail | null) => setRecipient(r)}
+          />
+        )}
+
+        {/* Wallet */}
+        {!transfer && recipient && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wallet className="h-4 w-4" />
+                Connect wallet (optional)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <WalletConnectPanel
+                chain={quote?.chain ?? 'base'}
+                onStateChange={(state: WalletConnectionState) => setWalletAddress(state.address)}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Create transfer button */}
+        {!transfer && recipient && kycStatus === 'APPROVED' && (
+          <Button onClick={createTransfer} disabled={busy} className="w-full">
+            {busy ? 'Creating...' : 'Create transfer'}
+          </Button>
+        )}
+
+        {message ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Transfer error</AlertTitle>
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {/* Deposit instructions after transfer created */}
+        {transfer && quote && (
+          <div className="grid gap-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-green-700">
+              <CheckCircle className="h-4 w-4" />
+              Transfer created successfully
+            </div>
+            <DepositInstructions transfer={transfer} quote={quote} />
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+export default function TransferPage() {
+  return (
+    <RouteGuard requireAuth requireQuote>
+      {(token) => <TransferInner token={token} />}
     </RouteGuard>
   );
 }

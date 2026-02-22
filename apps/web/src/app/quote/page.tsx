@@ -32,12 +32,14 @@ export default function QuotePage() {
   const [kycError, setKycError] = useState<string | null>(null);
   const [quote, setQuote] = useState<QuoteSummary | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     const draft = readFlowDraft();
     if (draft?.quote) {
       setQuote(draft.quote);
     }
+    setIsMounted(true);
 
     const token = readAccessToken();
     if (!token) return;
@@ -115,13 +117,17 @@ export default function QuotePage() {
         ) : null}
 
         {/* Quote form */}
-        <QuoteForm
-          token={readAccessToken() ?? ''}
-          initialQuote={quote}
-          onQuoteCreated={handleQuoteCreated}
-          disabled={kycStatus === 'REJECTED'}
-          isAuthenticated={isAuthenticated}
-        />
+        {isMounted ? (
+          <QuoteForm
+            token={readAccessToken() ?? ''}
+            initialQuote={quote}
+            onQuoteCreated={handleQuoteCreated}
+            disabled={kycStatus === 'REJECTED'}
+            isAuthenticated={isAuthenticated}
+          />
+        ) : (
+          <div className="h-[400px] animate-pulse rounded-2xl bg-muted/20" />
+        )}
 
         {/* Locked quote confirmation */}
         {quote && isAuthenticated && kycStatus === 'APPROVED' && (

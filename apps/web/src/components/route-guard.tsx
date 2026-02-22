@@ -11,12 +11,13 @@ interface RouteGuardProps {
   requireAuth?: boolean;
   requireQuote?: boolean;
   requireRecipient?: boolean;
-  children: React.ReactNode;
+  children?: React.ReactNode | ((token: string) => React.ReactNode);
 }
 
 export function RouteGuard({ requireAuth, requireQuote, requireRecipient, children }: RouteGuardProps) {
   const router = useRouter();
   const [allowed, setAllowed] = useState(false);
+  const [activeToken, setActiveToken] = useState<string>('');
 
   useEffect(() => {
     async function guard(): Promise<void> {
@@ -44,6 +45,7 @@ export function RouteGuard({ requireAuth, requireQuote, requireRecipient, childr
         return;
       }
 
+      setActiveToken(token);
       setAllowed(true);
     }
 
@@ -59,5 +61,5 @@ export function RouteGuard({ requireAuth, requireQuote, requireRecipient, childr
     );
   }
 
-  return <>{children}</>;
+  return <>{typeof children === 'function' ? children(activeToken) : children}</>;
 }
