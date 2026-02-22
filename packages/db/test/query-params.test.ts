@@ -8,8 +8,8 @@ describe('normalizeQueryParams', () => {
     expect(normalized).toBe('2026-02-22T07:57:02.666Z');
   });
 
-  it('leaves non-Date params unchanged', () => {
-    const params = ['x', 1, true, null, { nested: 'value' }];
-    expect(normalizeQueryParams(params)).toEqual(params);
+  it('serializes object-like params for json/jsonb bindings', () => {
+    const params = ['x', 1, true, null, { nested: 'value' }, ['a', 'b']];
+    expect(normalizeQueryParams(params)).toEqual(['x', 1, true, null, '{"nested":"value"}', '["a","b"]']);
   });
 });

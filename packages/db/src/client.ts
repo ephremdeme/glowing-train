@@ -29,6 +29,21 @@ function normalizeParam(param: unknown): unknown {
   if (param instanceof Date) {
     return param.toISOString();
   }
+
+  if (Array.isArray(param)) {
+    return JSON.stringify(param);
+  }
+
+  if (
+    param !== null &&
+    typeof param === 'object' &&
+    !(param instanceof Buffer) &&
+    !(param instanceof ArrayBuffer) &&
+    !ArrayBuffer.isView(param)
+  ) {
+    return JSON.stringify(param);
+  }
+
   return param;
 }
 
@@ -142,7 +157,10 @@ export async function withTransaction<T>(
   return sql.begin(async (transactionSql) => {
     const txSql = transactionSql as unknown as PostgresSql;
     const txQuery = createQueryAdapter(txSql);
-    const txDb = drizzle(txSql, { schema });
+    // `sql.begin(...)` returns a transaction-scoped object that does not fully
+    // satisfy Drizzle's postgres.js driver expectations in our runtime bundle.
+    // Keep transactional work on `tx.query`/`tx.sql`; expose shared db for compatibility.
+    const txDb = getDb();
     return fn({
       sql: txSql,
       db: txDb,
