@@ -24,7 +24,14 @@ const tokenExchangeSchema = z.object({
 });
 
 function parseTrustedOrigins(): string[] {
-  const defaults = ['http://localhost:3000', 'http://127.0.0.1:3000'];
+  const defaults = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:3100',
+    'http://127.0.0.1:3100',
+    'http://localhost:18080',
+    'http://127.0.0.1:18080'
+  ];
   const configured = (process.env.AUTH_TRUSTED_ORIGINS ?? process.env.CORS_ALLOWED_ORIGINS ?? '')
     .split(',')
     .map((origin) => origin.trim())
@@ -62,7 +69,12 @@ export function getBetterAuth(): ReturnType<typeof betterAuth> {
   singletonAuth = betterAuth({
     database: drizzleAdapter(getDb(), {
       provider: 'pg',
-      schema
+      schema: {
+        user: schema.authUsers,
+        account: schema.authAccounts,
+        session: schema.authSessions,
+        verification: schema.authVerifications
+      }
     }),
     secret: process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_JWT_SECRET ?? 'dev-better-auth-secret-change-me',
     baseURL: authBaseUrl(),

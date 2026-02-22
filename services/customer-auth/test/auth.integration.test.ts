@@ -197,6 +197,28 @@ describe('customer-auth integration', () => {
     await app.close();
   });
 
+  it('accepts sign-up requests from local BFF origin', async () => {
+    const app = await buildCustomerAuthApp();
+
+    const signup = await app.inject({
+      method: 'POST',
+      url: '/auth/sign-up/email',
+      headers: {
+        origin: 'http://localhost:18080',
+        'idempotency-key': 'idem-signup-origin-001'
+      },
+      payload: {
+        fullName: 'Origin Customer',
+        countryCode: 'ET',
+        email: 'origin.customer@example.com',
+        password: 'Password123!'
+      }
+    });
+
+    expect(signup.statusCode).toBe(201);
+    await app.close();
+  });
+
   it('signs in with password and can sign out', async () => {
     const app = await buildCustomerAuthApp();
 
