@@ -4,14 +4,14 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-semibold tracking-[-0.01em] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 active:scale-[0.97]',
+  'inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-medium tracking-[-0.008em] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 active:scale-[0.97]',
   {
     variants: {
       variant: {
         default:
           'bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:brightness-110 hover:shadow-xl hover:shadow-primary/25',
         premium:
-          'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 text-slate-900 font-bold shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30 hover:brightness-105 bg-[length:200%_100%] hover:bg-right transition-[background-position,box-shadow,filter] duration-500',
+          'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 text-slate-900 font-semibold shadow-lg shadow-amber-500/25 hover:shadow-xl hover:shadow-amber-500/30 hover:brightness-105 bg-[length:200%_100%] hover:bg-right transition-[background-position,box-shadow,filter] duration-500',
         secondary:
           'bg-secondary text-secondary-foreground border border-border/50 hover:bg-muted hover:border-border',
         outline:
@@ -27,7 +27,7 @@ const buttonVariants = cva(
         default: 'h-10 px-5',
         sm: 'h-9 px-3.5 text-xs',
         lg: 'h-12 px-7 text-[15px]',
-        xl: 'h-14 px-10 text-base',
+        xl: 'h-14 px-10 text-[15px]',
         icon: 'h-10 w-10'
       }
     },

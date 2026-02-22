@@ -12,7 +12,7 @@ import {
 import { QuoteForm } from '@/components/quote/quote-form';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { readApiMessage } from '@/lib/client-api';
+import { readAuthMessage } from '@/lib/client-api';
 import type { QuoteSummary } from '@/lib/contracts';
 import { readAccessToken } from '@/lib/session';
 import { patchFlowDraft, readFlowDraft } from '@/lib/flow-state';
@@ -51,7 +51,7 @@ export default function QuotePage() {
       if (payload?.senderKyc?.kycStatus) {
         setKycStatus(payload.senderKyc.kycStatus.toUpperCase() as KycStatus);
       } else {
-        setKycError(readApiMessage(payload, 'Unable to check KYC status.'));
+        setKycError(readAuthMessage(payload, 'Unable to check KYC status.'));
       }
     })();
   }, []);
@@ -66,8 +66,8 @@ export default function QuotePage() {
       <div className="grid gap-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Quote</h1>
-          <p className="mt-1.5 text-base text-muted-foreground">
+          <h1 className="text-3xl font-semibold tracking-[-0.022em]">Quote</h1>
+          <p className="mt-1.5 text-[15px] text-muted-foreground">
             Lock your exchange rate and review terms before transferring.
           </p>
         </div>
@@ -129,10 +129,10 @@ export default function QuotePage() {
             <div className="flex items-center gap-3">
               <CheckCircle className="h-5 w-5 text-emerald-500" />
               <div>
-                <p className="text-sm font-medium text-foreground">
+                <p className="text-sm font-semibold text-foreground">
                   Quote locked. Continue to transfer setup.
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   {quote.sendAmountUsd} USD → {currencyEtb((quote.sendAmountUsd - quote.feeUsd) * quote.fxRateUsdToEtb)} on {quote.chain}/{quote.token}
                 </p>
               </div>

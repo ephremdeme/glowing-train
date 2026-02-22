@@ -117,6 +117,9 @@ body {
 body {
   @apply bg-background text-foreground;
   font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 450;
+  line-height: 1.55;
+  letter-spacing: -0.004em;
   position: relative;
   overflow-x: hidden;
 }
@@ -169,12 +172,15 @@ h1,
 h2,
 h3,
 h4 {
-  letter-spacing: -0.035em;
+  letter-spacing: -0.022em;
+  font-weight: 600;
+  line-height: 1.14;
   font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
 }
 
 h1 {
-  letter-spacing: -0.045em;
+  letter-spacing: -0.032em;
+  font-weight: 650;
 }
 
 .font-display {
@@ -182,7 +188,11 @@ h1 {
 }
 
 .font-serif {
-  font-family: var(--font-serif), 'Georgia', serif;
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+}
+
+p {
+  line-height: 1.62;
 }
 
 code,

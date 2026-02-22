@@ -90,12 +90,12 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
 
   return (
     <div className="rounded-2xl border border-border/50 bg-card p-6 shadow-lg sm:p-8">
-      <h3 className="mb-5 text-xl font-semibold text-foreground">Create quote</h3>
+      <h3 className="mb-5 text-xl font-semibold tracking-[-0.015em] text-foreground">Create quote</h3>
 
       <form className="grid gap-5" onSubmit={onSubmit}>
         {/* ── Network toggle ── */}
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
             Network
           </span>
           <div className="flex rounded-xl border border-border/60 bg-muted/60 p-0.5">
@@ -104,7 +104,7 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
                 type="button"
                 key={c}
                 onClick={() => setForm((prev) => ({ ...prev, chain: c }))}
-                className={`rounded-lg px-3.5 py-2 text-xs font-semibold capitalize transition-all ${form.chain === c
+                className={`rounded-lg px-3.5 py-2 text-xs font-medium capitalize transition-all ${form.chain === c
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                   }`}
@@ -117,7 +117,7 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
 
         {/* ── YOU PAY ── */}
         <div>
-          <label htmlFor="sendAmountUsd" className="mb-2.5 block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          <label htmlFor="sendAmountUsd" className="mb-2.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
             You pay
           </label>
           <div className="rounded-xl bg-muted/50 p-4 transition-colors focus-within:bg-muted focus-within:ring-0 focus-within:outline-none focus-within:border-transparent focus-within:shadow-none">
@@ -125,7 +125,7 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
               <input
                 id="sendAmountUsd"
                 type="number"
-                className="w-full min-w-0 bg-transparent text-3xl font-bold text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 border-none shadow-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full min-w-0 border-none bg-transparent text-3xl font-semibold tracking-[-0.015em] text-foreground placeholder:text-muted-foreground/30 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none"
                 min={1}
                 max={2000}
                 step={0.01}
@@ -139,14 +139,14 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
                 <div className="flex items-center gap-2 rounded-full bg-foreground py-2 pl-2 pr-4 text-background shadow-md transition-transform hover:scale-105">
                   {form.token === 'USDC' ? (
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white">
-                      <span className="text-[10px] font-bold">$</span>
+                      <span className="text-[10px] font-semibold">$</span>
                     </div>
                   ) : (
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white">
-                      <span className="text-[10px] font-bold">T</span>
+                      <span className="text-[10px] font-semibold">T</span>
                     </div>
                   )}
-                  <span className="text-sm font-bold">{form.token}</span>
+                  <span className="text-sm font-semibold">{form.token}</span>
                   <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="opacity-60">
                     <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
@@ -176,14 +176,14 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
 
         {/* ── THEY RECEIVE ── */}
         <div>
-          <span className="mb-1 block text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50">
+          <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/60">
             They receive
           </span>
           <div className="group rounded-3xl bg-muted/80 p-5 transition-colors focus-within:bg-muted focus-within:ring-0 focus-within:outline-none focus-within:border-transparent focus-within:shadow-none">
             <div className="flex items-center justify-between gap-3">
               <input
                 type="number"
-                className="w-full min-w-0 bg-transparent text-3xl font-bold text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 border-none shadow-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full min-w-0 border-none bg-transparent text-3xl font-semibold tracking-[-0.015em] text-foreground placeholder:text-muted-foreground/30 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none"
                 min={0}
                 step={1}
                 value={Math.round(preview.recipientAmountEtb) || ''}
@@ -202,7 +202,7 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
                     <path d="M600 300L650 450L500 350H700L550 450L600 300Z" fill="#FCDD09" transform="scale(0.8) translate(150, 50)" opacity="0.9" />
                   </svg>
                 </div>
-                <span className="text-sm font-bold">ETB</span>
+                <span className="text-sm font-semibold">ETB</span>
               </div>
             </div>
             <p className="mt-2 text-xs font-medium text-muted-foreground/60">ETB · Bank payout</p>
@@ -211,7 +211,7 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
 
         {/* Payment method */}
         <div>
-          <span className="mb-2.5 block text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          <span className="mb-2.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
             Payment method
           </span>
           <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/40 px-4 py-3">
@@ -227,7 +227,7 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
 
         {/* Fee breakdown */}
         <div className="rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
-          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Total fee quote</p>
+          <p className="mb-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Total fee quote</p>
           <div className="grid gap-2">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-sm text-muted-foreground">

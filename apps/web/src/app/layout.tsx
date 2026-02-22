@@ -1,21 +1,15 @@
 import type { Metadata } from 'next';
-import { Sora, Fraunces, JetBrains_Mono } from 'next/font/google';
+import { Manrope, JetBrains_Mono } from 'next/font/google';
 import { AppShell } from '@/components/app-shell';
 import { WalletProvider } from '@/components/wallet/wallet-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 import './globals.css';
 
-const fontDisplay = Sora({
+const fontDisplay = Manrope({
   subsets: ['latin'],
   variable: '--font-display',
   display: 'swap',
-  weight: ['300', '400', '500', '600', '700', '800'],
-});
-
-const fontSerif = Fraunces({
-  subsets: ['latin'],
-  variable: '--font-serif',
-  display: 'swap',
+  weight: ['400', '500', '600', '700']
 });
 
 const fontMono = JetBrains_Mono({
@@ -33,7 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${fontDisplay.variable} ${fontSerif.variable} ${fontMono.variable}`}
+        className={`${fontDisplay.variable} ${fontMono.variable} [--font-serif:var(--font-display)]`}
         suppressHydrationWarning
       >
         <ThemeProvider

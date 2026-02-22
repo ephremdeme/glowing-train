@@ -102,7 +102,7 @@ function FaqSection() {
   return (
     <FadeIn className="grid gap-10">
       <div className="grid gap-3 text-center">
-        <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+        <h2 className="text-3xl font-semibold tracking-[-0.02em] text-foreground sm:text-4xl">
           Frequently asked questions
         </h2>
         <p className="mx-auto max-w-md text-base text-muted-foreground">
@@ -179,7 +179,7 @@ function TestimonialsSection() {
             <Star key={i} className="h-5 w-5 fill-primary text-primary" />
           ))}
         </div>
-        <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+        <h2 className="text-3xl font-semibold tracking-[-0.02em] text-foreground sm:text-4xl">
           Trusted by senders worldwide
         </h2>
         <p className="mx-auto max-w-md text-base text-muted-foreground">
@@ -198,7 +198,7 @@ function TestimonialsSection() {
               &ldquo;{t.text}&rdquo;
             </p>
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
                 {t.name.charAt(0)}
               </div>
               <div>
@@ -236,7 +236,7 @@ function RateAlertSection() {
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
           <Bell className="h-6 w-6 text-primary" />
         </div>
-        <h2 className="mb-2 text-2xl font-bold text-foreground">Get rate alerts</h2>
+        <h2 className="mb-2 text-2xl font-semibold tracking-[-0.015em] text-foreground">Get rate alerts</h2>
         <p className="mb-6 text-sm text-muted-foreground">
           Get notified when the ETB exchange rate hits your target. Never miss a good rate.
         </p>
@@ -296,14 +296,14 @@ export default function HomePage() {
         {/* Hero text */}
         <StaggerContainer className="grid gap-7">
           <FadeInItem>
-            <div className="inline-flex w-fit items-center gap-1.5 rounded-full border border-primary/20 bg-primary/[0.06] px-4 py-2 text-xs font-semibold text-primary shadow-glow-sm backdrop-blur-sm">
+            <div className="inline-flex w-fit items-center gap-1.5 rounded-full border border-primary/20 bg-primary/[0.06] px-4 py-2 text-xs font-medium text-primary shadow-glow-sm backdrop-blur-sm">
               <Zap className="h-3.5 w-3.5" />
               Non-custodial remittance
             </div>
           </FadeInItem>
 
           <FadeInItem>
-            <h1 className="max-w-lg text-balance text-5xl font-extrabold leading-[1.05] tracking-[-0.045em] md:text-6xl lg:text-[4.25rem]">
+            <h1 className="max-w-lg text-balance text-5xl font-semibold leading-[1.06] tracking-[-0.03em] md:text-6xl lg:text-[4.1rem]">
               <span className="text-foreground">Send crypto.</span>
               <br />
               <span className="text-primary">Deliver ETB.</span>
@@ -311,7 +311,7 @@ export default function HomePage() {
           </FadeInItem>
 
           <FadeInItem>
-            <p className="max-w-md text-lg leading-relaxed text-muted-foreground">
+            <p className="max-w-md text-[17px] leading-relaxed text-muted-foreground">
               Send USDC or USDT from your own wallet. Your family receives Ethiopian
               Birr in their bank account in about 10 minutes.
             </p>
@@ -359,7 +359,7 @@ export default function HomePage() {
             )}
           </FadeInItem>
 
-          <FadeInItem className="flex flex-wrap gap-6 text-sm font-medium text-muted-foreground/70">
+          <FadeInItem className="flex flex-wrap gap-6 text-[13px] font-medium text-muted-foreground/70">
             <span className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-primary/60" /> ~10 min payout
             </span>
@@ -390,10 +390,10 @@ export default function HomePage() {
         </Alert>
       )}
 
-      {/* ═══ HOW IT WORKS ═══ */}
+        {/* ═══ HOW IT WORKS ═══ */}
       <SmoothSection className="grid gap-16">
         <FadeIn className="grid gap-3 text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          <h2 className="text-3xl font-semibold tracking-[-0.02em] text-foreground sm:text-4xl">
             How it works
           </h2>
           <p className="mx-auto max-w-md text-base text-muted-foreground">
@@ -444,10 +444,10 @@ export default function HomePage() {
                   >
                     <Icon className="h-7 w-7 text-white" />
                   </div>
-                  <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground/50">
+                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/50">
                     Step {item.step}
                   </div>
-                  <h3 className="mb-3 text-xl font-bold text-foreground">{item.title}</h3>
+                  <h3 className="mb-3 text-xl font-semibold tracking-[-0.015em] text-foreground">{item.title}</h3>
                   <p className="text-sm leading-relaxed text-muted-foreground">{item.desc}</p>
                 </div>
               </FadeInItem>
@@ -459,7 +459,7 @@ export default function HomePage() {
       {/* ═══ WHY CRYPTOPAY — Bento Grid ═══ */}
       <SmoothSection className="grid gap-16">
         <FadeIn className="grid gap-3 text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          <h2 className="text-3xl font-semibold tracking-[-0.02em] text-foreground sm:text-4xl">
             Built for trust & speed
           </h2>
           <p className="mx-auto max-w-md text-base text-muted-foreground">
@@ -473,43 +473,39 @@ export default function HomePage() {
               icon: Lock,
               title: 'Non-custodial',
               desc: 'We never hold your crypto. You sign every transaction from your own wallet.',
-              iconGrad: 'from-amber-500 to-orange-600',
-              span: 'sm:col-span-2 lg:col-span-2',
+              iconGrad: 'from-amber-500 to-orange-600'
             },
             {
               icon: Zap,
               title: 'Fast settlement',
               desc: 'Bank payout in ~10 minutes after on-chain confirmation.',
-              iconGrad: 'from-yellow-500 to-amber-600',
-              span: '',
+              iconGrad: 'from-yellow-500 to-amber-600'
             },
             {
               icon: Shield,
               title: 'KYC verified',
               desc: 'Both sender and recipient are verified for compliance.',
-              iconGrad: 'from-emerald-500 to-teal-600',
-              span: '',
+              iconGrad: 'from-emerald-500 to-teal-600'
             },
             {
               icon: DollarSign,
               title: '$1 flat fee',
               desc: 'Simple, transparent pricing. No hidden charges or percentage-based fees.',
-              iconGrad: 'from-blue-500 to-indigo-600',
-              span: 'sm:col-span-2 lg:col-span-2',
-            },
+              iconGrad: 'from-blue-500 to-indigo-600'
+            }
           ].map((item) => {
             const Icon = item.icon;
             return (
               <FadeInItem
                 key={item.title}
-                className={`group relative overflow-hidden rounded-2xl border border-border/30 bg-card/30 p-8 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:bg-card/50 hover:shadow-elevated hover:border-border/50 ${item.span}`}
+                className="group relative overflow-hidden rounded-2xl border border-border/30 bg-card/30 p-8 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:bg-card/50 hover:shadow-elevated hover:border-border/50"
               >
                 <div
                   className={`mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${item.iconGrad} shadow-lg transition-transform duration-300 group-hover:scale-110`}
                 >
                   <Icon className="h-6 w-6 text-white" />
                 </div>
-                <h3 className="mb-2 text-lg font-bold text-foreground">{item.title}</h3>
+                <h3 className="mb-2 text-lg font-semibold tracking-[-0.012em] text-foreground">{item.title}</h3>
                 <p className="text-sm leading-relaxed text-muted-foreground">{item.desc}</p>
               </FadeInItem>
             );
@@ -536,7 +532,7 @@ export default function HomePage() {
             <div className="absolute inset-0 -z-10">
               <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[100px]" />
             </div>
-            <h2 className="mb-4 text-3xl font-bold tracking-tight sm:text-4xl text-foreground">
+            <h2 className="mb-4 text-3xl font-semibold tracking-[-0.02em] sm:text-4xl text-foreground">
               Ready to send money home?
             </h2>
             <p className="mb-10 text-lg text-muted-foreground max-w-lg mx-auto">
@@ -565,7 +561,7 @@ export default function HomePage() {
             <div className="absolute inset-0 -z-10">
               <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[100px]" />
             </div>
-            <h2 className="mb-4 text-3xl font-bold tracking-tight sm:text-4xl text-foreground">
+            <h2 className="mb-4 text-3xl font-semibold tracking-[-0.02em] sm:text-4xl text-foreground">
               Your account is ready
             </h2>
             <p className="mb-10 text-lg text-muted-foreground">

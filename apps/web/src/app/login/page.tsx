@@ -60,10 +60,10 @@ function LoginPageContent() {
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-sm font-bold text-white shadow-lg shadow-amber-500/20 transition-transform group-hover:scale-105">
               CP
             </span>
-            <span className="text-xl font-bold text-foreground tracking-tight">CryptoPay</span>
+            <span className="text-xl font-semibold text-foreground tracking-[-0.015em]">CryptoPay</span>
           </div>
         </Link>
-        <h2 className="mt-2 text-center text-2xl font-bold tracking-tight text-foreground">
+        <h2 className="mt-2 text-center text-2xl font-semibold tracking-[-0.02em] text-foreground">
           Welcome back
         </h2>
         <p className="mt-2 text-center text-sm text-muted-foreground">

@@ -64,8 +64,8 @@ export default function HistoryPage() {
               <History className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Transfer history</h1>
-              <p className="text-sm text-muted-foreground">All past and active transfers.</p>
+              <h1 className="text-2xl font-semibold tracking-[-0.022em] md:text-3xl">Transfer history</h1>
+              <p className="text-[15px] text-muted-foreground">All past and active transfers.</p>
             </div>
           </div>
         </section>
@@ -113,7 +113,7 @@ export default function HistoryPage() {
                     <Clock className="h-4 w-4" />
                   </div>
                   <div className="grid min-w-0 flex-1 gap-0.5">
-                    <p className="truncate text-sm font-semibold">{row.transferId}</p>
+                    <p className="truncate text-sm font-medium">{row.transferId}</p>
                     <p className="text-xs text-muted-foreground">
                       {row.sendAmountUsd} USD → {row.chain}/{row.token} • {new Date(row.createdAt).toLocaleDateString()}
                     </p>

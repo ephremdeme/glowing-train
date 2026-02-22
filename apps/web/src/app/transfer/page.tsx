@@ -102,8 +102,8 @@ export default function TransferPage() {
         <div className="grid gap-6">
           {/* Header */}
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Create transfer</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h1 className="text-2xl font-semibold tracking-[-0.022em]">Create transfer</h1>
+            <p className="mt-1 text-[15px] text-muted-foreground">
               Set up your recipient and fund the transfer.
             </p>
           </div>
