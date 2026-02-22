@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET as googleSignInGet } from '@/app/api/client/auth/sign-in/google/route';
+import { POST as signOutPost } from '@/app/api/client/auth/sign-out/route';
 import { POST as sessionExchangePost } from '@/app/api/client/auth/session/exchange/route';
 import { POST as signInEmailPost } from '@/app/api/client/auth/sign-in/email/route';
 import { POST as signUpEmailPost } from '@/app/api/client/auth/sign-up/email/route';
@@ -63,6 +64,7 @@ describe('BFF -> customer-auth contracts', () => {
 
     const headers = init.headers as Record<string, string>;
     expect(headers['content-type']).toBe('application/json');
+    expect(headers.origin).toBe('http://localhost');
     expect(headers['idempotency-key']).toMatch(/^web-register:/);
 
     expect(JSON.parse(init.body as string)).toEqual({
@@ -103,6 +105,8 @@ describe('BFF -> customer-auth contracts', () => {
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('http://customer-auth.test/auth/sign-in/email');
     expect(init.method).toBe('POST');
+    const headers = init.headers as Record<string, string>;
+    expect(headers.origin).toBe('http://localhost');
     expect(JSON.parse(init.body as string)).toEqual({
       email: 'alice@example.com',
       password: 'Password123!'
@@ -128,6 +132,8 @@ describe('BFF -> customer-auth contracts', () => {
       'http://customer-auth.test/auth/sign-in/google?redirectUri=http%3A%2F%2Flocalhost%3A3000%2Fcb'
     );
     expect(init.method).toBe('GET');
+    const headers = init.headers as Record<string, string>;
+    expect(headers.origin).toBe('http://localhost');
   });
 
   it('forwards session exchange request contract including cookie passthrough', async () => {
@@ -163,6 +169,70 @@ describe('BFF -> customer-auth contracts', () => {
 
     const headers = init.headers as Record<string, string>;
     expect(headers.cookie).toBe('session=abc');
+    expect(headers.origin).toBe('http://localhost');
     expect(JSON.parse(init.body as string)).toEqual({});
+  });
+
+  it('surfaces non-json upstream auth errors instead of generic parse failures', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response('Upstream exploded', {
+        status: 500,
+        headers: {
+          'content-type': 'text/plain'
+        }
+      })
+    );
+
+    const request = new Request('http://localhost/api/client/auth/sign-up/email', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        fullName: 'Alice Customer',
+        countryCode: 'ET',
+        email: 'alice@example.com',
+        password: 'Password123!'
+      })
+    });
+
+    const response = await signUpEmailPost(request);
+    const payload = (await response.json()) as { error?: { message?: string } };
+
+    expect(response.status).toBe(500);
+    expect(payload.error?.message).toBe('Upstream exploded');
+  });
+
+  it('forwards sign-out request contract with cookie and idempotency', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      jsonResponse(
+        { ok: true },
+        200,
+        { 'set-cookie': 'session=; Path=/; Max-Age=0; HttpOnly' }
+      )
+    );
+
+    const request = new Request('http://localhost/api/client/auth/sign-out', {
+      method: 'POST',
+      headers: {
+        cookie: 'session=abc'
+      }
+    });
+
+    const response = await signOutPost(request);
+    const payload = (await response.json()) as { ok?: boolean };
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
+    expect(payload.ok).toBe(true);
+
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://customer-auth.test/auth/sign-out');
+    expect(init.method).toBe('POST');
+
+    const headers = init.headers as Record<string, string>;
+    expect(headers.cookie).toBe('session=abc');
+    expect(headers.origin).toBe('http://localhost');
+    expect(headers['idempotency-key']).toMatch(/^web-signout:/);
   });
 });

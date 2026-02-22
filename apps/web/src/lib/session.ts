@@ -1,4 +1,5 @@
 import type { AuthSessionState } from '@/lib/contracts';
+import { readAuthMessage } from '@/lib/client-api';
 
 export const ACCESS_TOKEN_KEY = 'cryptopay:web:access-token';
 export const AUTH_SESSION_KEY = 'cryptopay:web:auth-session';
@@ -94,4 +95,22 @@ export async function exchangeAccessToken(): Promise<{ token: string; customerId
 
   writeAccessToken(payload.token);
   return payload;
+}
+
+export async function signOutCurrentSession(): Promise<{ ok: true } | { ok: false; message: string }> {
+  const response = await fetch('/api/client/auth/sign-out', {
+    method: 'POST'
+  });
+
+  const payload = (await response.json().catch(() => ({ error: { message: 'Invalid response.' } }))) as
+    | { ok?: boolean; error?: { code?: string; message?: string } };
+
+  if (!response.ok || !payload.ok) {
+    return {
+      ok: false,
+      message: readAuthMessage(payload, 'Could not sign out. Please retry.')
+    };
+  }
+
+  return { ok: true };
 }

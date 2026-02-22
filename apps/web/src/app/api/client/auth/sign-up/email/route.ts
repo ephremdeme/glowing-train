@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { authRegisterSchema } from '@/lib/contracts';
 import { makeIdempotencyKey } from '@/lib/idempotency';
-import { forwardCustomerAuth } from '@/lib/server-api';
+import { forwardCustomerAuth, parseUpstreamPayload } from '@/lib/server-api';
 
 export async function POST(request: Request) {
+  const origin = request.headers.get('origin') ?? new URL(request.url).origin;
   const body = await request.json().catch(() => null);
   const parsed = authRegisterSchema.safeParse(body);
   if (!parsed.success) {
@@ -22,10 +23,11 @@ export async function POST(request: Request) {
     path: '/auth/sign-up/email',
     method: 'POST',
     body: parsed.data,
+    origin,
     idempotencyKey: makeIdempotencyKey('web-register')
   });
 
-  const payload = await upstream.json().catch(() => ({ error: { message: 'Invalid upstream response.' } }));
+  const payload = await parseUpstreamPayload(upstream);
   const response = NextResponse.json(payload, { status: upstream.status });
   const setCookie = upstream.headers.get('set-cookie');
   if (setCookie) {

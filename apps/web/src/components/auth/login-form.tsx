@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { normalizeNextPath, readApiMessage, startGoogleOAuth } from '@/lib/client-api';
+import { normalizeNextPath, readAuthMessage, startGoogleOAuth } from '@/lib/client-api';
 import { exchangeAccessToken, writeAuthSession } from '@/lib/session';
 import type { MePayload } from '@/lib/contracts';
 
@@ -43,7 +43,7 @@ export function LoginForm({ prefillEmail = '', nextPath = '/quote' }: { prefillE
         | { error?: { message?: string } };
 
       if (!response.ok || !('session' in payload) || !payload.session?.sessionId) {
-        setMessage(readApiMessage(payload, 'Could not sign in.'));
+        setMessage(readAuthMessage(payload, 'Could not sign in.'));
         return;
       }
 
@@ -59,7 +59,7 @@ export function LoginForm({ prefillEmail = '', nextPath = '/quote' }: { prefillE
         | { error?: { message?: string } };
 
       if (!meResponse.ok || !('customerId' in mePayload)) {
-        setMessage(readApiMessage(mePayload, 'Signed in, but profile load failed.'));
+        setMessage(readAuthMessage(mePayload, 'Signed in, but profile load failed.'));
         return;
       }
 

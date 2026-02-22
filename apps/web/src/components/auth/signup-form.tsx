@@ -4,13 +4,14 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, ArrowRight, Mail } from 'lucide-react';
+import { AlertCircle, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { clearAuthSession } from '@/lib/session';
-import { normalizeNextPath, readApiMessage, startGoogleOAuth } from '@/lib/client-api';
+import { normalizeNextPath, readAuthMessage, startGoogleOAuth } from '@/lib/client-api';
+import { exchangeAccessToken, writeAuthSession } from '@/lib/session';
+import type { MePayload } from '@/lib/contracts';
 
 const COUNTRIES = [
   { code: 'US', name: 'United States' },
@@ -63,20 +64,41 @@ export function SignupForm({ nextPath = '/quote' }: { nextPath?: string }) {
         body: JSON.stringify(form)
       });
       const payload = (await response.json().catch(() => ({ error: { message: 'Invalid response.' } }))) as
-        | { customer?: { customerId: string } }
+        | { customer?: { customerId: string }; session?: { sessionId: string } }
         | { error?: { message?: string } };
 
-      if (!response.ok) {
-        setMessage(readApiMessage(payload, 'Could not create account.'));
+      if (!response.ok || !('session' in payload) || !payload.session?.sessionId) {
+        setMessage(readAuthMessage(payload, 'Could not create account.'));
         return;
       }
 
-      clearAuthSession();
-      const query = new URLSearchParams({
-        email: form.email,
-        next: normalizeNextPath(nextPath, '/quote')
-      }).toString();
-      router.push(`/login?${query}` as Route);
+      const exchanged = await exchangeAccessToken();
+      const token = exchanged.token;
+      const meResponse = await fetch('/api/client/me', {
+        headers: {
+          authorization: `Bearer ${token}`
+        }
+      });
+      const mePayload = (await meResponse.json().catch(() => ({ error: { message: 'Could not load profile.' } }))) as
+        | MePayload
+        | { error?: { message?: string } };
+
+      if (!meResponse.ok || !('customerId' in mePayload)) {
+        setMessage(readAuthMessage(mePayload, 'Account created, but profile load failed.'));
+        return;
+      }
+
+      writeAuthSession({
+        token,
+        customerId: mePayload.customerId,
+        fullName: mePayload.fullName,
+        countryCode: mePayload.countryCode,
+        lastSyncedAt: new Date().toISOString()
+      });
+
+      router.push(normalizeNextPath(nextPath, '/quote') as Route);
+    } catch (error) {
+      setMessage((error as Error).message || 'Could not create account.');
     } finally {
       setBusy(false);
     }

@@ -5,6 +5,7 @@ interface ForwardParams {
   authorization?: string;
   idempotencyKey?: string;
   cookie?: string;
+  origin?: string;
   useOpsToken?: boolean;
 }
 
@@ -35,6 +36,10 @@ function buildHeaders(params: ForwardParams): Record<string, string> {
 
   if (params.cookie) {
     headers.cookie = params.cookie;
+  }
+
+  if (params.origin) {
+    headers.origin = params.origin;
   }
 
   return headers;
@@ -76,4 +81,44 @@ export async function forwardCustomerAuth(params: ForwardParams): Promise<Respon
     body: params.body ? JSON.stringify(params.body) : null,
     cache: 'no-store'
   });
+}
+
+export async function parseUpstreamPayload(upstream: Response): Promise<unknown> {
+  const contentType = upstream.headers.get('content-type')?.toLowerCase() ?? '';
+
+  if (contentType.includes('application/json')) {
+    try {
+      return await upstream.json();
+    } catch {
+      // Fall through to text parser so callers get a useful error payload.
+    }
+  }
+
+  const raw = await upstream.text().catch(() => '');
+  const text = raw.trim();
+
+  if (text.length === 0) {
+    return upstream.ok ? {} : { error: { message: 'Upstream returned an empty error response.' } };
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    // Upstream returned plain text or HTML.
+  }
+
+  if (!upstream.ok) {
+    if (contentType.includes('text/html')) {
+      return {
+        error: {
+          message: 'Upstream returned an HTML error response.',
+          details: text.slice(0, 240)
+        }
+      };
+    }
+
+    return { error: { message: text } };
+  }
+
+  return { message: text };
 }

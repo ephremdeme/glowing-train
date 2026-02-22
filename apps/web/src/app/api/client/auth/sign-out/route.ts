@@ -1,19 +1,17 @@
 import { NextResponse } from 'next/server';
+import { makeIdempotencyKey } from '@/lib/idempotency';
 import { forwardCustomerAuth, parseUpstreamPayload } from '@/lib/server-api';
 
-export async function GET(request: Request) {
+export async function POST(request: Request) {
   const origin = request.headers.get('origin') ?? new URL(request.url).origin;
-  const url = new URL(request.url);
-  const redirectUri = url.searchParams.get('redirectUri');
-  const query = new URLSearchParams();
-  if (redirectUri) {
-    query.set('redirectUri', redirectUri);
-  }
+  const cookie = request.headers.get('cookie') ?? '';
 
   const upstream = await forwardCustomerAuth({
-    path: `/auth/sign-in/google${query.toString() ? `?${query.toString()}` : ''}`,
-    method: 'GET',
-    origin
+    path: '/auth/sign-out',
+    method: 'POST',
+    cookie,
+    origin,
+    idempotencyKey: makeIdempotencyKey('web-signout')
   });
 
   const payload = await parseUpstreamPayload(upstream);
@@ -22,5 +20,6 @@ export async function GET(request: Request) {
   if (setCookie) {
     response.headers.set('set-cookie', setCookie);
   }
+
   return response;
 }

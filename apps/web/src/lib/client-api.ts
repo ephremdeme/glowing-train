@@ -14,6 +14,46 @@ export function readApiMessage(payload: unknown, fallback: string): string {
   return typed.error?.message ?? fallback;
 }
 
+function isSessionExpiryMessage(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('token expired') ||
+    normalized.includes('jwt expired') ||
+    normalized.includes('session expired') ||
+    normalized.includes('session is invalid') ||
+    normalized.includes('expired')
+  );
+}
+
+export function readAuthMessage(payload: unknown, fallback: string): string {
+  const typed = payload as ApiErrorShape;
+  const code = typed.error?.code;
+  const message = typed.error?.message;
+
+  if (message && isSessionExpiryMessage(message)) {
+    return 'Your session expired. Sign in again.';
+  }
+
+  switch (code) {
+    case 'INVALID_CREDENTIALS':
+      return 'Email or password is incorrect.';
+    case 'INVALID_PAYLOAD':
+      return 'Please check the highlighted fields and try again.';
+    case 'SESSION_REQUIRED':
+    case 'SESSION_INVALID':
+    case 'UNAUTHORIZED':
+      return 'Your session expired. Sign in again.';
+    case 'GOOGLE_AUTH_START_FAILED':
+      return 'Could not start Google sign-in. Please retry.';
+    case 'INTERNAL_ERROR':
+      return 'Temporary service issue. Please try again in a moment.';
+    default:
+      break;
+  }
+
+  return message ?? fallback;
+}
+
 export function authHeaders(token: string): HeadersInit {
   return {
     authorization: `Bearer ${token}`
@@ -55,7 +95,7 @@ export async function startGoogleOAuth(nextPath: string): Promise<{ ok: true } |
     | ApiErrorShape;
 
   if (!response.ok || !('authUrl' in payload) || !payload.authUrl) {
-    return { ok: false, message: readApiMessage(payload, 'Could not start Google sign-in.') };
+    return { ok: false, message: readAuthMessage(payload, 'Could not start Google sign-in.') };
   }
 
   window.location.assign(payload.authUrl);

@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { consumeGoogleNextPath, normalizeNextPath, readApiMessage } from '@/lib/client-api';
+import { consumeGoogleNextPath, normalizeNextPath, readAuthMessage } from '@/lib/client-api';
 import type { MePayload } from '@/lib/contracts';
 import { exchangeAccessToken, writeAuthSession } from '@/lib/session';
 
@@ -32,7 +32,7 @@ function GoogleAuthCallbackContent() {
     const callbackError = searchParams.get('error');
     const explicitNext = normalizeNextPath(searchParams.get('next'), '');
     if (callbackError) {
-      setError(`Google sign-in failed: ${callbackError}`);
+      setError(readAuthMessage({ error: { code: callbackError } }, 'Google sign-in failed.'));
       return;
     }
 
@@ -52,7 +52,7 @@ function GoogleAuthCallbackContent() {
           | { error?: { message?: string } };
 
         if (!meResponse.ok || !('customerId' in mePayload)) {
-          setError(readApiMessage(mePayload, 'Signed in, but profile load failed.'));
+          setError(readAuthMessage(mePayload, 'Signed in, but profile load failed.'));
           return;
         }
 

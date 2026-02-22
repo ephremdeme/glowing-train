@@ -16,14 +16,25 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { clearAuthSession, readAuthSession } from '@/lib/session';
+import { clearAuthSession, readAuthSession, signOutCurrentSession } from '@/lib/session';
+
+function shortCustomerId(customerId: string | null): string | null {
+  if (!customerId || customerId.length < 8) return customerId;
+  return `${customerId.slice(0, 8)}...${customerId.slice(-4)}`;
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   const session = readAuthSession();
+  const shortId = shortCustomerId(session?.customerId ?? null);
+  const identityPrimary = session?.fullName ?? shortId ?? 'Authenticated';
+  const identitySecondary = session?.fullName ? shortId : null;
   const navLinks: Array<{ href: Route; label: string }> = [
     { href: '/quote' as Route, label: 'Quote' },
     { href: '/transfer' as Route, label: 'Transfer' },
@@ -37,10 +48,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="container flex h-16 items-center justify-between gap-4">
           {/* Logo */}
           <Link href={'/' as Route} className="flex items-center gap-2.5 group">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 text-xs font-bold text-white shadow-lg shadow-amber-500/20 transition-transform group-hover:scale-105">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 text-xs font-semibold text-white shadow-lg shadow-amber-500/20 transition-transform group-hover:scale-105">
               CP
             </span>
-            <span className="text-sm font-bold text-foreground tracking-tight">CryptoPay</span>
+            <span className="text-sm font-semibold tracking-[-0.01em] text-foreground">CryptoPay</span>
           </Link>
 
           {/* Desktop nav */}
@@ -65,29 +76,53 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <ThemeToggle />
 
             {session ? (
-              <DropdownMenu>
+              <DropdownMenu
+                open={menuOpen}
+                onOpenChange={(open) => {
+                  setMenuOpen(open);
+                  if (open) {
+                    setLogoutError(null);
+                  }
+                }}
+              >
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="gap-2">
                     <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/10 text-xs font-semibold text-primary ring-1 ring-primary/20">
                       {(session.fullName ?? 'U').charAt(0).toUpperCase()}
                     </span>
-                    <span className="hidden sm:inline text-foreground">{session.fullName ?? 'Account'}</span>
+                    <span className="hidden text-sm font-medium text-foreground sm:inline">{session.fullName ?? shortId ?? 'Account'}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-card border-border/50 backdrop-blur-xl">
-                  <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                    {session.customerId ?? 'Authenticated'}
+                  <DropdownMenuItem disabled className="flex flex-col items-start gap-0.5 py-2">
+                    <span className="text-xs font-medium text-foreground">{identityPrimary}</span>
+                    {identitySecondary ? <span className="text-[11px] text-muted-foreground">{identitySecondary}</span> : null}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator className="bg-border/30" />
                   <DropdownMenuItem
-                    onClick={() => {
+                    onSelect={async (event) => {
+                      event.preventDefault();
+                      if (logoutBusy) return;
+
+                      setLogoutBusy(true);
+                      setLogoutError(null);
+                      const result = await signOutCurrentSession();
+                      setLogoutBusy(false);
+
+                      if (!result.ok) {
+                        setLogoutError(result.message);
+                        return;
+                      }
+
                       clearAuthSession();
+                      setMenuOpen(false);
                       router.push('/login' as Route);
+                      router.refresh();
                     }}
                     className="text-destructive focus:text-destructive"
                   >
                     <LogOut className="mr-2 h-4 w-4" />
-                    Sign out
+                    {logoutBusy ? 'Signing out...' : logoutError ? 'Retry sign out' : 'Sign out'}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -157,10 +192,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {/* Brand */}
             <div className="md:col-span-2">
               <div className="mb-4 flex items-center gap-2.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 text-[10px] font-bold text-white">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 text-[10px] font-semibold text-white">
                   CP
                 </span>
-                <span className="text-sm font-bold text-foreground">CryptoPay</span>
+                <span className="text-sm font-semibold tracking-[-0.01em] text-foreground">CryptoPay</span>
               </div>
               <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
                 Non-custodial crypto-to-ETB remittance. Send stablecoins from your wallet
@@ -170,7 +205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             {/* Product */}
             <div>
-              <h4 className="mb-4 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">
+              <h4 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground/60">
                 Product
               </h4>
               <ul className="grid gap-2.5">
@@ -189,7 +224,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             {/* Legal */}
             <div>
-              <h4 className="mb-4 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">
+              <h4 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground/60">
                 Legal
               </h4>
               <ul className="grid gap-2.5">
