@@ -37,12 +37,31 @@ import { readAccessToken } from '@/lib/session';
    Live Rate Ticker — floating glass chip
    ═══════════════════════════════════════════════════ */
 function LiveRateTicker() {
-  const rate = Number(process.env.NEXT_PUBLIC_LANDING_USDC_ETB_RATE ?? 140);
+  const [rate, setRate] = useState<number>(Number(process.env.NEXT_PUBLIC_LANDING_USDC_ETB_RATE ?? 140));
   const [seconds, setSeconds] = useState(0);
 
   useEffect(() => {
-    const interval = setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => clearInterval(interval);
+    let mounted = true;
+
+    fetch('/api/client/fx')
+      .then(res => res.json())
+      .then(data => {
+        if (!mounted) return;
+        if (data?.rate) {
+          setRate(data.rate);
+          setSeconds(0);
+        }
+      })
+      .catch(() => {});
+
+    const interval = setInterval(() => {
+      if (mounted) setSeconds((s) => s + 1);
+    }, 1000);
+    
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const ago = seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;

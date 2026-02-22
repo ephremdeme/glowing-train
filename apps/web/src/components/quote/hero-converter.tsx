@@ -1,7 +1,7 @@
 'use client';
 
 import type { Route } from 'next';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowDownUp, Building2, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,18 +10,15 @@ import type { LandingEstimateInput, LandingEstimateResult, QuoteSummary, QuoteWi
 import { patchFlowDraft } from '@/lib/flow-state';
 import { readAccessToken } from '@/lib/session';
 
-const USDC_RATE = Number(process.env.NEXT_PUBLIC_LANDING_USDC_ETB_RATE ?? 140);
-const USDT_RATE = Number(process.env.NEXT_PUBLIC_LANDING_USDT_ETB_RATE ?? 140);
 const FEE_USD = Number(process.env.NEXT_PUBLIC_LANDING_FEE_USD ?? 1);
 
-function estimateQuote(input: LandingEstimateInput): LandingEstimateResult {
-  const rate = input.token === 'USDC' ? USDC_RATE : USDT_RATE;
+function estimateQuote(input: LandingEstimateInput, currentRate: number): LandingEstimateResult {
   const netUsd = Math.max(input.sendAmountUsd - FEE_USD, 0);
   return {
     feeUsd: FEE_USD,
     netUsd,
-    fxRateUsdToEtb: rate,
-    recipientAmountEtb: Number((netUsd * rate).toFixed(2))
+    fxRateUsdToEtb: currentRate,
+    recipientAmountEtb: Number((netUsd * currentRate).toFixed(2))
   };
 }
 
@@ -68,8 +65,28 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
     sendAmountUsd: 100
   });
   const [editingField, setEditingField] = useState<'usd' | 'etb'>('usd');
+  const [liveRate, setLiveRate] = useState<number | null>(null);
 
-  const estimate = useMemo(() => estimateQuote(form), [form]);
+  // Fetch live rate on mount
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/client/fx')
+      .then(res => res.json())
+      .then(data => {
+        if (!mounted) return;
+        if (data?.rate) {
+          setLiveRate(data.rate);
+        }
+      })
+      .catch(() => {
+        // Fallback or leave it null
+      });
+      
+    return () => { mounted = false; };
+  }, []);
+
+  const rate = liveRate ?? 140; // Fallback rate until fetched
+  const estimate = useMemo(() => estimateQuote(form, rate), [form, rate]);
 
   function handleUsdChange(value: number) {
     setEditingField('usd');
@@ -78,7 +95,6 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
 
   function handleEtbChange(etbValue: number) {
     setEditingField('etb');
-    const rate = form.token === 'USDC' ? USDC_RATE : USDT_RATE;
     const usdAmount = rate > 0 ? Number((etbValue / rate + FEE_USD).toFixed(2)) : 0;
     setForm((prev) => ({ ...prev, sendAmountUsd: Math.min(usdAmount, 2000) }));
   }
@@ -197,7 +213,11 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
         {/* ── Rate badge ── */}
         <div className="flex items-center justify-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            <ArrowDownUp className="h-3 w-3" />
+            {liveRate === null ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            ) : (
+              <ArrowDownUp className="h-3 w-3" />
+            )}
             <span>1 USD = {estimate.fxRateUsdToEtb.toFixed(2)} ETB</span>
           </div>
         </div>

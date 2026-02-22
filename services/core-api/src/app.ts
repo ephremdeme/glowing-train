@@ -25,6 +25,7 @@ import { buildQuoteRoutes } from './routes/quotes.js';
 import { registerRecipientRoutes } from './routes/recipients.js';
 import { registerTransferRoutes } from './routes/transfers.js';
 import { registerWatcherRoutes } from './routes/watchers.js';
+import { registerFxRoutes } from './routes/fx.js';
 
 const createQuoteSchema = z.object({
   chain: z.enum(['base', 'solana']),
@@ -302,6 +303,10 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     createQuoteSchema,
     requiredIdempotencyKey,
     quoteRoutes
+  });
+
+  registerFxRoutes(app, {
+    fxProvider
   });
 
   registerInternalFundingRoutes(app, {
