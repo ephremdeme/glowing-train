@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { recipientUpdateSchema } from '@/lib/contracts';
-import { forwardCoreApi } from '@/lib/server-api';
+import { forwardCoreApi, parseUpstreamPayload } from '@/lib/server-api';
 
 export async function GET(
   request: Request,
@@ -14,7 +14,7 @@ export async function GET(
     authorization
   });
 
-  const payload = await upstream.json().catch(() => ({ error: { message: 'Invalid upstream response.' } }));
+  const payload = await parseUpstreamPayload(upstream);
   return NextResponse.json(payload, { status: upstream.status });
 }
 
@@ -45,6 +45,6 @@ export async function PATCH(
     body: parsed.data
   });
 
-  const payload = await upstream.json().catch(() => ({ error: { message: 'Invalid upstream response.' } }));
+  const payload = await parseUpstreamPayload(upstream);
   return NextResponse.json(payload, { status: upstream.status });
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { recipientCreateSchema } from '@/lib/contracts';
-import { forwardCoreApi } from '@/lib/server-api';
+import { forwardCoreApi, parseUpstreamPayload } from '@/lib/server-api';
 
 export async function GET(request: Request) {
   const authorization = request.headers.get('authorization') ?? '';
@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     method: 'GET',
     authorization
   });
-  const payload = await upstream.json().catch(() => ({ error: { message: 'Invalid upstream response.' } }));
+  const payload = await parseUpstreamPayload(upstream);
   return NextResponse.json(payload, { status: upstream.status });
 }
 
@@ -36,6 +36,6 @@ export async function POST(request: Request) {
     body: parsed.data
   });
 
-  const payload = await upstream.json().catch(() => ({ error: { message: 'Invalid upstream response.' } }));
+  const payload = await parseUpstreamPayload(upstream);
   return NextResponse.json(payload, { status: upstream.status });
 }

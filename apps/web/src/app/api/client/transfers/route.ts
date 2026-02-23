@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { NextResponse } from 'next/server';
 import { makeIdempotencyKey } from '@/lib/idempotency';
-import { forwardCoreApi } from '@/lib/server-api';
+import { forwardCoreApi, parseUpstreamPayload } from '@/lib/server-api';
 
 const transferRequestSchema = z.object({
   quoteId: z.string().min(1),
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     }
   });
 
-  const payload = (await upstream.json().catch(() => ({ error: { message: 'Invalid upstream response.' } }))) as
+  const payload = (await parseUpstreamPayload(upstream)) as
     | { transferId?: string; depositAddress?: string; status?: string }
     | { error?: { message?: string } };
 
@@ -83,6 +83,6 @@ export async function GET(request: Request) {
     authorization
   });
 
-  const payload = await upstream.json().catch(() => ({ error: { message: 'Invalid upstream response.' } }));
+  const payload = await parseUpstreamPayload(upstream);
   return NextResponse.json(payload, { status: upstream.status });
 }
