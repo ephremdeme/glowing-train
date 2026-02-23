@@ -124,8 +124,8 @@ describe('transfer creation integration', () => {
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
     process.env.APP_REGION = 'offshore';
-    process.env.DATABASE_URL = 'postgres://cryptopay:cryptopay@localhost:55432/cryptopay';
-    process.env.REDIS_URL = 'redis://localhost:6379';
+    process.env.DATABASE_URL ??= 'postgres://cryptopay:cryptopay@localhost:55432/cryptopay';
+    process.env.REDIS_URL ??= 'redis://localhost:6379';
     process.env.ETHIOPIA_SERVICES_CRYPTO_DISABLED = 'true';
 
     repository = new TransferRepository();
@@ -227,20 +227,19 @@ describe('transfer creation integration', () => {
     ).rejects.toBeInstanceOf(IdempotencyConflictError);
   });
 
-  it('rejects when receiver national id is not verified', async () => {
-    const quoteId = await seedQuote({ quoteId: 'q_nid' });
+  it('allows transfer creation when receiver fields are omitted (sender-only KYC)', async () => {
+    const quoteId = await seedQuote({ quoteId: 'q_sender_only' });
 
-    await expect(
-      service.createTransfer({
-        quoteId,
-        senderId: 'sender_1',
-        receiverId: 'receiver_1',
-        senderKycStatus: 'approved',
-        receiverKycStatus: 'approved',
-        receiverNationalIdVerified: false,
-        idempotencyKey: 'idem-transfer-005'
-      })
-    ).rejects.toBeInstanceOf(TransferValidationError);
+    const created = await service.createTransfer({
+      quoteId,
+      senderId: 'sender_1',
+      receiverId: 'receiver_1',
+      senderKycStatus: 'approved',
+      idempotencyKey: 'idem-transfer-005'
+    });
+
+    expect(created.transfer.receiverKycStatus).toBe('approved');
+    expect(created.transfer.receiverNationalIdVerified).toBe(true);
   });
 
   it('rejects expired quote on transfer creation', async () => {
@@ -262,7 +261,7 @@ describe('transfer creation integration', () => {
     ).rejects.toBeInstanceOf(QuoteExpiredError);
   });
 
-  it('uses receiver kyc profile over client-provided verification flags', async () => {
+  it('does not block when receiver kyc profile is pending', async () => {
     const quoteId = await seedQuote({ quoteId: 'q_profile_override' });
 
     await query(
@@ -272,15 +271,33 @@ describe('transfer creation integration', () => {
       `
     );
 
+    const created = await service.createTransfer({
+      quoteId,
+      senderId: 'sender_1',
+      receiverId: 'receiver_profile_1',
+      senderKycStatus: 'approved',
+      receiverKycStatus: 'approved',
+      receiverNationalIdVerified: true,
+      idempotencyKey: 'idem-transfer-007'
+    });
+
+    expect(created.transfer.transferId).toMatch(/^tr_/);
+    expect(created.transfer.receiverKycStatus).toBe('pending');
+    expect(created.transfer.receiverNationalIdVerified).toBe(false);
+  });
+
+  it('rejects non-approved sender KYC even when receiver fields are present', async () => {
+    const quoteId = await seedQuote({ quoteId: 'q_sender_rejected' });
+
     await expect(
       service.createTransfer({
         quoteId,
         senderId: 'sender_1',
-        receiverId: 'receiver_profile_1',
-        senderKycStatus: 'approved',
+        receiverId: 'receiver_1',
+        senderKycStatus: 'pending',
         receiverKycStatus: 'approved',
         receiverNationalIdVerified: true,
-        idempotencyKey: 'idem-transfer-007'
+        idempotencyKey: 'idem-transfer-008'
       })
     ).rejects.toBeInstanceOf(TransferValidationError);
   });

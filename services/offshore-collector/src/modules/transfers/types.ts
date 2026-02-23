@@ -7,8 +7,8 @@ export interface CreateTransferInput {
   senderId: string;
   receiverId: string;
   senderKycStatus: KycStatus;
-  receiverKycStatus: KycStatus;
-  receiverNationalIdVerified: boolean;
+  receiverKycStatus?: KycStatus | undefined;
+  receiverNationalIdVerified?: boolean | undefined;
   idempotencyKey: string;
 }
 

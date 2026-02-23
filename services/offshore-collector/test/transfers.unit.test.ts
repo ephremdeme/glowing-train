@@ -98,7 +98,7 @@ function buildValidInput(): CreateTransferInput {
 }
 
 describe('TransferService unit', () => {
-  it('rejects non-approved KYC', async () => {
+  it('rejects non-approved sender KYC', async () => {
     const repo = new InMemoryTransferRepository();
     repo.setQuote({
       quoteId: 'q_1',
@@ -110,9 +110,48 @@ describe('TransferService unit', () => {
 
     const service = new TransferService(repo);
     const input = buildValidInput();
-    input.receiverKycStatus = 'pending';
+    input.senderKycStatus = 'pending';
 
     await expect(service.createTransfer(input)).rejects.toBeInstanceOf(TransferValidationError);
+  });
+
+  it('normalizes omitted receiver KYC fields for idempotency compatibility', async () => {
+    const repo = new InMemoryTransferRepository();
+    repo.setQuote({
+      quoteId: 'q_1',
+      chain: 'base',
+      token: 'USDC',
+      sendAmountUsd: 100,
+      expiresAt: new Date('2026-02-12T00:10:00.000Z')
+    });
+
+    const service = new TransferService(repo);
+
+    const first = await service.createTransfer(
+      {
+        quoteId: 'q_1',
+        senderId: 'sender_1',
+        receiverId: 'receiver_1',
+        senderKycStatus: 'approved',
+        idempotencyKey: 'idem-compat-001'
+      },
+      new Date('2026-02-12T00:00:00.000Z')
+    );
+
+    const second = await service.createTransfer(
+      {
+        quoteId: 'q_1',
+        senderId: 'sender_1',
+        receiverId: 'receiver_1',
+        senderKycStatus: 'approved',
+        receiverKycStatus: 'approved',
+        receiverNationalIdVerified: true,
+        idempotencyKey: 'idem-compat-001'
+      },
+      new Date('2026-02-12T00:00:01.000Z')
+    );
+
+    expect(second.transfer.transferId).toBe(first.transfer.transferId);
   });
 
   it('returns idempotent response for duplicate request', async () => {

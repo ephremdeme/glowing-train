@@ -12,8 +12,8 @@ const createTransferPayloadSchema = z.object({
   senderId: z.string().min(1),
   receiverId: z.string().min(1),
   senderKycStatus: z.enum(['approved', 'pending', 'rejected']),
-  receiverKycStatus: z.enum(['approved', 'pending', 'rejected']),
-  receiverNationalIdVerified: z.boolean(),
+  receiverKycStatus: z.enum(['approved', 'pending', 'rejected']).optional(),
+  receiverNationalIdVerified: z.boolean().optional(),
   idempotencyKey: z.string().min(8)
 });
 
