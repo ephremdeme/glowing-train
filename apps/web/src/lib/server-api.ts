@@ -22,9 +22,11 @@ function opsReadToken(): string {
 }
 
 function buildHeaders(params: ForwardParams): Record<string, string> {
-  const headers: Record<string, string> = {
-    'content-type': 'application/json'
-  };
+  const headers: Record<string, string> = {};
+
+  if (params.method === 'POST' || params.method === 'PATCH' || params.body !== undefined) {
+    headers['content-type'] = 'application/json';
+  }
 
   if (params.authorization) {
     headers.authorization = params.authorization;

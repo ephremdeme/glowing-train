@@ -39,7 +39,7 @@ function TransferPageContent() {
   const router = useRouter();
   const [quote, setQuote] = useState<QuoteSummary | null>(null);
   const [recipient, setRecipient] = useState<RecipientDetail | null>(null);
-  const [transfer, setTransfer] = useState<TransferSummary | null>(null);
+  const [transfer, setTransfer] = useState<TransferSummary | null>(() => readFlowDraft().transfer ?? null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 

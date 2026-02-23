@@ -169,7 +169,7 @@ export function RecipientSection({ token, initialRecipientId = null, onRecipient
           <Label htmlFor="recipientSelector">Select recipient</Label>
           <select
             id="recipientSelector"
-            className="h-12 rounded-2xl border border-input/90 bg-[#101a42]/85 px-4 text-sm"
+            className="h-12 rounded-2xl border border-input/90 bg-background px-4 text-sm"
             value={selectedRecipientId}
             onChange={(event) => setSelectedRecipientId(event.target.value)}
             disabled={recipientsQuery.isLoading}

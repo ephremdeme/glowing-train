@@ -37,6 +37,7 @@ export default function QuotePage() {
     if (draft?.quote) {
       setQuote(draft.quote);
     }
+    setIsMounted(true);
 
     const token = readAccessToken();
     if (!token) return;

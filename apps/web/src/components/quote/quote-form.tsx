@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
@@ -28,9 +28,34 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
     token: initialQuote?.token ?? ('USDC' as 'USDC' | 'USDT'),
     sendAmountUsd: initialQuote?.sendAmountUsd ?? 100,
     feeUsd: initialQuote?.feeUsd ?? 1,
-    fxRateUsdToEtb: initialQuote?.fxRateUsdToEtb ?? 140,
+    fxRateUsdToEtb: initialQuote?.fxRateUsdToEtb ?? 140, // fallback
     expiresInSeconds: 300
   });
+  const [liveRate, setLiveRate] = useState<number | null>(initialQuote?.fxRateUsdToEtb ?? null);
+
+  // Fetch live rate on mount. Even if we have an initial quote, we should check the live rate
+  // so the user sees the most up to date conversion if the quote is old.
+  useEffect(() => {
+    let mounted = true;
+    fetch('/api/client/fx')
+      .then(res => res.json())
+      .then(data => {
+        if (!mounted) return;
+        if (data?.rate) {
+          setLiveRate(data.rate);
+          // Only update the form rate automatically if we DON'T have an initial quote
+          // (otherwise we might overwrite the exact rate they locked).
+          if (!initialQuote) {
+            setForm(prev => ({ ...prev, fxRateUsdToEtb: data.rate }));
+          }
+        }
+      })
+      .catch(() => {
+        // Leave the fallback rate
+      });
+      
+    return () => { mounted = false; };
+  }, [initialQuote]);
 
   const preview = useMemo(() => {
     const recipientAmountEtb = (form.sendAmountUsd - form.feeUsd) * form.fxRateUsdToEtb;
@@ -83,6 +108,7 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
 
       setMessage('Quote locked. Continue to transfer setup.');
       onQuoteCreated(payload);
+      router.push('/transfer' as Route);
     } finally {
       setBusy(false);
     }
@@ -169,7 +195,11 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
         {/* Rate badge */}
         <div className="flex items-center justify-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            <ArrowDownUp className="h-3 w-3" />
+            {liveRate === null ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            ) : (
+              <ArrowDownUp className="h-3 w-3" />
+            )}
             <span>1 USD = {form.fxRateUsdToEtb.toFixed(2)} ETB</span>
           </div>
         </div>
