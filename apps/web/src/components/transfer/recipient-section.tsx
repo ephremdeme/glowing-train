@@ -14,15 +14,21 @@ import type { RecipientDetail } from '@/lib/contracts';
 
 interface RecipientSectionProps {
   token: string;
+  senderKycApproved: boolean;
   initialRecipientId?: string | null;
   onRecipientReady: (detail: RecipientDetail | null) => void;
 }
 
 function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
+  if (!(error instanceof Error)) return fallback;
+  const message = error.message.trim();
+  if (/token expired|jwt expired|session expired/i.test(message)) {
+    return 'Session expired. Sign in again.';
+  }
+  return message || fallback;
 }
 
-export function RecipientSection({ token, initialRecipientId = null, onRecipientReady }: RecipientSectionProps) {
+export function RecipientSection({ token, senderKycApproved, initialRecipientId = null, onRecipientReady }: RecipientSectionProps) {
   const [selectedRecipientId, setSelectedRecipientId] = useState(initialRecipientId ?? '');
   const [notice, setNotice] = useState<string | null>(null);
   const [recipientForm, setRecipientForm] = useState({
@@ -82,7 +88,7 @@ export function RecipientSection({ token, initialRecipientId = null, onRecipient
     try {
       const created = await createRecipientMutation.mutateAsync(payload);
       setSelectedRecipientId(created.recipientId);
-      setNotice('Recipient saved. You can continue once sender KYC is approved.');
+      setNotice('Recipient saved. Continue after sender KYC approval.');
     } catch (error) {
       setNotice(errorMessage(error, 'Could not create recipient.'));
     }
@@ -92,7 +98,7 @@ export function RecipientSection({ token, initialRecipientId = null, onRecipient
     <Card>
       <CardHeader>
         <CardTitle className="text-xl">Recipient details</CardTitle>
-        <CardDescription>Bank payout destination in Ethiopia. Receiver KYC remediation is removed from the sender flow.</CardDescription>
+        <CardDescription>Bank payout details for Ethiopia. Receiver KYC steps are not in the sender flow.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5">
         <form className="grid gap-3 rounded-2xl border border-border/70 bg-muted/20 p-4" onSubmit={onCreateRecipient}>
@@ -197,13 +203,15 @@ export function RecipientSection({ token, initialRecipientId = null, onRecipient
           </div>
         ) : null}
 
-        <Alert>
-          <UserRoundCheck className="h-4 w-4" />
-          <AlertTitle>Transfer readiness</AlertTitle>
-          <AlertDescription>
-            Recipient bank details are required. Sender KYC approval is the only KYC blocker before transfer creation.
-          </AlertDescription>
-        </Alert>
+        {!senderKycApproved ? (
+          <Alert>
+            <UserRoundCheck className="h-4 w-4" />
+            <AlertTitle>Transfer readiness</AlertTitle>
+            <AlertDescription>
+              Recipient bank details are ready. Only sender KYC approval is required before creating a transfer.
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
         {recipientDetailQuery.isError ? (
           <Alert variant="destructive">
@@ -222,7 +230,7 @@ export function RecipientSection({ token, initialRecipientId = null, onRecipient
         {notice ? (
           <Alert>
             <Building2 className="h-4 w-4" />
-            <AlertTitle>Recipient updates</AlertTitle>
+            <AlertTitle>Recipient status</AlertTitle>
             <AlertDescription>{notice}</AlertDescription>
           </Alert>
         ) : null}

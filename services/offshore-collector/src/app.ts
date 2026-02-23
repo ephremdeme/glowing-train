@@ -4,7 +4,7 @@ import { deny, errorEnvelope, registerServiceMetrics, withIdempotency } from '@c
 import { log } from '@cryptopay/observability';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { TransferRepository, TransferService } from './modules/transfers/index.js';
+import { HdWalletDepositStrategy, TransferRepository, TransferService } from './modules/transfers/index.js';
 import { buildTransferRoutes } from './routes/transfers.js';
 
 const createTransferSchema = z.object({
@@ -52,7 +52,9 @@ export async function buildOffshoreCollectorApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
 
   const metrics = registerServiceMetrics(app, 'offshore-collector');
-  const transferRoutes = buildTransferRoutes(new TransferService(new TransferRepository()));
+  const transferRoutes = buildTransferRoutes(
+    new TransferService(new TransferRepository(), new HdWalletDepositStrategy())
+  );
 
   app.get('/healthz', async () => ({ ok: true, service: 'offshore-collector' }));
   app.get('/readyz', async () => ({ ok: true }));

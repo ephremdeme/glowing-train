@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useEffect, useMemo, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, ExternalLink } from 'lucide-react';
 import { RouteGuard } from '@/components/route-guard';
 import { FlowProgress } from '@/components/flow-progress';
@@ -11,14 +12,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { StatusChipVariant, TransferDetailPayload, UiTransferStatus } from '@/lib/contracts';
-import { readAccessToken } from '@/lib/session';
+import type { StatusChipVariant } from '@/lib/contracts';
+import { fetchTransferStatusDetail, RemittanceApiError, type TransferStatusDetail } from '@/features/remittance/api';
+import { clearAuthSession, readAccessToken } from '@/lib/session';
 import { toStatusChipVariant } from '@/lib/status';
-
-type TransferStatusResponse = TransferDetailPayload & {
-  backendStatus: string;
-  uiStatus: UiTransferStatus;
-};
 
 function badgeVariant(variant: StatusChipVariant): 'outline' | 'warning' | 'success' | 'destructive' | 'secondary' {
   if (variant === 'success') return 'success';
@@ -28,13 +25,33 @@ function badgeVariant(variant: StatusChipVariant): 'outline' | 'warning' | 'succ
   return 'outline';
 }
 
-export default function TransferStatusPage({ params }: { params: { transferId: string } }) {
-  const [data, setData] = useState<TransferStatusResponse | null>(null);
+function getTransferIdParam(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export default function TransferStatusPage() {
+  const params = useParams<{ transferId?: string | string[] }>();
+  const router = useRouter();
+  const transferId = useMemo(() => getTransferIdParam(params?.transferId), [params]);
+  const [data, setData] = useState<TransferStatusDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
+    let redirecting = false;
+
+    if (!transferId) {
+      setData(null);
+      setError('Missing transfer ID.');
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
 
     const poll = async (): Promise<void> => {
       const token = readAccessToken();
@@ -44,29 +61,28 @@ export default function TransferStatusPage({ params }: { params: { transferId: s
         return;
       }
 
-      const response = await fetch(`/api/client/transfers/${params.transferId}`, {
-        cache: 'no-store',
-        headers: {
-          authorization: `Bearer ${token}`
-        }
-      });
-
-      const payload = (await response.json().catch(() => ({ error: { message: 'Invalid response.' } }))) as
-        | TransferStatusResponse
-        | { error?: { message?: string } };
-
-      if (!active) return;
-
-      if (!response.ok || !('transfer' in payload)) {
-        const message = 'error' in payload ? payload.error?.message : null;
-        setError(message ?? 'Unable to load transfer status.');
+      try {
+        const payload = await fetchTransferStatusDetail(token, transferId);
+        if (!active || redirecting) return;
+        setData(payload);
+        setError(null);
         setLoading(false);
-        return;
-      }
+      } catch (err) {
+        if (!active || redirecting) return;
 
-      setData(payload);
-      setError(null);
-      setLoading(false);
+        if (err instanceof RemittanceApiError && (err.status === 401 || err.status === 403)) {
+          redirecting = true;
+          clearAuthSession();
+          const nextPath = `/transfers/${transferId}`;
+          router.replace((`/login?next=${encodeURIComponent(nextPath)}`) as Route);
+          return;
+        }
+
+        const message =
+          err instanceof Error ? err.message : 'Unable to load status. Check connection and retry.';
+        setError(message || 'Unable to load status. Check connection and retry.');
+        setLoading(false);
+      }
     };
 
     void poll();
@@ -78,7 +94,7 @@ export default function TransferStatusPage({ params }: { params: { transferId: s
       active = false;
       clearInterval(timer);
     };
-  }, [params.transferId]);
+  }, [router, transferId]);
 
   return (
     <RouteGuard requireAuth>
@@ -87,7 +103,7 @@ export default function TransferStatusPage({ params }: { params: { transferId: s
         <section>
           <div className="grid gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">Transfer Status</p>
-            <h1 className="break-all text-2xl font-bold tracking-tight">{params.transferId}</h1>
+            <h1 className="break-all text-2xl font-bold tracking-tight">{transferId ?? 'Unknown transfer'}</h1>
             <p className="text-sm text-muted-foreground">Auto-refreshing every 5 seconds.</p>
             <div className="flex flex-wrap gap-2">
               <Button asChild variant="outline" size="sm">
@@ -96,12 +112,14 @@ export default function TransferStatusPage({ params }: { params: { transferId: s
                   Back to history
                 </Link>
               </Button>
-              <Button asChild size="sm">
-                <Link href={`/receipts/${params.transferId}` as Route}>
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Printable receipt
-                </Link>
-              </Button>
+              {transferId ? (
+                <Button asChild size="sm">
+                  <Link href={`/receipts/${transferId}` as Route}>
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Printable receipt
+                  </Link>
+                </Button>
+              ) : null}
             </div>
           </div>
         </section>

@@ -27,6 +27,18 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
+function hasValidTransferSummary(value: unknown): value is TransferSummary {
+  if (!value || typeof value !== 'object') return false;
+  const transfer = value as Partial<TransferSummary>;
+  return Boolean(
+    typeof transfer.transferId === 'string' &&
+      transfer.transferId.trim() &&
+      typeof transfer.depositAddress === 'string' &&
+      transfer.depositAddress.trim() &&
+      transfer.quote
+  );
+}
+
 export default function TransferPage() {
   return (
     <RouteGuard requireAuth requireQuote>
@@ -73,6 +85,10 @@ function TransferPageContent() {
         recipientId: recipient.recipientId,
         quote
       });
+
+      if (!hasValidTransferSummary(created)) {
+        throw new Error('Transfer response was invalid. Please try again.');
+      }
 
       setTransfer(created);
       patchFlowDraft({
@@ -128,6 +144,7 @@ function TransferPageContent() {
         {!transfer ? (
           <RecipientSection
             token={token}
+            senderKycApproved={senderKycApproved}
             initialRecipientId={recipient?.recipientId ?? null}
             onRecipientReady={(nextRecipient: RecipientDetail | null) => {
               setRecipient(nextRecipient);
@@ -156,6 +173,11 @@ function TransferPageContent() {
               {walletAddress ? (
                 <p className="mt-3 text-xs text-muted-foreground">
                   Connected wallet will only be used for client-side convenience actions and signing. Crypto remains sender-controlled.
+                </p>
+              ) : null}
+              {quote?.chain === 'base' ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Solana wallet selector appears only for Solana transfers.
                 </p>
               ) : null}
             </CardContent>
@@ -189,12 +211,14 @@ function TransferPageContent() {
               Transfer created successfully
             </div>
             <DepositInstructions transfer={transfer} quote={quote} />
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={() => router.push(`/transfers/${transfer.transferId}` as Route)}>
-                Track transfer
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
+            {transfer.transferId ? (
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => router.push(`/transfers/${transfer.transferId}` as Route)}>
+                  Track transfer
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            ) : null}
           </div>
         ) : null}
 

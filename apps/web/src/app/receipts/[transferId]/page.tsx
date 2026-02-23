@@ -3,22 +3,20 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { RouteGuard } from '@/components/route-guard';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { TransferDetailPayload, UiTransferStatus } from '@/lib/contracts';
-import { readAccessToken } from '@/lib/session';
-
-interface ApiErrorShape {
-  error?: { message?: string };
+import { fetchTransferStatusDetail, RemittanceApiError, type TransferStatusDetail } from '@/features/remittance/api';
+import { clearAuthSession, readAccessToken } from '@/lib/session';
+function getTransferIdParam(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
-
-type TransferStatusResponse = TransferDetailPayload & {
-  backendStatus: string;
-  uiStatus: UiTransferStatus;
-};
 
 function currencyUsd(value: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
@@ -28,12 +26,23 @@ function currencyEtb(value: number): string {
   return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(value);
 }
 
-export default function ReceiptPage({ params }: { params: { transferId: string } }) {
-  const [data, setData] = useState<TransferStatusResponse | null>(null);
+export default function ReceiptPage() {
+  const params = useParams<{ transferId?: string | string[] }>();
+  const router = useRouter();
+  const transferId = getTransferIdParam(params?.transferId);
+  const [data, setData] = useState<TransferStatusDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
+
+    if (!transferId) {
+      setData(null);
+      setError('Missing transfer ID.');
+      return () => {
+        active = false;
+      };
+    }
 
     const load = async (): Promise<void> => {
       const token = readAccessToken();
@@ -42,46 +51,48 @@ export default function ReceiptPage({ params }: { params: { transferId: string }
         return;
       }
 
-      const response = await fetch(`/api/client/transfers/${params.transferId}`, {
-        headers: {
-          authorization: `Bearer ${token}`
+      try {
+        const payload = await fetchTransferStatusDetail(token, transferId);
+        if (!active) return;
+        setData(payload);
+        setError(null);
+      } catch (err) {
+        if (!active) return;
+
+        if (err instanceof RemittanceApiError && (err.status === 401 || err.status === 403)) {
+          clearAuthSession();
+          const nextPath = `/receipts/${transferId}`;
+          router.replace((`/login?next=${encodeURIComponent(nextPath)}`) as Route);
+          return;
         }
-      });
-      const payload = (await response.json().catch(() => ({ error: { message: 'Invalid response.' } }))) as
-        | TransferStatusResponse
-        | ApiErrorShape;
 
-      if (!active) return;
-
-      if (!response.ok || !('transfer' in payload)) {
-        const message = 'error' in payload ? payload.error?.message : null;
-        setError(message ?? 'Unable to load receipt.');
-        return;
+        const message =
+          err instanceof Error ? err.message : 'Unable to load receipt. Check connection and retry.';
+        setError(message || 'Unable to load receipt. Check connection and retry.');
       }
-
-      setData(payload);
-      setError(null);
     };
 
     void load();
     return () => {
       active = false;
     };
-  }, [params.transferId]);
+  }, [router, transferId]);
 
   return (
     <RouteGuard requireAuth>
       <div className="grid gap-6 receipt-root">
         <section className="receipt-actions grid gap-3 rounded-xl border border-border bg-muted/30 p-6 md:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Printable Receipt</p>
-          <h1 className="break-all text-3xl font-semibold tracking-tight md:text-4xl">{params.transferId}</h1>
+          <h1 className="break-all text-3xl font-semibold tracking-tight md:text-4xl">{transferId ?? 'Unknown transfer'}</h1>
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={() => window.print()}>
               Print receipt
             </Button>
-            <Button asChild variant="outline">
-              <Link href={`/transfers/${params.transferId}` as Route}>Back to status</Link>
-            </Button>
+            {transferId ? (
+              <Button asChild variant="outline">
+                <Link href={`/transfers/${transferId}` as Route}>Back to status</Link>
+              </Button>
+            ) : null}
             <Button asChild variant="outline">
               <Link href={'/history' as Route}>Back to history</Link>
             </Button>

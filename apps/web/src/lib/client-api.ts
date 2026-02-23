@@ -31,7 +31,7 @@ export function readAuthMessage(payload: unknown, fallback: string): string {
   const message = typed.error?.message;
 
   if (message && isSessionExpiryMessage(message)) {
-    return 'Your session expired. Sign in again.';
+    return 'Session expired. Sign in again.';
   }
 
   switch (code) {
@@ -42,7 +42,7 @@ export function readAuthMessage(payload: unknown, fallback: string): string {
     case 'SESSION_REQUIRED':
     case 'SESSION_INVALID':
     case 'UNAUTHORIZED':
-      return 'Your session expired. Sign in again.';
+      return 'Session expired. Sign in again.';
     case 'GOOGLE_AUTH_START_FAILED':
       return 'Could not start Google sign-in. Please retry.';
     case 'INTERNAL_ERROR':

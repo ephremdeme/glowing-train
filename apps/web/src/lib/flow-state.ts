@@ -14,6 +14,24 @@ function inBrowser(): boolean {
   return typeof window !== 'undefined';
 }
 
+function isValidDraftTransfer(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const transfer = value as {
+    transferId?: unknown;
+    depositAddress?: unknown;
+    quote?: unknown;
+  };
+
+  return Boolean(
+    typeof transfer.transferId === 'string' &&
+      transfer.transferId.trim() &&
+      typeof transfer.depositAddress === 'string' &&
+      transfer.depositAddress.trim() &&
+      transfer.quote &&
+      typeof transfer.quote === 'object'
+  );
+}
+
 export function readFlowDraft(): FlowDraftState {
   if (!inBrowser()) return EMPTY_FLOW_DRAFT;
 
@@ -24,9 +42,11 @@ export function readFlowDraft(): FlowDraftState {
 
   try {
     const parsed = JSON.parse(raw) as FlowDraftState;
+    const transfer = isValidDraftTransfer(parsed.transfer) ? parsed.transfer : null;
     return {
       ...EMPTY_FLOW_DRAFT,
-      ...parsed
+      ...parsed,
+      transfer
     };
   } catch {
     return EMPTY_FLOW_DRAFT;
