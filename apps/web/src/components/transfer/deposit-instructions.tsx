@@ -12,13 +12,14 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { WalletConnectPanel } from '@/components/wallet/wallet-connect-panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getMintConfig } from '@/lib/solana/remittance-config';
+import { getWalletDeepLinkPresets } from '@/lib/wallet-deeplinks';
 import {
   submitPayTransaction,
   type SubmitPayTransactionResult
@@ -142,11 +143,7 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
         />
       </div>
 
-      {!wallet.connected ? (
-        <div className="w-fit">
-          <WalletMultiButton />
-        </div>
-      ) : null}
+      {!wallet.connected ? <WalletConnectPanel chain="solana" /> : null}
 
       {!mintConfigValidation.valid && mintConfigValidation.message ? (
         <Alert variant="destructive">
@@ -201,6 +198,12 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
 
 export function DepositInstructions({ transfer }: DepositInstructionsProps) {
   const { quote } = transfer;
+  const walletPresets = getWalletDeepLinkPresets({
+    chain: quote.chain,
+    token: quote.token,
+    to: transfer.depositAddress,
+    amountUsd: quote.sendAmountUsd
+  });
 
   return (
     <Card className="overflow-hidden border-primary/20">
@@ -265,20 +268,14 @@ export function DepositInstructions({ transfer }: DepositInstructionsProps) {
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
-          <Button asChild variant="outline">
-            <Link
-              href={
-                (quote.chain === 'base'
-                  ? `https://pay.coinbase.com?depositAddress=${transfer.depositAddress}&amount=${quote.sendAmountUsd}&currency=${quote.token}`
-                  : `https://phantom.app?depositAddress=${transfer.depositAddress}`) as Route
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <ExternalLink className="mr-2 h-4 w-4" />
-              Open Coinbase Wallet
-            </Link>
-          </Button>
+          {walletPresets.map((preset) => (
+            <Button asChild variant="outline" key={preset.id}>
+              <Link href={preset.href as Route} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                {preset.label}
+              </Link>
+            </Button>
+          ))}
         </div>
       </CardContent>
     </Card>

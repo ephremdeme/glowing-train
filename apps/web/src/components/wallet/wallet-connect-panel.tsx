@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2, Wallet } from 'lucide-react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { cn } from '@/lib/utils';
 import { shortenAddress, walletMode } from '@/lib/wallet/evm';
 import type { WalletConnectionState } from '@/lib/contracts';
 
@@ -169,7 +167,7 @@ function RealBaseWalletPanel({ onStateChange }: Pick<WalletConnectPanelProps, 'o
 }
 
 function RealSolanaWalletPanel({ onStateChange }: Pick<WalletConnectPanelProps, 'onStateChange'>) {
-  const { connected, publicKey, wallet } = useWallet();
+  const { connected, connecting, disconnecting, publicKey, wallet, wallets, select, connect, disconnect } = useWallet();
 
   useEffect(() => {
     onStateChange?.({
@@ -193,7 +191,39 @@ function RealSolanaWalletPanel({ onStateChange }: Pick<WalletConnectPanelProps, 
           <span className="text-sm text-muted-foreground">{shortenAddress(publicKey?.toBase58() ?? null)}</span>
           <Badge variant={connected ? 'success' : 'outline'}>{connected ? 'Connected' : 'Disconnected'}</Badge>
         </div>
-        <WalletMultiButton className={cn('!h-11 !rounded-2xl !px-5 !text-sm !font-semibold')} />
+
+        {wallets.length === 0 ? (
+          <Alert>
+            <AlertDescription>No Solana wallet adapters are available in this environment.</AlertDescription>
+          </Alert>
+        ) : (
+          <label className="grid gap-2 text-sm">
+            <span className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Wallet selector</span>
+            <select
+              className="h-11 rounded-2xl border border-input/90 bg-[#101a42]/85 px-4 text-sm"
+              value={wallet?.adapter.name ?? ''}
+              onChange={(event) => select((event.target.value || null) as any)}
+            >
+              <option value="">Select a Solana wallet</option>
+              {wallets.map((entry) => (
+                <option key={entry.adapter.name} value={entry.adapter.name}>
+                  {entry.adapter.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {connected ? (
+          <Button variant="outline" onClick={() => void disconnect()} disabled={disconnecting}>
+            {disconnecting ? 'Disconnecting...' : 'Disconnect Solana Wallet'}
+          </Button>
+        ) : (
+          <Button onClick={() => void connect()} disabled={!wallet || connecting}>
+            {connecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {wallet ? `Connect ${wallet.adapter.name}` : 'Select wallet to connect'}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
