@@ -1,5 +1,5 @@
 import { getDb, schema } from '@cryptopay/db';
-import { and, asc, desc, eq, or } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 
 type TransferStatus = typeof schema.transfers.$inferSelect.status;
 
@@ -191,21 +191,4 @@ export class TransferRepository {
     return rows.length > 0;
   }
 
-  async findReceiverKyc(recipientId: string): Promise<{ kycStatus: 'approved' | 'pending' | 'rejected'; nationalIdVerified: boolean } | null> {
-    const rows = await this.db
-      .select({
-        kycStatus: schema.receiverKycProfiles.kycStatus,
-        nationalIdVerified: schema.receiverKycProfiles.nationalIdVerified
-      })
-      .from(schema.receiverKycProfiles)
-      .where(
-        or(
-          eq(schema.receiverKycProfiles.recipientId, recipientId),
-          eq(schema.receiverKycProfiles.receiverId, recipientId)
-        )
-      )
-      .limit(1);
-
-    return (rows[0] as { kycStatus: 'approved' | 'pending' | 'rejected'; nationalIdVerified: boolean } | undefined) ?? null;
-  }
 }

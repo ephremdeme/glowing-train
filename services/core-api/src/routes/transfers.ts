@@ -223,16 +223,12 @@ export function registerTransferRoutes(
       });
     }
 
-    const receiverKyc = await repository.findReceiverKyc(parsed.data.recipientId);
-
     const collectorToken = buildInternalServiceToken('collector:transfers:create');
     const collectorPayload = {
       quoteId: parsed.data.quoteId,
       senderId: claims.sub,
       receiverId: parsed.data.recipientId,
       senderKycStatus,
-      receiverKycStatus: receiverKyc?.kycStatus ?? 'pending',
-      receiverNationalIdVerified: receiverKyc?.nationalIdVerified ?? false,
       idempotencyKey: key
     };
 

@@ -1,6 +1,6 @@
 import { createHs256Jwt } from '@cryptopay/auth';
 import { closeDb, query } from '@cryptopay/db';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildCoreApiApp } from '../src/app.js';
 
 async function ensureTables(): Promise<void> {
@@ -218,7 +218,14 @@ async function seedRecipient(recipientId: string, customerId: string): Promise<v
   );
 }
 
-async function seedTransfer(transferId: string, senderId: string, recipientId: string, status: string = 'AWAITING_FUNDING'): Promise<void> {
+async function seedTransfer(
+  transferId: string,
+  senderId: string,
+  recipientId: string,
+  status: string = 'AWAITING_FUNDING',
+  options?: { includeRouteAndSettlementArtifacts?: boolean }
+): Promise<void> {
+  const includeRouteAndSettlementArtifacts = options?.includeRouteAndSettlementArtifacts ?? true;
   const quoteId = `q_${transferId}`;
   await query(
     `
@@ -240,13 +247,15 @@ async function seedTransfer(transferId: string, senderId: string, recipientId: s
     [transferId, quoteId, senderId, recipientId, status]
   );
 
-  await query(
-    `
-      insert into deposit_routes (route_id, transfer_id, chain, token, deposit_address, status)
-      values ($1, $2, 'base', 'USDC', $3, 'active')
-    `,
-    [`route_${transferId}`, transferId, `dep_${transferId}`]
-  );
+  if (includeRouteAndSettlementArtifacts) {
+    await query(
+      `
+        insert into deposit_routes (route_id, transfer_id, chain, token, deposit_address, status)
+        values ($1, $2, 'base', 'USDC', $3, 'active')
+      `,
+      [`route_${transferId}`, transferId, `dep_${transferId}`]
+    );
+  }
 
   await query(
     `
@@ -256,23 +265,25 @@ async function seedTransfer(transferId: string, senderId: string, recipientId: s
     [transferId, status]
   );
 
-  await query(
-    `
-      insert into onchain_funding_event (event_id, chain, token, tx_hash, log_index, transfer_id, deposit_address, amount_usd, confirmed_at)
-      values ($1, 'base', 'USDC', $2, 1, $3, $4, 100, now())
-      on conflict do nothing
-    `,
-    [`evt_${transferId}`, `0x${transferId}`, transferId, `dep_${transferId}`]
-  );
+  if (includeRouteAndSettlementArtifacts) {
+    await query(
+      `
+        insert into onchain_funding_event (event_id, chain, token, tx_hash, log_index, transfer_id, deposit_address, amount_usd, confirmed_at)
+        values ($1, 'base', 'USDC', $2, 1, $3, $4, 100, now())
+        on conflict do nothing
+      `,
+      [`evt_${transferId}`, `0x${transferId}`, transferId, `dep_${transferId}`]
+    );
 
-  await query(
-    `
-      insert into payout_instruction (payout_id, transfer_id, method, recipient_account_ref, amount_etb, status)
-      values ($1, $2, 'bank', 'CBE-001', 13860, 'PAYOUT_INITIATED')
-      on conflict do nothing
-    `,
-    [`pay_${transferId}`, transferId]
-  );
+    await query(
+      `
+        insert into payout_instruction (payout_id, transfer_id, method, recipient_account_ref, amount_etb, status)
+        values ($1, $2, 'bank', 'CBE-001', 13860, 'PAYOUT_INITIATED')
+        on conflict do nothing
+      `,
+      [`pay_${transferId}`, transferId]
+    );
+  }
 }
 
 describe('customer transfer APIs integration', () => {
@@ -281,8 +292,8 @@ describe('customer transfer APIs integration', () => {
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
     process.env.APP_REGION = 'ethiopia';
-    process.env.DATABASE_URL = 'postgres://cryptopay:cryptopay@localhost:55432/cryptopay';
-    process.env.REDIS_URL = 'redis://localhost:6379';
+    process.env.DATABASE_URL ??= 'postgres://cryptopay:cryptopay@localhost:55432/cryptopay';
+    process.env.REDIS_URL ??= 'redis://localhost:6379';
     process.env.ETHIOPIA_SERVICES_CRYPTO_DISABLED = 'true';
     process.env.AUTH_JWT_SECRET = 'test-jwt-secret';
     process.env.AUTH_JWT_ISSUER = 'cryptopay-internal';
@@ -298,6 +309,10 @@ describe('customer transfer APIs integration', () => {
     );
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   afterAll(async () => {
     if (app) {
       await app.close();
@@ -310,8 +325,8 @@ describe('customer transfer APIs integration', () => {
     await seedCustomer('cust_b', 'Sender B');
     await seedRecipient('rcp_a', 'cust_a');
     await seedRecipient('rcp_b', 'cust_b');
-    await seedTransfer('tr_a_1', 'cust_a', 'rcp_a');
-    await seedTransfer('tr_b_1', 'cust_b', 'rcp_b');
+    await seedTransfer('tr_a_1', 'cust_a', 'rcp_a', 'AWAITING_FUNDING', { includeRouteAndSettlementArtifacts: false });
+    await seedTransfer('tr_b_1', 'cust_b', 'rcp_b', 'AWAITING_FUNDING', { includeRouteAndSettlementArtifacts: false });
 
     const response = await app.inject({
       method: 'GET',
@@ -364,6 +379,87 @@ describe('customer transfer APIs integration', () => {
     expect(body.transfer.status).toBe('PAYOUT_INITIATED');
     expect(body.payout?.status).toBe('PAYOUT_INITIATED');
     expect(body.transitions.length).toBeGreaterThan(0);
+  });
+
+  it('creates transfer with sender-only KYC and omits receiver KYC fields in collector payload', async () => {
+    await seedCustomer('cust_create', 'Create User');
+    await seedRecipient('rcp_create', 'cust_create');
+
+    await query(
+      `
+      insert into quotes (
+        quote_id, chain, token, send_amount_usd, fx_rate_usd_to_etb, fee_usd, recipient_amount_etb, expires_at
+      ) values ('q_create', 'base', 'USDC', 100, 140, 1, 13860, now() + interval '5 minute')
+      `
+    );
+
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          transferId: 'tr_create_1',
+          depositAddress: 'dep_create_1',
+          status: 'AWAITING_FUNDING'
+        }),
+        {
+          status: 201,
+          headers: { 'content-type': 'application/json' }
+        }
+      )
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/transfers',
+      headers: {
+        authorization: `Bearer ${customerToken('cust_create')}`,
+        'idempotency-key': 'idem-core-create-001'
+      },
+      payload: {
+        quoteId: 'q_create',
+        recipientId: 'rcp_create'
+      }
+    });
+
+    expect(response.statusCode).toBe(201);
+    const body = response.json() as { transferId: string; depositAddress: string; status: string };
+    expect(body.transferId).toBe('tr_create_1');
+    expect(body.depositAddress).toBe('dep_create_1');
+    expect(body.status).toBe('AWAITING_FUNDING');
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    const forwarded = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(forwarded.senderKycStatus).toBe('approved');
+    expect(forwarded).not.toHaveProperty('receiverKycStatus');
+    expect(forwarded).not.toHaveProperty('receiverNationalIdVerified');
+  });
+
+  it('blocks transfer creation when sender KYC is not approved', async () => {
+    await seedCustomer('cust_blocked', 'Blocked Sender');
+    await seedRecipient('rcp_blocked', 'cust_blocked');
+    await query(
+      "update sender_kyc_profile set kyc_status = 'pending', updated_at = now() where customer_id = 'cust_blocked'"
+    );
+
+    const fetchSpy = vi.spyOn(global, 'fetch');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/transfers',
+      headers: {
+        authorization: `Bearer ${customerToken('cust_blocked')}`,
+        'idempotency-key': 'idem-core-create-002'
+      },
+      payload: {
+        quoteId: 'q_missing',
+        recipientId: 'rcp_blocked'
+      }
+    });
+
+    expect(response.statusCode).toBe(403);
+    const body = response.json() as { error?: { code?: string } };
+    expect(body.error?.code).toBe('SENDER_KYC_REQUIRED');
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('updates recipient receiver KYC through recipient patch and writes audit entry', async () => {
