@@ -10,14 +10,13 @@ import {
   XCircle
 } from 'lucide-react';
 import { QuoteForm } from '@/components/quote/quote-form';
+import { useSenderProfile } from '@/features/remittance/hooks';
+import { mapSenderKycUiStatus, type SenderKycUiStatus } from '@/features/remittance/mappers';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { readAuthMessage } from '@/lib/client-api';
 import type { QuoteSummary } from '@/lib/contracts';
 import { readAccessToken } from '@/lib/session';
 import { patchFlowDraft, readFlowDraft } from '@/lib/flow-state';
-
-type KycStatus = 'APPROVED' | 'PENDING' | 'REJECTED' | 'NOT_STARTED';
 
 function currencyEtb(value: number): string {
   return new Intl.NumberFormat('en-ET', {
@@ -28,10 +27,10 @@ function currencyEtb(value: number): string {
 
 export default function QuotePage() {
   const router = useRouter();
-  const [kycStatus, setKycStatus] = useState<KycStatus>('NOT_STARTED');
-  const [kycError, setKycError] = useState<string | null>(null);
   const [quote, setQuote] = useState<QuoteSummary | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const token = readAccessToken() ?? '';
+  const senderProfileQuery = useSenderProfile(token);
 
   useEffect(() => {
     const draft = readFlowDraft();
@@ -42,19 +41,15 @@ export default function QuotePage() {
     const token = readAccessToken();
     if (!token) return;
     setIsAuthenticated(true);
-
-    (async () => {
-      const response = await fetch('/api/client/me', {
-        headers: { authorization: `Bearer ${token}` }
-      });
-      const payload = await response.json().catch(() => null);
-      if (payload?.senderKyc?.kycStatus) {
-        setKycStatus(payload.senderKyc.kycStatus.toUpperCase() as KycStatus);
-      } else {
-        setKycError(readAuthMessage(payload, 'Unable to check KYC status.'));
-      }
-    })();
   }, []);
+
+  const kycStatus: SenderKycUiStatus = isAuthenticated ? mapSenderKycUiStatus(senderProfileQuery.data) : 'NOT_STARTED';
+  const kycError =
+    isAuthenticated && senderProfileQuery.isError
+      ? senderProfileQuery.error instanceof Error
+        ? senderProfileQuery.error.message
+        : 'Unable to check KYC status.'
+      : null;
 
   function handleQuoteCreated(created: QuoteSummary) {
     setQuote(created);
@@ -116,7 +111,7 @@ export default function QuotePage() {
 
         {/* Quote form */}
         <QuoteForm
-          token={readAccessToken() ?? ''}
+          token={token}
           initialQuote={quote}
           onQuoteCreated={handleQuoteCreated}
           disabled={kycStatus === 'REJECTED'}

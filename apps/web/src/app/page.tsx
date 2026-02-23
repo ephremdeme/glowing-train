@@ -83,7 +83,7 @@ function FaqSection() {
     },
     {
       q: 'Is CryptoPay safe to use?',
-      a: 'Absolutely. CryptoPay is non-custodial — we never hold your crypto. You sign every transaction from your own wallet. Both sender and recipient are KYC verified for full compliance.',
+      a: 'Absolutely. CryptoPay is non-custodial — we never hold your crypto. You sign every transaction from your own wallet. Sender KYC is required and transfers are monitored for compliance.',
     },
     {
       q: 'What are the fees?',
@@ -483,8 +483,8 @@ export default function HomePage() {
             },
             {
               icon: Shield,
-              title: 'KYC verified',
-              desc: 'Both sender and recipient are verified for compliance.',
+              title: 'Sender KYC verified',
+              desc: 'Sender identity verification is required before transfer creation, with compliance checks tied to funding events.',
               iconGrad: 'from-emerald-500 to-teal-600'
             },
             {

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Manrope, JetBrains_Mono } from 'next/font/google';
 import { AppShell } from '@/components/app-shell';
+import { QueryProvider } from '@/components/providers/query-provider';
 import { WalletProvider } from '@/components/wallet/wallet-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 import './globals.css';
@@ -36,9 +37,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           enableSystem
           disableTransitionOnChange
         >
-          <WalletProvider>
-            <AppShell>{children}</AppShell>
-          </WalletProvider>
+          <QueryProvider>
+            <WalletProvider>
+              <AppShell>{children}</AppShell>
+            </WalletProvider>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

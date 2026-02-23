@@ -22,8 +22,8 @@ export const recipientCreateSchema = z.object({
   bankCode: z.string().min(2),
   phoneE164: z.string().optional(),
   countryCode: z.string().min(2).max(2).default('ET'),
-  kycStatus: z.enum(['approved', 'pending', 'rejected']).default('approved'),
-  nationalIdVerified: z.boolean().default(true),
+  kycStatus: z.enum(['approved', 'pending', 'rejected']).optional(),
+  nationalIdVerified: z.boolean().optional(),
   nationalId: z.string().optional()
 });
 
@@ -105,10 +105,10 @@ export interface RecipientSummary {
 }
 
 export interface RecipientDetail extends RecipientSummary {
-  receiverKyc: {
+  receiverKyc?: {
     kycStatus: 'approved' | 'pending' | 'rejected';
     nationalIdVerified: boolean;
-  };
+  } | null;
 }
 
 export interface QuoteSummary {
