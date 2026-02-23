@@ -19,14 +19,14 @@ test('landing estimator updates and unauthenticated lock quote redirects to sign
   });
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Convert stablecoins to ETB payouts in minutes.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Send crypto.' })).toBeVisible();
   await expect(page.getByText('Sender Journey')).toHaveCount(0);
-  await expect(page.getByText(/Step\\s+\\d+/)).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'How it works' })).toBeVisible();
 
   await page.getByLabel('You send (USD)').fill('200');
   await expect(page.getByText(/27,860/)).toBeVisible();
 
-  await page.getByRole('button', { name: 'Lock real quote' }).click();
+  await page.getByRole('button', { name: 'Get quote' }).click();
   await expect(page).toHaveURL(/\/signup\?next=%2Ftransfer/);
 
   const draft = await page.evaluate(() => window.sessionStorage.getItem('cryptopay:web:flow-draft'));
@@ -35,8 +35,8 @@ test('landing estimator updates and unauthenticated lock quote redirects to sign
 
 test('landing lock quote routes authenticated sender directly to transfer', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('cryptopay:web:access-token', 'customer-access-token');
-    localStorage.setItem(
+    sessionStorage.setItem('cryptopay:web:access-token', 'customer-access-token');
+    sessionStorage.setItem(
       'cryptopay:web:auth-session',
       JSON.stringify({
         token: 'customer-access-token',
@@ -93,6 +93,6 @@ test('landing lock quote routes authenticated sender directly to transfer', asyn
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Lock real quote' }).click();
+  await page.getByRole('button', { name: 'Get quote' }).click();
   await expect(page).toHaveURL('/transfer');
 });

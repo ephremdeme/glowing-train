@@ -3,8 +3,8 @@ import { expect, test } from '@playwright/test';
 function seedAuthAndQuote(page: import('@playwright/test').Page, chain: 'base' | 'solana', token: 'USDC' | 'USDT') {
   return page.addInitScript(
     ({ selectedChain, selectedToken }) => {
-      localStorage.setItem('cryptopay:web:access-token', 'customer-access-token');
-      localStorage.setItem(
+      sessionStorage.setItem('cryptopay:web:access-token', 'customer-access-token');
+      sessionStorage.setItem(
         'cryptopay:web:auth-session',
         JSON.stringify({
           token: 'customer-access-token',
@@ -133,6 +133,7 @@ test('solana route renders coinbase + phantom deeplink presets', async ({ page }
   await mockCommonRoutes(page, 'solana', 'USDC');
 
   await page.goto('/transfer');
+  await expect(page.getByText('Wallet selector')).toBeVisible();
   await page.getByRole('button', { name: 'Create transfer' }).click();
 
   const coinbase = page.getByRole('link', { name: 'Open Coinbase Wallet' });

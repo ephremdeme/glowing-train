@@ -2,8 +2,8 @@ import { expect, test } from '@playwright/test';
 
 test('history table links to printable receipt', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('cryptopay:web:access-token', 'customer-access-token');
-    localStorage.setItem(
+    sessionStorage.setItem('cryptopay:web:access-token', 'customer-access-token');
+    sessionStorage.setItem(
       'cryptopay:web:auth-session',
       JSON.stringify({
         token: 'customer-access-token',

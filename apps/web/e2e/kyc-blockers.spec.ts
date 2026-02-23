@@ -19,8 +19,8 @@ const quoteDraft = {
 
 test('sender blocker shows pending/rejected guidance and restart action', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('cryptopay:web:access-token', 'customer-access-token');
-    localStorage.setItem(
+    sessionStorage.setItem('cryptopay:web:access-token', 'customer-access-token');
+    sessionStorage.setItem(
       'cryptopay:web:auth-session',
       JSON.stringify({
         token: 'customer-access-token',
@@ -51,67 +51,63 @@ test('sender blocker shows pending/rejected guidance and restart action', async 
     });
   });
 
-  await page.route('**/api/client/quotes', async (route) => {
-    await route.fulfill({
-      status: 201,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        quoteId: 'q_kyc_001',
-        chain: 'base',
-        token: 'USDC',
-        sendAmountUsd: 120,
-        feeUsd: 1,
-        fxRateUsdToEtb: 140,
-        recipientAmountEtb: 16660,
-        expiresAt: new Date(Date.now() + 300_000).toISOString()
-      })
-    });
-  });
-
-  await page.route('**/api/client/kyc/sender/status', async (route) => {
+  await page.route('**/api/client/recipients', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        kycStatus: 'rejected',
-        reasonCode: 'document_mismatch',
-        applicantId: 'sumsub-applicant-1',
-        lastReviewedAt: new Date().toISOString()
+        recipients: [
+          {
+            recipientId: 'rcp_kyc_pending',
+            fullName: 'Pending Sender Recipient',
+            bankAccountName: 'Pending Sender Recipient',
+            bankAccountNumber: '99998888',
+            bankCode: 'CBE',
+            phoneE164: null,
+            countryCode: 'ET',
+            status: 'active',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ]
       })
     });
   });
 
-  await page.route('**/api/client/kyc/sender/sumsub-token', async (route) => {
+  await page.route('**/api/client/recipients/rcp_kyc_pending', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        token: 'sumsub-token',
-        applicantId: 'sumsub-applicant-1',
-        provider: 'sumsub'
+        recipientId: 'rcp_kyc_pending',
+        fullName: 'Pending Sender Recipient',
+        bankAccountName: 'Pending Sender Recipient',
+        bankAccountNumber: '99998888',
+        bankCode: 'CBE',
+        phoneE164: null,
+        countryCode: 'ET',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        receiverKyc: {
+          kycStatus: 'rejected',
+          nationalIdVerified: false
+        }
       })
     });
   });
 
-  await page.goto('/quote');
-  await expect(page.getByText('Verification required')).toBeVisible();
-
-  await page.getByRole('button', { name: 'Lock quote' }).click();
-  await expect(page.getByText('Sender KYC must be approved first.')).toBeVisible();
-
-  await page.getByRole('button', { name: 'Refresh status' }).click();
-  await expect(page.getByRole('button', { name: 'Restart verification' })).toBeVisible();
-
-  await page.getByRole('button', { name: 'Restart verification' }).click();
-  await expect(page.getByText('Verification session started.')).toBeVisible();
+  await page.goto('/transfer');
+  await expect(page.getByText('Sender verification required')).toBeVisible();
+  await expect(page.getByText('Transfer creation unlocks after sender KYC approval.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create transfer' })).toHaveCount(0);
+  await expect(page.getByText('Recipient ready')).toBeVisible();
 });
 
-test('receiver blocker prevents transfer until recipient KYC remediation succeeds', async ({ page }) => {
-  let receiverApproved = false;
-
+test('receiver KYC state no longer blocks transfer creation', async ({ page }) => {
   await page.addInitScript((draft) => {
-    localStorage.setItem('cryptopay:web:access-token', 'customer-access-token');
-    localStorage.setItem(
+    sessionStorage.setItem('cryptopay:web:access-token', 'customer-access-token');
+    sessionStorage.setItem(
       'cryptopay:web:auth-session',
       JSON.stringify({
         token: 'customer-access-token',
@@ -167,10 +163,6 @@ test('receiver blocker prevents transfer until recipient KYC remediation succeed
   });
 
   await page.route('**/api/client/recipients/rcp_kyc_001', async (route, request) => {
-    if (request.method() === 'PATCH') {
-      receiverApproved = true;
-    }
-
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -186,8 +178,8 @@ test('receiver blocker prevents transfer until recipient KYC remediation succeed
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         receiverKyc: {
-          kycStatus: receiverApproved ? 'approved' : 'pending',
-          nationalIdVerified: receiverApproved
+          kycStatus: 'pending',
+          nationalIdVerified: false
         }
       })
     });
@@ -207,13 +199,9 @@ test('receiver blocker prevents transfer until recipient KYC remediation succeed
   });
 
   await page.goto('/transfer');
-  await expect(page.getByText('Receiver must pass KYC before transfer creation.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Create transfer' })).toBeDisabled();
-
-  await page.getByRole('button', { name: 'Apply receiver KYC update' }).click();
-  await expect(page.getByText('Receiver KYC updated.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Create transfer' })).toBeEnabled();
 
   await page.getByRole('button', { name: 'Create transfer' }).click();
   await expect(page.getByRole('heading', { name: 'Deposit instructions' })).toBeVisible();
+  await expect(page.getByText('Receiver must pass KYC before transfer creation.')).toHaveCount(0);
 });

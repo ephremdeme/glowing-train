@@ -1,6 +1,14 @@
 import { expect, test } from '@playwright/test';
 
 test('login page starts Google OAuth without password login', async ({ page }) => {
+  await page.route('**/api/client/auth/session/exchange', async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: { code: 'SESSION_INVALID', message: 'No active session.' } })
+    });
+  });
+
   await page.route('**/api/client/auth/sign-in/google**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -11,7 +19,7 @@ test('login page starts Google OAuth without password login', async ({ page }) =
     });
   });
 
-  await page.goto('/login');
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: 'Continue with Google' }).click();
   await expect(page).toHaveURL('/google-oauth-mock');
 
@@ -56,7 +64,7 @@ test('google callback writes session and redirects to authenticated quote page',
     });
   });
 
-  await page.goto('/auth/google/callback?state=abc123&code=xyz789');
+  await page.goto('/auth/google/callback?state=abc123&code=xyz789', { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL('/quote');
 
   const token = await page.evaluate(() => window.sessionStorage.getItem('cryptopay:web:access-token'));

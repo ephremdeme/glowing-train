@@ -81,11 +81,17 @@ test('multipage happy path: signup -> login -> quote -> transfer -> status -> hi
 
   let transferStatusCalls = 0;
 
+  let exchangeCallCount = 0;
+
   await page.route('**/api/client/auth/sign-up/email', async (route) => {
     await route.fulfill({
       status: 201,
       contentType: 'application/json',
       body: JSON.stringify({
+        session: {
+          sessionId: 'csn_signup_001',
+          expiresAt: new Date(Date.now() + 3600_000).toISOString()
+        },
         customer: {
           customerId: 'cust_test_001',
           fullName: 'Diaspora Sender',
@@ -114,6 +120,16 @@ test('multipage happy path: signup -> login -> quote -> transfer -> status -> hi
   });
 
   await page.route('**/api/client/auth/session/exchange', async (route) => {
+    exchangeCallCount += 1;
+    if (exchangeCallCount === 1) {
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: { code: 'SESSION_INVALID', message: 'No active session.' } })
+      });
+      return;
+    }
+
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -289,10 +305,6 @@ test('multipage happy path: signup -> login -> quote -> transfer -> status -> hi
   await page.getByLabel('Email').fill('sender@example.com');
   await page.getByLabel('Password').fill('password123');
   await page.getByRole('button', { name: 'Create account' }).click();
-
-  await expect(page).toHaveURL(/\/login/);
-  await page.getByLabel('Password').fill('password123');
-  await page.getByRole('button', { name: 'Sign in' }).click();
 
   await expect(page).toHaveURL('/quote');
   await page.getByRole('button', { name: 'Lock quote' }).click();
