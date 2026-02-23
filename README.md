@@ -43,10 +43,11 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Landing Quote Widget
 - Landing includes an indicative estimator for `USDC/USDT -> ETB`.
-- Clicking `Lock real quote` creates a real quote via `/api/client/quotes`.
+- Clicking `Get quote` creates a real quote via `/api/client/quotes`.
 - Routing behavior:
   - Authenticated sender: redirect to `/transfer`.
   - Unauthenticated sender: redirect to `/signup?next=/transfer` with locked quote draft preserved.
+- Transfer creation is gated by sender KYC approval only in the current sender flow.
 
 ## Frontend Environment Variables
 - `WEB_CORE_API_URL` default `http://localhost:3001`
@@ -80,7 +81,7 @@ Open [http://localhost:3000](http://localhost:3000).
 pnpm install
 pnpm dev:web
 ```
-- In `/transfer`, create a transfer with `chain=solana`, then use **Pay with Solana wallet** in deposit instructions.
+- In `/transfer`, create a transfer with `chain=solana`, optionally connect a wallet from the inline Solana wallet selector, then use **Pay with Solana wallet** in deposit instructions.
 
 ## Google OAuth
 - Available from landing, signup, and login as `Continue with Google`.
@@ -92,6 +93,7 @@ pnpm dev:web
 pnpm --filter @cryptopay/web typecheck
 pnpm --filter @cryptopay/web test:e2e
 ```
+If Playwright is not available in your environment, run typecheck + contract tests and defer E2E to CI or a local machine with browser binaries.
 
 ## Playwright MCP Notes
 1. Configure `~/.codex/config.toml` with Playwright MCP and restart Codex desktop.

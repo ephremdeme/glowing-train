@@ -485,6 +485,11 @@ paths:
         '200':
           description: Sender transfer history
     post:
+      summary: Create sender transfer
+      description: |
+        Creates a transfer for the authenticated sender using a locked quote and recipient.
+        Sender KYC approval is required before creation. Receiver KYC records remain supported
+        in the system for compatibility/audit but do not block transfer creation in this flow.
       security:
         - bearerAuth: []
       parameters:

@@ -125,8 +125,9 @@ pnpm --filter @cryptopay/web test:e2e
 
 ## Landing converter behavior
 - Landing computes an indicative ETB estimate from env-configured rate and fee.
-- `Lock real quote` creates a real quote via web BFF and stores quote draft.
+- `Get quote` creates a real quote via web BFF and stores quote draft.
 - If unauthenticated, user is routed to signup/login with `next=/transfer`.
+- Sender KYC approval is the only KYC blocker before transfer creation in the sender UI flow.
 
 ## Wallet + UI env flags
 - `NEXT_PUBLIC_WALLET_MODE=real|mock` (`mock` used by `dev:e2e`)
@@ -140,3 +141,4 @@ pnpm --filter @cryptopay/web test:e2e
 - Configure `~/.codex/config.toml` with Playwright MCP command.
 - Restart Codex desktop after config updates to reload MCP servers.
 - If MCP is unavailable in-session, use repo Playwright tests as fallback.
+- If browser execution is unavailable, validate with `typecheck` + contract tests and run E2E in CI.

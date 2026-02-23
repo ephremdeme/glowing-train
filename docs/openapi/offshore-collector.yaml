@@ -28,7 +28,7 @@ components:
     CreateTransferRequest:
       type: object
       required:
-        [quoteId, senderId, receiverId, senderKycStatus, receiverKycStatus, receiverNationalIdVerified, idempotencyKey]
+        [quoteId, senderId, receiverId, senderKycStatus, idempotencyKey]
       properties:
         quoteId: { type: string }
         senderId: { type: string }
@@ -39,8 +39,10 @@ components:
         receiverKycStatus:
           type: string
           enum: [approved, pending, rejected]
+          description: Optional legacy compatibility field. If omitted, service defaults to approved for request normalization/idempotency.
         receiverNationalIdVerified:
           type: boolean
+          description: Optional legacy compatibility field. If omitted, service defaults to true for request normalization/idempotency.
         idempotencyKey:
           type: string
 paths:
@@ -56,6 +58,10 @@ paths:
           description: Ready
   /v1/transfers:
     post:
+      summary: Create transfer (sender KYC gated)
+      description: |
+        Creates an offshore transfer intent. Sender KYC approval is required.
+        Receiver KYC fields are accepted for backward compatibility but are non-blocking.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
