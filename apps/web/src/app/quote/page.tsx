@@ -25,6 +25,12 @@ function currencyEtb(value: number): string {
   }).format(value);
 }
 
+function isActiveQuote(quote: QuoteSummary | null | undefined): quote is QuoteSummary {
+  if (!quote) return false;
+  const expiresAt = Date.parse(quote.expiresAt);
+  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+}
+
 export default function QuotePage() {
   const router = useRouter();
   const [quote, setQuote] = useState<QuoteSummary | null>(null);
@@ -34,8 +40,11 @@ export default function QuotePage() {
 
   useEffect(() => {
     const draft = readFlowDraft();
-    if (draft?.quote) {
+    if (isActiveQuote(draft?.quote)) {
       setQuote(draft.quote);
+    } else if (draft?.quote) {
+      // Clear stale quotes so the form falls back to live FX on next render.
+      patchFlowDraft({ quote: null, transfer: null });
     }
 
     const token = readAccessToken();

@@ -297,12 +297,8 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
           </div>
         </div>
 
-        {/* ── Bottom Network + CTA ── */}
+        {/* ── CTA ── */}
         <div className="flex items-center justify-between gap-3">
-          <NetworkToggle
-            chain={form.chain}
-            onChange={(chain) => setForm((prev) => ({ ...prev, chain }))}
-          />
           <Button
             onClick={lockRealQuote}
             disabled={state.busy || form.sendAmountUsd <= 0 || form.sendAmountUsd > 2000}

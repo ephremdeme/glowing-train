@@ -18,20 +18,40 @@ interface QuoteFormProps {
   isAuthenticated?: boolean;
 }
 
+function isActiveQuote(quote: QuoteSummary | null | undefined): quote is QuoteSummary {
+  if (!quote) return false;
+  const expiresAt = Date.parse(quote.expiresAt);
+  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+}
+
 export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAuthenticated = true }: QuoteFormProps) {
   const router = useRouter();
+  const activeInitialQuote = isActiveQuote(initialQuote) ? initialQuote : null;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<'usd' | 'etb'>('usd');
   const [form, setForm] = useState({
-    chain: initialQuote?.chain ?? ('base' as 'base' | 'solana'),
-    token: initialQuote?.token ?? ('USDC' as 'USDC' | 'USDT'),
-    sendAmountUsd: initialQuote?.sendAmountUsd ?? 100,
-    feeUsd: initialQuote?.feeUsd ?? 1,
-    fxRateUsdToEtb: initialQuote?.fxRateUsdToEtb ?? 140, // fallback
+    chain: activeInitialQuote?.chain ?? ('base' as 'base' | 'solana'),
+    token: activeInitialQuote?.token ?? ('USDC' as 'USDC' | 'USDT'),
+    sendAmountUsd: activeInitialQuote?.sendAmountUsd ?? 100,
+    feeUsd: activeInitialQuote?.feeUsd ?? 1,
+    fxRateUsdToEtb: activeInitialQuote?.fxRateUsdToEtb ?? 140, // fallback
     expiresInSeconds: 300
   });
-  const [liveRate, setLiveRate] = useState<number | null>(initialQuote?.fxRateUsdToEtb ?? null);
+  const [liveRate, setLiveRate] = useState<number | null>(activeInitialQuote?.fxRateUsdToEtb ?? null);
+
+  useEffect(() => {
+    if (!activeInitialQuote) return;
+    setForm((prev) => ({
+      ...prev,
+      chain: activeInitialQuote.chain,
+      token: activeInitialQuote.token,
+      sendAmountUsd: activeInitialQuote.sendAmountUsd,
+      feeUsd: activeInitialQuote.feeUsd,
+      fxRateUsdToEtb: activeInitialQuote.fxRateUsdToEtb
+    }));
+    setLiveRate(activeInitialQuote.fxRateUsdToEtb);
+  }, [activeInitialQuote]);
 
   // Fetch live rate on mount. Even if we have an initial quote, we should check the live rate
   // so the user sees the most up to date conversion if the quote is old.
@@ -43,9 +63,8 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
         if (!mounted) return;
         if (data?.rate) {
           setLiveRate(data.rate);
-          // Only update the form rate automatically if we DON'T have an initial quote
-          // (otherwise we might overwrite the exact rate they locked).
-          if (!initialQuote) {
+          // Preserve a still-active locked quote rate; otherwise always adopt live FX.
+          if (!activeInitialQuote) {
             setForm(prev => ({ ...prev, fxRateUsdToEtb: data.rate }));
           }
         }
@@ -55,7 +74,7 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
       });
       
     return () => { mounted = false; };
-  }, [initialQuote]);
+  }, [activeInitialQuote]);
 
   const preview = useMemo(() => {
     const recipientAmountEtb = (form.sendAmountUsd - form.feeUsd) * form.fxRateUsdToEtb;
