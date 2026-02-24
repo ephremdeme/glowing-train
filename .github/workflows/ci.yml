@@ -101,34 +101,55 @@ jobs:
         include:
           # Node.js services
           - name: core-api
-            dockerfile: services/core-api/Dockerfile
+            dockerfile: docker/node.Dockerfile
             filter: core_api
+            build_args: |
+              SERVICE_NAME=core-api
+              SERVICE_PORT=3001
           - name: customer-auth
-            dockerfile: services/customer-auth/Dockerfile
+            dockerfile: docker/node.Dockerfile
             filter: customer_auth
+            build_args: |
+              SERVICE_NAME=customer-auth
+              SERVICE_PORT=3005
           - name: offshore-collector
-            dockerfile: services/offshore-collector/Dockerfile
+            dockerfile: docker/node.Dockerfile
             filter: offshore_collector
+            build_args: |
+              SERVICE_NAME=offshore-collector
+              SERVICE_PORT=3002
           - name: payout-orchestrator
-            dockerfile: services/payout-orchestrator/Dockerfile
+            dockerfile: docker/node.Dockerfile
             filter: payout_orchestrator
+            build_args: |
+              SERVICE_NAME=payout-orchestrator
+              SERVICE_PORT=3003
           - name: reconciliation-worker
-            dockerfile: services/reconciliation-worker/Dockerfile
+            dockerfile: docker/node.Dockerfile
             filter: reconciliation_worker
+            build_args: |
+              SERVICE_NAME=reconciliation-worker
+              SERVICE_PORT=3004
           - name: admin-api
-            dockerfile: services/admin-api/Dockerfile
+            dockerfile: docker/node.Dockerfile
             filter: admin_api
+            build_args: |
+              SERVICE_NAME=admin-api
+              SERVICE_PORT=3010
           # Next.js frontend
           - name: web
-            dockerfile: apps/web/Dockerfile
+            dockerfile: docker/web.Dockerfile
             filter: web
+            build_args: ""
           # Go watchers
           - name: base-watcher
             dockerfile: workers/base-watcher/Dockerfile
             filter: base_watcher
+            build_args: ""
           - name: solana-watcher
             dockerfile: workers/solana-watcher/Dockerfile
             filter: solana_watcher
+            build_args: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -141,6 +162,7 @@ jobs:
             core_api:
               - '.dockerignore'
               - '.npmrc'
+              - 'docker/node.Dockerfile'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -149,6 +171,7 @@ jobs:
             customer_auth:
               - '.dockerignore'
               - '.npmrc'
+              - 'docker/node.Dockerfile'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -157,6 +180,7 @@ jobs:
             offshore_collector:
               - '.dockerignore'
               - '.npmrc'
+              - 'docker/node.Dockerfile'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -165,6 +189,7 @@ jobs:
             payout_orchestrator:
               - '.dockerignore'
               - '.npmrc'
+              - 'docker/node.Dockerfile'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -173,6 +198,7 @@ jobs:
             reconciliation_worker:
               - '.dockerignore'
               - '.npmrc'
+              - 'docker/node.Dockerfile'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -181,6 +207,7 @@ jobs:
             admin_api:
               - '.dockerignore'
               - '.npmrc'
+              - 'docker/node.Dockerfile'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -188,6 +215,7 @@ jobs:
               - 'services/admin-api/**'
             web:
               - '.dockerignore'
+              - 'docker/web.Dockerfile'
               - '.npmrc'
               - 'package.json'
               - 'pnpm-lock.yaml'
@@ -219,6 +247,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
+          build-args: ${{ matrix.build_args }}
           push: ${{ env.PUSH_IMAGES == 'true' }}
           tags: |
             ${{ env.IMAGE_PREFIX }}/cryptopay-${{ matrix.name }}:latest

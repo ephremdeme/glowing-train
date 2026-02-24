@@ -1,6 +1,7 @@
 node_modules/
 .pnpm-store/
 .cache/
+.docker/buildx-cache/
 .env
 coverage/
 *.log

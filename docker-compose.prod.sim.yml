@@ -2,6 +2,19 @@
 # Usage:
 #   APP_ENV_FILE=.env.prod.local docker compose --env-file .env.prod.local -p cryptopay-prod-sim \
 #     -f docker-compose.prod.yml -f docker-compose.prod.sim.yml up -d --build
+#
+# Notes:
+# - Local-only build cache settings live in this file (not in docker-compose.prod.yml).
+# - Uses inline cache metadata (compatible with the default `docker` driver).
+# - If you switch to a `buildx` docker-container driver later, you can re-enable
+#   explicit local cache export/import backends for stronger caching.
+
+x-local-build-args: &local-build-args
+  BUILDKIT_INLINE_CACHE: "1"
+
+x-local-node-build: &local-node-build
+  context: .
+  dockerfile: docker/node.Dockerfile
 
 services:
   postgres:
@@ -19,8 +32,13 @@ services:
   core-api:
     image: cryptopay/core-api:prod-sim
     build:
-      context: .
-      dockerfile: services/core-api/Dockerfile
+      <<: *local-node-build
+      args:
+        <<: *local-build-args
+        SERVICE_NAME: core-api
+        SERVICE_PORT: 3001
+      cache_from:
+        - cryptopay/core-api:prod-sim
     env_file:
       - .env.prod.local
     ports: !override
@@ -29,8 +47,13 @@ services:
   customer-auth:
     image: cryptopay/customer-auth:prod-sim
     build:
-      context: .
-      dockerfile: services/customer-auth/Dockerfile
+      <<: *local-node-build
+      args:
+        <<: *local-build-args
+        SERVICE_NAME: customer-auth
+        SERVICE_PORT: 3005
+      cache_from:
+        - cryptopay/customer-auth:prod-sim
     env_file:
       - .env.prod.local
     ports: !override
@@ -39,8 +62,13 @@ services:
   offshore-collector:
     image: cryptopay/offshore-collector:prod-sim
     build:
-      context: .
-      dockerfile: services/offshore-collector/Dockerfile
+      <<: *local-node-build
+      args:
+        <<: *local-build-args
+        SERVICE_NAME: offshore-collector
+        SERVICE_PORT: 3002
+      cache_from:
+        - cryptopay/offshore-collector:prod-sim
     env_file:
       - .env.prod.local
     ports: !override
@@ -49,8 +77,13 @@ services:
   payout-orchestrator:
     image: cryptopay/payout-orchestrator:prod-sim
     build:
-      context: .
-      dockerfile: services/payout-orchestrator/Dockerfile
+      <<: *local-node-build
+      args:
+        <<: *local-build-args
+        SERVICE_NAME: payout-orchestrator
+        SERVICE_PORT: 3003
+      cache_from:
+        - cryptopay/payout-orchestrator:prod-sim
     env_file:
       - .env.prod.local
     ports: !override
@@ -59,8 +92,13 @@ services:
   reconciliation-worker:
     image: cryptopay/reconciliation-worker:prod-sim
     build:
-      context: .
-      dockerfile: services/reconciliation-worker/Dockerfile
+      <<: *local-node-build
+      args:
+        <<: *local-build-args
+        SERVICE_NAME: reconciliation-worker
+        SERVICE_PORT: 3004
+      cache_from:
+        - cryptopay/reconciliation-worker:prod-sim
     env_file:
       - .env.prod.local
     ports: !override
@@ -69,8 +107,13 @@ services:
   admin-api:
     image: cryptopay/admin-api:prod-sim
     build:
-      context: .
-      dockerfile: services/admin-api/Dockerfile
+      <<: *local-node-build
+      args:
+        <<: *local-build-args
+        SERVICE_NAME: admin-api
+        SERVICE_PORT: 3010
+      cache_from:
+        - cryptopay/admin-api:prod-sim
     env_file:
       - .env.prod.local
     ports: !override
@@ -81,6 +124,8 @@ services:
     build:
       context: .
       dockerfile: workers/base-watcher/Dockerfile
+      cache_from:
+        - cryptopay/base-watcher:prod-sim
     env_file:
       - .env.prod.local
     environment:
@@ -92,6 +137,8 @@ services:
     build:
       context: .
       dockerfile: workers/solana-watcher/Dockerfile
+      cache_from:
+        - cryptopay/solana-watcher:prod-sim
     env_file:
       - .env.prod.local
     environment:
@@ -102,13 +149,21 @@ services:
     image: cryptopay/web:prod-sim
     build:
       context: .
-      dockerfile: apps/web/Dockerfile
+      dockerfile: docker/web.Dockerfile
       args:
+        <<: *local-build-args
         NEXT_PUBLIC_SOLANA_CLUSTER: ${NEXT_PUBLIC_SOLANA_CLUSTER:-mainnet-beta}
+        NEXT_PUBLIC_SOLANA_PROGRAM_ID: ${NEXT_PUBLIC_SOLANA_PROGRAM_ID:-}
+        NEXT_PUBLIC_SOLANA_USDT_MINT: ${NEXT_PUBLIC_SOLANA_USDT_MINT:-}
+        NEXT_PUBLIC_SOLANA_USDC_MINT: ${NEXT_PUBLIC_SOLANA_USDC_MINT:-}
+        NEXT_PUBLIC_SOLANA_USDT_TREASURY_ATA: ${NEXT_PUBLIC_SOLANA_USDT_TREASURY_ATA:-}
+        NEXT_PUBLIC_SOLANA_USDC_TREASURY_ATA: ${NEXT_PUBLIC_SOLANA_USDC_TREASURY_ATA:-}
         NEXT_PUBLIC_WALLET_MODE: ${NEXT_PUBLIC_WALLET_MODE:-real}
         NEXT_PUBLIC_LANDING_USDC_ETB_RATE: ${NEXT_PUBLIC_LANDING_USDC_ETB_RATE:-140}
         NEXT_PUBLIC_LANDING_USDT_ETB_RATE: ${NEXT_PUBLIC_LANDING_USDT_ETB_RATE:-140}
         NEXT_PUBLIC_LANDING_FEE_USD: ${NEXT_PUBLIC_LANDING_FEE_USD:-1}
+      cache_from:
+        - cryptopay/web:prod-sim
     env_file:
       - .env.prod.local
     ports: !override

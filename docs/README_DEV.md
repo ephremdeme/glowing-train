@@ -27,6 +27,8 @@ docker compose up -d customer-auth core-api offshore-collector payout-orchestrat
 ## Production-like local simulation
 Use the production compose topology with local image builds and isolated host ports.
 
+Build details (shared Dockerfiles, service build args, cache behavior): `docs/DOCKER_BUILD.md`
+
 ```bash
 cp .env.prod.example .env.prod.local
 # edit .env.prod.local with local/sandbox values
