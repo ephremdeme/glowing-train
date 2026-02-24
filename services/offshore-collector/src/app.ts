@@ -4,6 +4,7 @@ import { deny, errorEnvelope, registerServiceMetrics, withIdempotency } from '@c
 import { log } from '@cryptopay/observability';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { SolanaPaymentVerificationError, SolanaPaymentVerificationService } from './modules/solana-payments/index.js';
 import { HdWalletDepositStrategy, TransferRepository, TransferService } from './modules/transfers/index.js';
 import { buildTransferRoutes } from './routes/transfers.js';
 
@@ -15,6 +16,11 @@ const createTransferSchema = z.object({
   receiverKycStatus: z.enum(['approved', 'pending', 'rejected']).optional(),
   receiverNationalIdVerified: z.boolean().optional(),
   idempotencyKey: z.string().min(8)
+});
+
+const solanaPaymentVerifySchema = z.object({
+  transferId: z.string().min(1),
+  txHash: z.string().min(1)
 });
 
 function requiredIdempotencyKey(request: FastifyRequest): string {
@@ -52,9 +58,11 @@ export async function buildOffshoreCollectorApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
 
   const metrics = registerServiceMetrics(app, 'offshore-collector');
+  const transferRepository = new TransferRepository();
   const transferRoutes = buildTransferRoutes(
-    new TransferService(new TransferRepository(), new HdWalletDepositStrategy())
+    new TransferService(transferRepository, new HdWalletDepositStrategy())
   );
+  const solanaPaymentVerifier = new SolanaPaymentVerificationService(transferRepository);
 
   app.get('/healthz', async () => ({ ok: true, service: 'offshore-collector' }));
   app.get('/readyz', async () => ({ ok: true }));
@@ -158,6 +166,71 @@ export async function buildOffshoreCollectorApp(): Promise<FastifyInstance> {
         code: 'TRANSFER_CREATE_FAILED',
         message: (error as Error).message,
         status: 400
+      });
+    }
+  });
+
+  app.post('/internal/v1/transfers/solana-payment/verify', async (request, reply) => {
+    try {
+      const claims = toAuthClaims(request);
+      assertScope(claims, 'collector:solana-payments:verify');
+    } catch (error) {
+      return deny({
+        request,
+        reply,
+        code: 'FORBIDDEN',
+        message: (error as Error).message,
+        status: 403
+      });
+    }
+
+    const parsed = solanaPaymentVerifySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return deny({
+        request,
+        reply,
+        code: 'INVALID_PAYLOAD',
+        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
+        status: 400,
+        details: parsed.error.issues
+      });
+    }
+
+    const idempotencyKey =
+      (typeof request.headers['idempotency-key'] === 'string' && request.headers['idempotency-key']) ||
+      `solana-verify:${parsed.data.transferId}:${parsed.data.txHash}`;
+
+    try {
+      const response = await withIdempotency({
+        db: { query },
+        scope: 'offshore-collector:internal:solana-payment:verify',
+        idempotencyKey,
+        requestId: request.id,
+        requestPayload: parsed.data,
+        execute: async () => ({
+          status: 200,
+          body: await solanaPaymentVerifier.verify(parsed.data)
+        })
+      });
+
+      return reply.status(response.status).send(response.body);
+    } catch (error) {
+      if (error instanceof SolanaPaymentVerificationError) {
+        return deny({
+          request,
+          reply,
+          code: error.code,
+          message: error.message,
+          status: error.status
+        });
+      }
+
+      return deny({
+        request,
+        reply,
+        code: 'SOLANA_PAYMENT_VERIFY_FAILED',
+        message: (error as Error).message,
+        status: 500
       });
     }
   });

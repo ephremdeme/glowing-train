@@ -25,8 +25,9 @@ func (r CoreAPIRouteResolver) FindTransferByRoute(ctx context.Context, chain str
 	}
 
 	var out struct {
-		Found      bool   `json:"found"`
-		TransferID string `json:"transferId"`
+		Found        bool   `json:"found"`
+		TransferID   string `json:"transferId"`
+		DepositAddress string `json:"depositAddress"`
 	}
 	err := r.Client.Do(ctx, "POST", "/internal/v1/watchers/resolve-route", map[string]any{
 		"watcherName":    r.WatcherName,
@@ -42,7 +43,33 @@ func (r CoreAPIRouteResolver) FindTransferByRoute(ctx context.Context, chain str
 		return RouteMatch{}, false, nil
 	}
 
-	return RouteMatch{TransferID: out.TransferID}, true, nil
+	return RouteMatch{TransferID: out.TransferID, DepositAddress: out.DepositAddress}, true, nil
+}
+
+func (r CoreAPIRouteResolver) FindTransferBySolanaPayment(ctx context.Context, token string, referenceHash string) (RouteMatch, bool, error) {
+	if r.Client == nil {
+		return RouteMatch{}, false, fmt.Errorf("core api client is required")
+	}
+
+	var out struct {
+		Found          bool   `json:"found"`
+		TransferID     string `json:"transferId"`
+		DepositAddress string `json:"depositAddress"`
+	}
+	err := r.Client.Do(ctx, "POST", "/internal/v1/watchers/resolve-solana-payment", map[string]any{
+		"watcherName":    r.WatcherName,
+		"token":          token,
+		"referenceHash":  referenceHash,
+	}, &out)
+	if err != nil {
+		return RouteMatch{}, false, err
+	}
+
+	if !out.Found {
+		return RouteMatch{}, false, nil
+	}
+
+	return RouteMatch{TransferID: out.TransferID, DepositAddress: out.DepositAddress}, true, nil
 }
 
 type CoreAPIRouteStore struct {

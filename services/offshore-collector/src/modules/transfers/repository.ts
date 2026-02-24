@@ -47,6 +47,8 @@ function mapDepositRoute(row: DbRow): DepositRouteRecord {
     token: row.token as DepositRouteRecord['token'],
     depositAddress: row.deposit_address as string,
     depositMemo: (row.deposit_memo as string | null) ?? null,
+    routeKind: ((row.route_kind as DepositRouteRecord['routeKind'] | null) ?? 'address_route'),
+    referenceHash: (row.reference_hash as string | null) ?? null,
     status: row.status as DepositRouteRecord['status'],
     createdAt: new Date(row.created_at as string)
   };
@@ -132,6 +134,48 @@ export class TransferRepository implements TransferRepositoryPort {
     };
   }
 
+  async findTransferWithRouteById(transferId: string): Promise<{ transfer: TransferRecord; depositRoute: DepositRouteRecord } | null> {
+    const result = await query(
+      `
+      select
+        t.*,
+        dr.route_id,
+        dr.deposit_address,
+        dr.deposit_memo,
+        dr.route_kind,
+        dr.reference_hash,
+        dr.status as route_status,
+        dr.created_at as route_created_at
+      from transfers t
+      join deposit_routes dr on dr.transfer_id = t.transfer_id
+      where t.transfer_id = $1
+      limit 1
+      `,
+      [transferId]
+    );
+
+    const row = result.rows[0] as DbRow | undefined;
+    if (!row) {
+      return null;
+    }
+
+    return {
+      transfer: mapTransfer(row),
+      depositRoute: {
+        routeId: row.route_id as string,
+        transferId: row.transfer_id as string,
+        chain: row.chain as DepositRouteRecord['chain'],
+        token: row.token as DepositRouteRecord['token'],
+        depositAddress: row.deposit_address as string,
+        depositMemo: (row.deposit_memo as string | null) ?? null,
+        routeKind: ((row.route_kind as DepositRouteRecord['routeKind'] | null) ?? 'address_route'),
+        referenceHash: (row.reference_hash as string | null) ?? null,
+        status: row.route_status as DepositRouteRecord['status'],
+        createdAt: new Date(row.route_created_at as string)
+      }
+    };
+  }
+
   async persistTransferWithRoute(params: {
     transfer: Omit<TransferRecord, 'createdAt'>;
     route: Omit<DepositRouteRecord, 'createdAt'>;
@@ -178,8 +222,10 @@ export class TransferRepository implements TransferRepositoryPort {
           token,
           deposit_address,
           deposit_memo,
+          route_kind,
+          reference_hash,
           status
-        ) values ($1,$2,$3,$4,$5,$6,$7)
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
         returning *
         `,
         [
@@ -189,6 +235,8 @@ export class TransferRepository implements TransferRepositoryPort {
           params.route.token,
           params.route.depositAddress,
           params.route.depositMemo,
+          params.route.routeKind,
+          params.route.referenceHash,
           params.route.status
         ]
       );

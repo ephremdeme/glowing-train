@@ -19,9 +19,11 @@ type callbackPayload struct {
 	Token          string  `json:"token"`
 	TxHash         string  `json:"txHash"`
 	LogIndex       int     `json:"logIndex"`
+	TransferID     string  `json:"transferId,omitempty"`
 	DepositAddress string  `json:"depositAddress"`
 	AmountUSD      float64 `json:"amountUsd"`
 	ConfirmedAt    string  `json:"confirmedAt"`
+	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
 type CallbackPublisher struct {
@@ -55,9 +57,11 @@ func (p CallbackPublisher) PublishFundingConfirmed(ctx context.Context, event Fu
 		Token:          event.Token,
 		TxHash:         event.TxHash,
 		LogIndex:       event.LogIndex,
+		TransferID:     event.TransferID,
 		DepositAddress: event.DepositAddress,
 		AmountUSD:      event.AmountUSD,
 		ConfirmedAt:    now().UTC().Format(time.RFC3339Nano),
+		Metadata:       event.Metadata,
 	}
 
 	body, err := json.Marshal(payload)

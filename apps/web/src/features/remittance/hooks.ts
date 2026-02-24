@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QuoteSummary } from '@/lib/contracts';
 import {
+  confirmSolanaWalletPayment,
   createRecipient,
   createTransfer,
   fetchRecipientDetail,
@@ -72,5 +73,12 @@ export function useCreateRecipient(token: string) {
 export function useCreateTransfer(token: string) {
   return useMutation({
     mutationFn: (input: { quoteId: string; recipientId: string; quote: QuoteSummary }) => createTransfer(token, input)
+  });
+}
+
+export function useConfirmSolanaWalletPayment(token: string) {
+  return useMutation({
+    mutationFn: (input: { transferId: string; signature: string }) =>
+      confirmSolanaWalletPayment(token, input.transferId, input.signature)
   });
 }

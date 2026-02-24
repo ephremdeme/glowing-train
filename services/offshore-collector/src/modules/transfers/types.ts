@@ -41,6 +41,8 @@ export interface TransferRecord {
   createdAt: Date;
 }
 
+export type DepositRouteKind = 'address_route' | 'solana_program_pay';
+
 export interface DepositRouteRecord {
   routeId: string;
   transferId: string;
@@ -48,6 +50,8 @@ export interface DepositRouteRecord {
   token: SupportedToken;
   depositAddress: string;
   depositMemo: string | null;
+  routeKind: DepositRouteKind;
+  referenceHash: string | null;
   status: 'active' | 'retired';
   createdAt: Date;
 }
@@ -69,6 +73,10 @@ export interface TransferRepositoryPort {
   findQuoteById(quoteId: string): Promise<QuoteSnapshot | null>;
   findReceiverKycProfile(receiverId: string): Promise<ReceiverKycProfileSnapshot | null>;
   findIdempotency(key: string): Promise<IdempotencyRecord | null>;
+  findTransferWithRouteById(transferId: string): Promise<{
+    transfer: TransferRecord;
+    depositRoute: DepositRouteRecord;
+  } | null>;
   persistTransferWithRoute(params: {
     transfer: Omit<TransferRecord, 'createdAt'>;
     route: Omit<DepositRouteRecord, 'createdAt'>;

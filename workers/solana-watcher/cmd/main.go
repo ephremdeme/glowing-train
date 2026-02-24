@@ -15,8 +15,11 @@ import (
 
 const (
 	// Keep defaults aligned with apps/web/config/devnet.json.
+	defaultDevnetProgramID = "5i3vNJHo7Jkpg549uHtsKvGiEy77SmS5NKDZGwCo8Fwp"
 	defaultDevnetUSDCMint = "6bDUveKHvCojQNt5VzsvLpScyQyDwScFVzw7mGTRP3Km"
 	defaultDevnetUSDTMint = "2Seg9ZgkCyyqdEgTkNcxG2kszh9S2GrAzcY6XjPhtGJn"
+	defaultDevnetUSDCTreasuryATA = "89sfbTtBCGX3zCCooh4zGoxaATFEvZNWdkNjDGzCeqBu"
+	defaultDevnetUSDTTreasuryATA = "FFn5nBjuZLj4WBxyzUvXTs185LxpAXt4wLSRqs6KabqR"
 )
 
 func envOrDefault(name string, fallback string) string {
@@ -76,11 +79,16 @@ func main() {
 		RPCURL:     rpcURL,
 		HTTPClient: &http.Client{Timeout: 10 * time.Second},
 		RouteStore: routeStore,
+		ProgramID:  envFirstOrDefault([]string{"SOLANA_PROGRAM_ID", "NEXT_PUBLIC_SOLANA_PROGRAM_ID"}, defaultDevnetProgramID),
 		Chain:      "solana",
 		Limit:      envIntOrDefault("SOLANA_SIGNATURE_LIMIT", 100),
 		TokenMints: map[string]string{
 			"USDC": envFirstOrDefault([]string{"SOLANA_USDC_MINT", "NEXT_PUBLIC_SOLANA_USDC_MINT"}, defaultDevnetUSDCMint),
 			"USDT": envFirstOrDefault([]string{"SOLANA_USDT_MINT", "NEXT_PUBLIC_SOLANA_USDT_MINT"}, defaultDevnetUSDTMint),
+		},
+		TreasuryATAs: map[string]string{
+			"USDC": envFirstOrDefault([]string{"SOLANA_USDC_TREASURY_ATA", "NEXT_PUBLIC_SOLANA_USDC_TREASURY_ATA"}, defaultDevnetUSDCTreasuryATA),
+			"USDT": envFirstOrDefault([]string{"SOLANA_USDT_TREASURY_ATA", "NEXT_PUBLIC_SOLANA_USDT_TREASURY_ATA"}, defaultDevnetUSDTTreasuryATA),
 		},
 	}
 

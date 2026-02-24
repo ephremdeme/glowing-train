@@ -32,7 +32,9 @@ function computeRequestHash(input: Omit<CreateTransferInput, 'idempotencyKey'>):
 const defaultStrategy: DepositAddressStrategy = {
   generateAddress: () => ({
     depositAddress: `dep_${randomUUID().replaceAll('-', '')}`,
-    depositMemo: null
+    depositMemo: null,
+    routeKind: 'address_route',
+    referenceHash: null
   })
 };
 
@@ -105,6 +107,7 @@ export class TransferService {
       route: (() => {
         const addr = this.depositAddressStrategy.generateAddress({
           chain: quote.chain,
+          token: quote.token,
           transferId
         });
         return {
@@ -114,6 +117,8 @@ export class TransferService {
           token: quote.token,
           depositAddress: addr.depositAddress,
           depositMemo: addr.depositMemo,
+          routeKind: addr.routeKind,
+          referenceHash: addr.referenceHash,
           status: 'active' as const
         };
       })()

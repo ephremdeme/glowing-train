@@ -16,6 +16,10 @@ func (r resolverStub) FindTransferByRoute(_ context.Context, _ string, _ string,
 	return r.match, r.found, r.err
 }
 
+func (r resolverStub) FindTransferBySolanaPayment(_ context.Context, _ string, _ string) (RouteMatch, bool, error) {
+	return r.match, r.found, r.err
+}
+
 type publisherStub struct {
 	err        error
 	calledWith []FundingConfirmedEvent
@@ -56,6 +60,9 @@ func TestWatcher_PublishesWhenFinalizedAndRouteFound(t *testing.T) {
 	if len(pub.calledWith) != 1 {
 		t.Fatalf("expected one event published")
 	}
+	if pub.calledWith[0].TransferID != "tr_123" {
+		t.Fatalf("expected transfer id to be propagated")
+	}
 }
 
 func TestWatcher_ReturnsRouteNotFound(t *testing.T) {
@@ -78,5 +85,39 @@ func TestWatcher_PropagatesPublisherError(t *testing.T) {
 	_, err := w.ProcessCandidate(context.Background(), FundingCandidate{Chain: "solana", Token: "USDC", TxHash: "sig_fail", Finalized: true})
 	if err == nil {
 		t.Fatalf("expected error")
+	}
+}
+
+func TestWatcher_ResolvesSolanaPaymentByReferenceHash(t *testing.T) {
+	pub := &publisherStub{}
+	w := Watcher{
+		Chain: "solana",
+		Resolver: resolverStub{
+			found: true,
+			match: RouteMatch{TransferID: "tr_sol_1", DepositAddress: "treasury_ata"},
+		},
+		Publisher: pub,
+	}
+
+	result, err := w.ProcessCandidate(context.Background(), FundingCandidate{
+		Chain:         "solana",
+		Token:         "USDC",
+		TxHash:        "sig_sol",
+		LogIndex:      3,
+		ReferenceHash: "abc123",
+		AmountUSD:     25,
+		Finalized:     true,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result != ProcessConfirmed {
+		t.Fatalf("expected confirmed, got %s", result)
+	}
+	if len(pub.calledWith) != 1 {
+		t.Fatalf("expected one event published")
+	}
+	if pub.calledWith[0].DepositAddress != "treasury_ata" {
+		t.Fatalf("expected resolved deposit address")
 	}
 }

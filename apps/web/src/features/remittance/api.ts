@@ -4,6 +4,7 @@ import type {
   QuoteSummary,
   RecipientDetail,
   RecipientSummary,
+  SolanaPaymentConfirmationPayload,
   TransferDetailPayload,
   TransferSummary,
   UiTransferStatus
@@ -158,6 +159,25 @@ export async function fetchTransferStatusDetail(token: string, transferId: strin
     `/api/client/transfers/${transferId}`,
     { cache: 'no-store' },
     'Unable to load transfer status.',
+    { token }
+  );
+}
+
+export async function confirmSolanaWalletPayment(
+  token: string,
+  transferId: string,
+  signature: string
+): Promise<SolanaPaymentConfirmationPayload> {
+  return requestJson<SolanaPaymentConfirmationPayload>(
+    `/api/client/transfers/${transferId}/solana-payment`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({ signature })
+    },
+    'Could not verify Solana payment.',
     { token }
   );
 }

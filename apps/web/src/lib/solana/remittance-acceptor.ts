@@ -1,7 +1,18 @@
 import { AnchorProvider, BN, Program, type Idl } from '@coral-xyz/anchor';
 import type { WalletContextState } from '@solana/wallet-adapter-react';
-import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
-import { PublicKey, SystemProgram, type Connection, type Transaction, type VersionedTransaction } from '@solana/web3.js';
+import {
+  TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountInstruction,
+  getAssociatedTokenAddressSync
+} from '@solana/spl-token';
+import {
+  PublicKey,
+  SendTransactionError,
+  SystemProgram,
+  type Connection,
+  type Transaction,
+  type VersionedTransaction
+} from '@solana/web3.js';
 import remittanceAcceptorIdlJson from '../../../config/remittance_acceptor.json';
 import { getMintConfig, getRemittanceAcceptorConfig, type SupportedToken } from '@/lib/solana/remittance-config';
 import { getSolanaExplorerTxUrl } from '@/lib/wallet/solana';
@@ -132,13 +143,34 @@ function extractAnchorErrorCode(error: unknown): string | null {
   return null;
 }
 
-export function mapRemittanceProgramError(error: unknown): string {
+function logsContainInsufficientFunds(logs: string[] | null | undefined): boolean {
+  if (!logs?.length) return false;
+  return logs.some((line) => /insufficient funds/i.test(line));
+}
+
+async function readSendTransactionLogs(error: SendTransactionError, connection: Connection): Promise<string[] | null> {
+  try {
+    const logs = await error.getLogs(connection);
+    return Array.isArray(logs) ? logs : null;
+  } catch {
+    return null;
+  }
+}
+
+export function mapRemittanceProgramError(error: unknown, logs?: string[] | null): string {
+  if (logsContainInsufficientFunds(logs)) {
+    return 'Insufficient token balance for this Solana payment amount.';
+  }
+
   const code = extractAnchorErrorCode(error);
   if (code && ERROR_MESSAGES[code]) {
     return ERROR_MESSAGES[code];
   }
 
   const message = error instanceof Error ? error.message : null;
+  if (message && /insufficient funds/i.test(message)) {
+    return 'Insufficient token balance for this Solana payment amount.';
+  }
   return message ? `Solana payment failed: ${message}` : 'Solana payment failed due to an unexpected error.';
 }
 
@@ -191,9 +223,11 @@ export async function submitPayTransaction(input: SubmitPayTransactionInput): Pr
 
   const payer = wallet.publicKey;
   const payerTokenAccount = getAssociatedTokenAddressSync(mintConfig.mint, payer, false);
+  const payerTokenAccountInfo = await connection.getAccountInfo(payerTokenAccount, 'confirmed');
+  const shouldCreatePayerAta = payerTokenAccountInfo == null;
 
   try {
-    const signature = await (program.methods as unknown as {
+    const methodBuilder = (program.methods as unknown as {
       pay: (paymentId: BN, amount: BN, externalRefHash: number[]) => {
         accounts: (accounts: {
           payer: PublicKey;
@@ -204,13 +238,12 @@ export async function submitPayTransaction(input: SubmitPayTransactionInput): Pr
           mint: PublicKey;
           tokenProgram: PublicKey;
           systemProgram: PublicKey;
-        }) => {
-          rpc: () => Promise<string>;
-        };
+        }) => { rpc: () => Promise<string> };
       };
     })
-      .pay(new BN(paymentId.toString()), new BN(amountBaseUnits.toString()), Array.from(externalRefHash))
-      .accounts({
+      .pay(new BN(paymentId.toString()), new BN(amountBaseUnits.toString()), Array.from(externalRefHash));
+
+    let request = methodBuilder.accounts({
         payer,
         config: configPda,
         payment: paymentPda,
@@ -219,8 +252,20 @@ export async function submitPayTransaction(input: SubmitPayTransactionInput): Pr
         mint: mintConfig.mint,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId
-      })
-      .rpc();
+      }) as { rpc: () => Promise<string>; preInstructions?: (instructions: import('@solana/web3.js').TransactionInstruction[]) => { rpc: () => Promise<string> } };
+
+    if (shouldCreatePayerAta && request.preInstructions) {
+      request = request.preInstructions([
+        createAssociatedTokenAccountInstruction(
+          payer,
+          payerTokenAccount,
+          payer,
+          mintConfig.mint
+        )
+      ]);
+    }
+
+    const signature = await request.rpc();
 
     return {
       signature,
@@ -228,6 +273,10 @@ export async function submitPayTransaction(input: SubmitPayTransactionInput): Pr
       paymentId: paymentId.toString()
     };
   } catch (error) {
+    if (error instanceof SendTransactionError) {
+      const logs = await readSendTransactionLogs(error, connection);
+      throw new Error(mapRemittanceProgramError(error, logs));
+    }
     throw new Error(mapRemittanceProgramError(error));
   }
 }

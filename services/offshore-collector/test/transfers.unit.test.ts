@@ -35,6 +35,10 @@ class InMemoryTransferRepository implements TransferRepositoryPort {
     return this.idempotency.get(key) ?? null;
   }
 
+  async findTransferWithRouteById(): Promise<null> {
+    return null;
+  }
+
   async persistTransferWithRoute(): Promise<TransferCreationResult> {
     const created: TransferCreationResult = {
       transfer: {
@@ -58,6 +62,8 @@ class InMemoryTransferRepository implements TransferRepositoryPort {
         token: 'USDC',
         depositAddress: 'dep_fake',
         depositMemo: null,
+        routeKind: 'address_route',
+        referenceHash: null,
         status: 'active',
         createdAt: new Date('2026-02-12T00:00:00.000Z')
       }
@@ -82,7 +88,6 @@ class InMemoryTransferRepository implements TransferRepositoryPort {
       expiresAt: new Date(params.now.getTime() + 24 * 3600 * 1000)
     });
   }
-
 }
 
 function buildValidInput(): CreateTransferInput {

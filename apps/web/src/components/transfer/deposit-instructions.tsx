@@ -16,8 +16,8 @@ import { WalletConnectPanel } from '@/components/wallet/wallet-connect-panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useConfirmSolanaWalletPayment } from '@/features/remittance/hooks';
 import { getMintConfig } from '@/lib/solana/remittance-config';
 import { getWalletDeepLinkPresets } from '@/lib/wallet-deeplinks';
 import {
@@ -25,11 +25,28 @@ import {
   type SubmitPayTransactionResult
 } from '@/lib/solana/remittance-acceptor';
 import type { QuoteSummary, TransferSummary } from '@/lib/contracts';
+import { readAccessToken } from '@/lib/session';
 import { walletMode } from '@/lib/wallet/evm';
 
 interface DepositInstructionsProps {
   transfer: TransferSummary;
   quote?: QuoteSummary;
+}
+
+const SOLANA_SIG_KEY_PREFIX = 'cryptopay:web:solana-last-signature:';
+
+function solanaSignatureKey(transferId: string): string {
+  return `${SOLANA_SIG_KEY_PREFIX}${transferId}`;
+}
+
+function readStoredSolanaSignature(transferId: string): string | null {
+  if (typeof window === 'undefined') return null;
+  return window.sessionStorage.getItem(solanaSignatureKey(transferId));
+}
+
+function writeStoredSolanaSignature(transferId: string, signature: string): void {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.setItem(solanaSignatureKey(transferId), signature);
 }
 
 function CopyRow({ label, value }: { label: string; value: string }) {
@@ -74,15 +91,21 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
   const { quote } = transfer;
   const { connection } = useConnection();
   const wallet = useWallet();
-  const [externalReference, setExternalReference] = useState(transfer.transferId);
   const [submitting, setSubmitting] = useState(false);
   const [solanaError, setSolanaError] = useState<string | null>(null);
   const [solanaResult, setSolanaResult] = useState<SubmitPayTransactionResult | null>(null);
+  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
+  const [verifyResult, setVerifyResult] = useState<'idle' | 'verifying' | 'confirmed' | 'duplicate' | 'pending' | 'failed'>('idle');
+  const [lastSignature, setLastSignature] = useState<string | null>(() => readStoredSolanaSignature(transfer.transferId));
+  const token = readAccessToken() ?? '';
+  const confirmPaymentMutation = useConfirmSolanaWalletPayment(token);
 
   useEffect(() => {
-    setExternalReference(transfer.transferId);
     setSolanaError(null);
     setSolanaResult(null);
+    setVerifyMessage(null);
+    setVerifyResult('idle');
+    setLastSignature(readStoredSolanaSignature(transfer.transferId));
   }, [transfer.transferId]);
 
   const mintConfigValidation = useMemo(() => {
@@ -101,16 +124,13 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
       return { valid: false, message };
     }
   }, [quote.chain, quote.token]);
+  const canRetryVerification = Boolean(lastSignature) && verifyResult !== 'confirmed' && verifyResult !== 'duplicate';
 
   async function submitSolanaPayment(): Promise<void> {
-    const reference = externalReference.trim();
-    if (!reference) {
-      setSolanaError('External reference is required.');
-      return;
-    }
-
     setSubmitting(true);
     setSolanaError(null);
+    setVerifyMessage(null);
+    setVerifyResult('idle');
 
     try {
       const result = await submitPayTransaction({
@@ -119,14 +139,53 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
         token: quote.token,
         amountDecimal: String(quote.sendAmountUsd),
         transferId: transfer.transferId,
-        externalReference: reference
+        externalReference: transfer.transferId
       });
       setSolanaResult(result);
+      writeStoredSolanaSignature(transfer.transferId, result.signature);
+      setLastSignature(result.signature);
+      await verifyBackendConfirmation(result.signature);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Solana payment failed.';
       setSolanaError(message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function verifyBackendConfirmation(signature: string): Promise<void> {
+    if (!token) {
+      setVerifyResult('failed');
+      setVerifyMessage('Session expired. Sign in again.');
+      return;
+    }
+
+    setVerifyResult('verifying');
+    setVerifyMessage('Verifying on backend...');
+
+    try {
+      const confirmation = await confirmPaymentMutation.mutateAsync({
+        transferId: transfer.transferId,
+        signature
+      });
+
+      if (confirmation.result === 'confirmed') {
+        setVerifyResult('confirmed');
+        setVerifyMessage('Payment verified. Transfer funding was confirmed.');
+        return;
+      }
+
+      if (confirmation.result === 'duplicate') {
+        setVerifyResult('duplicate');
+        setVerifyMessage('This payment was already recorded for the transfer.');
+        return;
+      }
+
+      setVerifyResult('pending');
+      setVerifyMessage('Payment submitted. Backend verification is pending, retry shortly.');
+    } catch (error) {
+      setVerifyResult('failed');
+      setVerifyMessage(error instanceof Error ? error.message : 'Could not verify Solana payment.');
     }
   }
 
@@ -138,20 +197,12 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
           Sign a wallet transaction to call the on-chain `pay(...)` instruction.
         </p>
         <p className="text-xs text-muted-foreground">
-          Uses the configured remittance program for the selected Solana cluster.
+          Wallet pay uses the remittance program and treasury account. The backend verifies your payment using the transaction signature.
         </p>
       </div>
 
-      <div className="grid gap-2">
-        <label htmlFor="external-reference" className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-          External reference
-        </label>
-        <Input
-          id="external-reference"
-          value={externalReference}
-          onChange={(event) => setExternalReference(event.target.value)}
-          placeholder="Enter external reference"
-        />
+      <div className="text-xs text-muted-foreground">
+        Reference is fixed to <code className="font-mono">{transfer.transferId}</code> for this transfer.
       </div>
 
       {!wallet.connected ? <WalletConnectPanel chain="solana" /> : null}
@@ -183,6 +234,23 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
         </Alert>
       ) : null}
 
+      {verifyMessage ? (
+        <Alert variant={verifyResult === 'failed' ? 'destructive' : 'default'}>
+          <AlertTitle>
+            {verifyResult === 'verifying'
+              ? 'Verifying payment'
+              : verifyResult === 'confirmed'
+                ? 'Payment confirmed'
+                : verifyResult === 'duplicate'
+                  ? 'Payment already recorded'
+                  : verifyResult === 'pending'
+                    ? 'Verification pending'
+                    : 'Verification failed'}
+          </AlertTitle>
+          <AlertDescription>{verifyMessage}</AlertDescription>
+        </Alert>
+      ) : null}
+
       <Button
         onClick={submitSolanaPayment}
         disabled={
@@ -190,7 +258,6 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
           Boolean(solanaResult) ||
           !wallet.connected ||
           !wallet.publicKey ||
-          !externalReference.trim() ||
           !mintConfigValidation.valid
         }
       >
@@ -203,18 +270,35 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
           'Pay with Solana wallet'
         )}
       </Button>
+
+      {canRetryVerification ? (
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (lastSignature) {
+              void verifyBackendConfirmation(lastSignature);
+            }
+          }}
+          disabled={verifyResult === 'verifying' || !token}
+        >
+          {verifyResult === 'verifying' ? 'Verifying...' : 'Retry backend verification'}
+        </Button>
+      ) : null}
     </div>
   );
 }
 
 export function DepositInstructions({ transfer }: DepositInstructionsProps) {
   const { quote } = transfer;
-  const walletPresets = getWalletDeepLinkPresets({
-    chain: quote.chain,
-    token: quote.token,
-    to: transfer.depositAddress,
-    amountUsd: quote.sendAmountUsd
-  });
+  const walletPresets =
+    quote.chain === 'base'
+      ? getWalletDeepLinkPresets({
+          chain: quote.chain,
+          token: quote.token,
+          to: transfer.depositAddress,
+          amountUsd: quote.sendAmountUsd
+        })
+      : [];
 
   return (
     <Card className="overflow-hidden border-primary/20">
@@ -229,7 +313,9 @@ export function DepositInstructions({ transfer }: DepositInstructionsProps) {
           </Badge>
         </div>
         <CardDescription>
-          Send the exact amount to the deposit address below. Funds are settled on-chain and converted to ETB.
+          {quote.chain === 'base'
+            ? 'Send the exact amount to the transfer deposit address below. Funds are settled on-chain and converted to ETB.'
+            : 'Use your Solana wallet to submit the remittance-program payment for this transfer. The backend verifies the submitted transaction signature.'}
         </CardDescription>
       </CardHeader>
 
@@ -246,10 +332,11 @@ export function DepositInstructions({ transfer }: DepositInstructionsProps) {
         </div>
 
         {/* Deposit address */}
-        <CopyRow label="Deposit address" value={transfer.depositAddress} />
+        <CopyRow label={quote.chain === 'base' ? 'Deposit address' : 'Treasury token account'} value={transfer.depositAddress} />
         <p className="text-xs text-muted-foreground">
-          This deposit route is generated by the offshore collector for this transfer.
-          {quote.chain === 'solana' ? ' The Solana pay panel below is a separate on-chain program flow.' : null}
+          {quote.chain === 'base'
+            ? 'This deposit route is generated by the offshore collector for this transfer.'
+            : 'This treasury token account is managed by the offshore collector. Solana funding is recognized from the wallet-pay transaction signature and transfer reference, not by sending directly to a per-transfer address.'}
         </p>
 
         {/* Network + token */}
@@ -268,8 +355,15 @@ export function DepositInstructions({ transfer }: DepositInstructionsProps) {
           <ShieldAlert className="h-4 w-4 text-secondary" />
           <AlertTitle className="text-secondary">Safety check</AlertTitle>
           <AlertDescription className="text-sm text-muted-foreground">
-            Only send <strong>{quote.token}</strong> on the{' '}
-            <strong>{quote.chain}</strong> network. Sending the wrong token or using the wrong chain may result in lost funds.
+            {quote.chain === 'base' ? (
+              <>
+                Only send <strong>{quote.token}</strong> on the <strong>{quote.chain}</strong> network. Sending the wrong token or using the wrong chain may result in lost funds.
+              </>
+            ) : (
+              <>
+                Use the Solana wallet pay button below with the connected wallet on the correct cluster. The selected token must match <strong>{quote.token}</strong>.
+              </>
+            )}
           </AlertDescription>
         </Alert>
 
