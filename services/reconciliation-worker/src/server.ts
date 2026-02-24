@@ -4,6 +4,7 @@ import { runServiceAndExit } from '@cryptopay/http';
 import { runKeyVerification, runRetentionJob } from '@cryptopay/ops-jobs';
 import { log } from '@cryptopay/observability';
 import { buildReconciliationApp } from './app.js';
+import { PayoutOutboxDispatcher } from './modules/outbox/payout-dispatcher.js';
 import { ReconciliationService } from './modules/reconcile/index.js';
 
 function safeIntervalMs(input: string | undefined, fallback: number): number {
@@ -26,6 +27,13 @@ runServiceAndExit({
     const reconciliationIntervalMs = safeIntervalMs(String(env.RECONCILIATION_INTERVAL_MS), 5 * 60 * 1000);
     const retentionIntervalMs = safeIntervalMs(String(env.RETENTION_JOB_INTERVAL_MS), 60 * 60 * 1000);
     const keyVerificationIntervalMs = safeIntervalMs(String(env.KEY_VERIFICATION_INTERVAL_MS), 15 * 60 * 1000);
+    const payoutOutboxIntervalMs = safeIntervalMs(String(env.PAYOUT_OUTBOX_INTERVAL_MS), 5_000);
+    const payoutOutboxDispatcher = new PayoutOutboxDispatcher({
+      payoutOrchestratorUrl: env.PAYOUT_ORCHESTRATOR_URL,
+      batchSize: env.PAYOUT_OUTBOX_BATCH_SIZE,
+      maxAttempts: env.PAYOUT_OUTBOX_MAX_ATTEMPTS,
+      retryBaseMs: env.PAYOUT_OUTBOX_RETRY_BASE_MS
+    });
 
     const timers: NodeJS.Timeout[] = [];
     if (env.RECONCILIATION_SCHEDULER_ENABLED) {
@@ -77,6 +85,25 @@ runServiceAndExit({
               });
             });
         }, keyVerificationIntervalMs)
+      );
+    }
+
+    if (env.PAYOUT_OUTBOX_SCHEDULER_ENABLED) {
+      timers.push(
+        setInterval(() => {
+          void payoutOutboxDispatcher
+            .runBatch()
+            .then((result) => {
+              if (result.processed || result.retried || result.deadLettered) {
+                log('info', 'payout outbox dispatch batch completed', result);
+              }
+            })
+            .catch((error) => {
+              log('error', 'payout outbox dispatch batch failed', {
+                error: (error as Error).message
+              });
+            });
+        }, payoutOutboxIntervalMs)
       );
     }
 

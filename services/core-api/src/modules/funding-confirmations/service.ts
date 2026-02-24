@@ -5,11 +5,13 @@ export class FundingConfirmationService {
   constructor(private readonly repository: FundingConfirmationRepository) {}
 
   async processFundingConfirmed(event: FundingConfirmedInput): Promise<FundingResult> {
-    const route = await this.repository.findRouteMatch({
-      chain: event.chain,
-      token: event.token,
-      depositAddress: event.depositAddress
-    });
+    const route = event.transferId
+      ? await this.repository.findTransferMatchById(event.transferId)
+      : await this.repository.findRouteMatch({
+          chain: event.chain,
+          token: event.token,
+          depositAddress: event.depositAddress
+        });
 
     if (!route) {
       return { status: 'route_not_found' };

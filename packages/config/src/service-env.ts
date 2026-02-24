@@ -79,14 +79,20 @@ const payoutOrchestratorSchema = jwtSchema
   });
 
 const reconciliationWorkerSchema = jwtSchema.extend({
+  PAYOUT_ORCHESTRATOR_URL: z.string().url().default('http://localhost:3003'),
   RECONCILIATION_LOOKBACK_DAYS: z.coerce.number().int().positive().default(14),
   RECONCILIATION_PAGE_SIZE: z.coerce.number().int().positive().max(2_000).default(500),
   RECONCILIATION_INTERVAL_MS: z.coerce.number().int().positive().default(5 * 60 * 1000),
   RETENTION_JOB_INTERVAL_MS: z.coerce.number().int().positive().default(60 * 60 * 1000),
   KEY_VERIFICATION_INTERVAL_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+  PAYOUT_OUTBOX_INTERVAL_MS: z.coerce.number().int().positive().default(5_000),
+  PAYOUT_OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(100).default(10),
+  PAYOUT_OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().positive().max(100).default(12),
+  PAYOUT_OUTBOX_RETRY_BASE_MS: z.coerce.number().int().positive().default(5_000),
   RECONCILIATION_SCHEDULER_ENABLED: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
   RETENTION_SCHEDULER_ENABLED: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
   KEY_VERIFICATION_SCHEDULER_ENABLED: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
+  PAYOUT_OUTBOX_SCHEDULER_ENABLED: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
   RECONCILIATION_SCHEDULED_OUTPUT_PATH: optionalString
 });
 

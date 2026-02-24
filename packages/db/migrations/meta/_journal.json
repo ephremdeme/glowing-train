@@ -85,6 +85,20 @@
       "when": 1700000000012,
       "tag": "0012_perf_indexes_and_transfer_updated_at",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1700000000013,
+      "tag": "0013_split_deposit_route_modes_for_solana_wallet_pay",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1700000000014,
+      "tag": "0014_add_funding_submission_and_outbox",
+      "breakpoints": true
     }
   ]
 }

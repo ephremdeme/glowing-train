@@ -11,9 +11,17 @@ export function registerWatcherRoutes(
     watcherCheckpointSchema: { safeParse: (value: unknown) => { success: true; data: { chain: string; cursor: string } } | { success: false; error: { issues: Array<{ message?: string }> } } };
     watcherDedupeSchema: { safeParse: (value: unknown) => { success: true; data: { eventKey: string } } | { success: false; error: { issues: Array<{ message?: string }> } } };
     watcherRouteResolveSchema: { safeParse: (value: unknown) => { success: true; data: { chain: string; token: string; depositAddress: string } } | { success: false; error: { issues: Array<{ message?: string }> } } };
+    watcherSolanaPaymentResolveSchema: { safeParse: (value: unknown) => { success: true; data: { token: string; referenceHash: string } } | { success: false; error: { issues: Array<{ message?: string }> } } };
   }
 ): void {
-  const { toAuthClaims, assertScope, watcherCheckpointSchema, watcherDedupeSchema, watcherRouteResolveSchema } = deps;
+  const {
+    toAuthClaims,
+    assertScope,
+    watcherCheckpointSchema,
+    watcherDedupeSchema,
+    watcherRouteResolveSchema,
+    watcherSolanaPaymentResolveSchema
+  } = deps;
 app.get('/internal/v1/watchers/routes', async (request, reply) => {
   try {
     const claims = toAuthClaims(request);
@@ -46,6 +54,7 @@ app.get('/internal/v1/watchers/routes', async (request, reply) => {
     from deposit_routes
     where chain = $1
       and status = 'active'
+      and coalesce(route_kind, 'address_route') = 'address_route'
     `,
     [chain]
   );
@@ -218,12 +227,13 @@ app.post('/internal/v1/watchers/resolve-route', async (request, reply) => {
 
   const row = await query(
     `
-    select t.transfer_id
+    select t.transfer_id, dr.deposit_address
     from deposit_routes dr
     join transfers t on t.transfer_id = dr.transfer_id
     where dr.chain = $1
       and dr.token = $2
       and dr.deposit_address = $3
+      and coalesce(dr.route_kind, 'address_route') = 'address_route'
       and dr.status = 'active'
     limit 1
     `,
@@ -237,9 +247,64 @@ app.post('/internal/v1/watchers/resolve-route', async (request, reply) => {
   }
 
   const transferId = (row.rows[0] as { transfer_id: string }).transfer_id;
+  const depositAddress = (row.rows[0] as { deposit_address?: string }).deposit_address ?? null;
   return reply.send({
     found: true,
-    transferId
+    transferId,
+    depositAddress
+  });
+});
+
+app.post('/internal/v1/watchers/resolve-solana-payment', async (request, reply) => {
+  try {
+    const claims = toAuthClaims(request);
+    assertScope(claims, 'watchers:internal');
+  } catch (error) {
+    return deny({
+      request,
+      reply,
+      code: 'FORBIDDEN',
+      message: (error as Error).message,
+      status: 403
+    });
+  }
+
+  const parsed = watcherSolanaPaymentResolveSchema.safeParse(request.body);
+  if (!parsed.success) {
+    return deny({
+      request,
+      reply,
+      code: 'INVALID_PAYLOAD',
+      message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
+      status: 400,
+      details: parsed.error.issues
+    });
+  }
+
+  const row = await query(
+    `
+    select t.transfer_id, dr.deposit_address as "depositAddress"
+    from deposit_routes dr
+    join transfers t on t.transfer_id = dr.transfer_id
+    where dr.chain = 'solana'
+      and dr.token = $1
+      and dr.reference_hash = $2
+      and dr.status = 'active'
+      and dr.route_kind = 'solana_program_pay'
+    limit 1
+    `,
+    [parsed.data.token, parsed.data.referenceHash.toLowerCase()]
+  );
+
+  const match = row.rows[0] as { transfer_id?: string; depositAddress?: string } | undefined;
+  if (!match?.transfer_id) {
+    return reply.send({ found: false });
+  }
+
+  return reply.send({
+    found: true,
+    transferId: match.transfer_id,
+    depositAddress: match.depositAddress ?? null
   });
 });
 }

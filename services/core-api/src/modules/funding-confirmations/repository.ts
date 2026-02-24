@@ -4,6 +4,20 @@ import type { FundingConfirmedInput, FundingResult, RouteMatch } from './types.j
 type Row = Record<string, unknown>;
 
 export class FundingConfirmationRepository {
+  async findTransferMatchById(transferId: string): Promise<RouteMatch | null> {
+    const result = await query('select transfer_id, status from transfers where transfer_id = $1 limit 1', [transferId]);
+
+    const row = result.rows[0] as Row | undefined;
+    if (!row) {
+      return null;
+    }
+
+    return {
+      transferId: row.transfer_id as string,
+      status: row.status as string
+    };
+  }
+
   async findRouteMatch(params: { chain: string; token: string; depositAddress: string }): Promise<RouteMatch | null> {
     const result = await query(
       `
@@ -13,6 +27,7 @@ export class FundingConfirmationRepository {
       where dr.chain = $1
         and dr.token = $2
         and dr.deposit_address = $3
+        and coalesce(dr.route_kind, 'address_route') = 'address_route'
         and dr.status = 'active'
       limit 1
       `,
@@ -32,7 +47,9 @@ export class FundingConfirmationRepository {
 
   async applyFundingConfirmation(params: { match: RouteMatch; event: FundingConfirmedInput }): Promise<FundingResult> {
     return withTransaction(async (tx) => {
-      const transferState = await tx.query('select status from transfers where transfer_id = $1 for update', [params.match.transferId]);
+      const transferState = await tx.query<{
+        status: string;
+      }>('select status from transfers where transfer_id = $1 for update', [params.match.transferId]);
       const status = transferState.rows[0]?.status as string | undefined;
 
       if (!status) {
@@ -84,6 +101,17 @@ export class FundingConfirmationRepository {
 
       await tx.query(
         `
+        update funding_submission_attempt
+        set status = 'confirmed',
+            updated_at = now()
+        where transfer_id = $1
+          and status = 'submitted'
+        `,
+        [params.match.transferId]
+      );
+
+      await tx.query(
+        `
         insert into transfer_transition (transfer_id, from_state, to_state, metadata)
         values ($1, $2, $3, $4)
         `,
@@ -95,8 +123,71 @@ export class FundingConfirmationRepository {
             chain: params.event.chain,
             txHash: params.event.txHash,
             logIndex: params.event.logIndex,
-            eventId: params.event.eventId
+            eventId: params.event.eventId,
+            ...(params.event.metadata ?? {})
           }
+        ]
+      );
+
+      const payoutContext = await tx.query<{
+        amount_etb: string;
+        bank_code: string | null;
+        bank_account_number: string | null;
+      }>(
+        `
+        select
+          q.recipient_amount_etb::text as amount_etb,
+          r.bank_code,
+          r.bank_account_number
+        from transfers t
+        join quotes q on q.quote_id = t.quote_id
+        left join recipient r on r.recipient_id = t.receiver_id
+        where t.transfer_id = $1
+        limit 1
+        `,
+        [params.match.transferId]
+      );
+
+      const payoutRow = payoutContext.rows[0];
+      const recipientAccountRef =
+        payoutRow?.bank_code && payoutRow?.bank_account_number
+          ? `${payoutRow.bank_code}-${payoutRow.bank_account_number}`
+          : null;
+
+      const amountEtb = payoutRow?.amount_etb ? Number(payoutRow.amount_etb) : null;
+
+      await tx.query(
+        `
+        insert into outbox_event (
+          event_id,
+          topic,
+          aggregate_type,
+          aggregate_id,
+          payload,
+          status,
+          attempt_count,
+          next_attempt_at
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8)
+        on conflict (event_id) do nothing
+        `,
+        [
+          `outbox_transfer_funding_confirmed_${params.match.transferId}`,
+          'transfer.funding_confirmed',
+          'transfer',
+          params.match.transferId,
+          {
+            transferId: params.match.transferId,
+            method: 'bank',
+            recipientAccountRef,
+            amountEtb,
+            idempotencyKey: `auto-payout:${params.match.transferId}`,
+            fundedEventId: params.event.eventId,
+            chain: params.event.chain,
+            token: params.event.token
+          },
+          'pending',
+          0,
+          new Date()
         ]
       );
 
@@ -116,7 +207,8 @@ export class FundingConfirmationRepository {
             chain: params.event.chain,
             token: params.event.token,
             txHash: params.event.txHash,
-            amountUsd: params.event.amountUsd
+            amountUsd: params.event.amountUsd,
+            ...(params.event.metadata ?? {})
           }
         ]
       );

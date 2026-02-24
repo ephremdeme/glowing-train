@@ -148,4 +148,66 @@ describe('BFF -> core-api contracts', () => {
     expect(url).toBe('http://core-api.test/v1/transfers/tr_2');
     expect(init.method).toBe('GET');
   });
+
+  it('maps FUNDING_CONFIRMED to SETTLED even before payout starts', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      jsonResponse({
+        transfer: {
+          transferId: 'tr_3',
+          status: 'FUNDING_CONFIRMED',
+          createdAt: '2026-02-20T12:00:00.000Z'
+        },
+        payout: null
+      })
+    );
+
+    const request = new Request('http://localhost/api/client/transfers/tr_3', {
+      method: 'GET',
+      headers: {
+        authorization: 'Bearer customer.jwt'
+      }
+    });
+
+    const response = await transferDetailGet(request, {
+      params: Promise.resolve({ transferId: 'tr_3' })
+    });
+
+    const payload = await response.json();
+    expect(response.status).toBe(200);
+    expect(payload.backendStatus).toBe('FUNDING_CONFIRMED');
+    expect(payload.uiStatus).toBe('SETTLED');
+  });
+
+  it('maps awaiting funding with pending wallet submission to CONFIRMING', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      jsonResponse({
+        transfer: {
+          transferId: 'tr_4',
+          status: 'AWAITING_FUNDING',
+          createdAt: '2026-02-20T12:00:00.000Z'
+        },
+        payout: null,
+        pendingFundingSubmission: {
+          txHash: 'solana_tx_hash',
+          submittedAt: '2026-02-20T12:01:00.000Z'
+        }
+      })
+    );
+
+    const request = new Request('http://localhost/api/client/transfers/tr_4', {
+      method: 'GET',
+      headers: {
+        authorization: 'Bearer customer.jwt'
+      }
+    });
+
+    const response = await transferDetailGet(request, {
+      params: Promise.resolve({ transferId: 'tr_4' })
+    });
+
+    const payload = await response.json();
+    expect(response.status).toBe(200);
+    expect(payload.backendStatus).toBe('AWAITING_FUNDING');
+    expect(payload.uiStatus).toBe('CONFIRMING');
+  });
 });

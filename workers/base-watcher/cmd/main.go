@@ -69,7 +69,7 @@ func main() {
 
 	watcher := internal.Watcher{
 		Chain:            "base",
-		MinConfirmations: envIntOrDefault("BASE_MIN_CONFIRMATIONS", 2),
+		MinConfirmations: envIntOrDefault("BASE_MIN_CONFIRMATIONS", 3),
 		Resolver:         routeResolver,
 		Publisher: internal.CallbackPublisher{
 			Endpoint: callbackURL,

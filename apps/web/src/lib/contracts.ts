@@ -129,6 +129,14 @@ export interface TransferSummary {
   quote: QuoteSummary;
 }
 
+export interface SolanaPaymentConfirmationPayload {
+  result: 'confirmed' | 'duplicate' | 'pending_verification';
+  transferId: string;
+  txHash: string;
+  backendStatus: string;
+  uiStatus: UiTransferStatus;
+}
+
 export interface TransferHistoryItem {
   transferId: string;
   quoteId: string;
@@ -184,6 +192,10 @@ export interface TransferDetailPayload {
     status: string;
     providerReference: string | null;
     updatedAt: string;
+  } | null;
+  pendingFundingSubmission?: {
+    txHash: string;
+    submittedAt: string;
   } | null;
   transitions: Array<{
     fromState: string | null;

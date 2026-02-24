@@ -117,16 +117,20 @@ export const depositRoutes = pgTable(
     token: text('token').notNull(),
     depositAddress: text('deposit_address').notNull(),
     depositMemo: text('deposit_memo'),
+    routeKind: text('route_kind').notNull().default('address_route'),
+    referenceHash: text('reference_hash'),
     status: text('status').notNull().default('active'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
     unique('deposit_routes_transfer_unique').on(table.transferId),
-    uniqueIndex('idx_deposit_routes_chain_token_address').on(
+    index('idx_deposit_routes_chain_token_address_route_unique').on(
       table.chain,
       table.token,
       table.depositAddress
-    )
+    ),
+    index('idx_deposit_routes_chain_token_reference_route_unique').on(table.chain, table.token, table.referenceHash),
+    index('idx_deposit_routes_chain_kind_status').on(table.chain, table.routeKind, table.status)
   ]
 );
 
@@ -150,6 +154,51 @@ export const onchainFundingEvents = pgTable(
     unique('onchain_funding_event_transfer_unique').on(table.transferId),
     unique('onchain_funding_event_chain_tx_log_unique').on(table.chain, table.txHash, table.logIndex),
     index('idx_onchain_funding_event_transfer').on(table.transferId)
+  ]
+);
+
+export const fundingSubmissionAttempts = pgTable(
+  'funding_submission_attempt',
+  {
+    submissionId: text('submission_id').primaryKey(),
+    transferId: text('transfer_id')
+      .notNull()
+      .references(() => transfers.transferId, { onDelete: 'cascade' }),
+    chain: text('chain').notNull(),
+    txHash: text('tx_hash').notNull(),
+    status: text('status').notNull().default('submitted'),
+    observedConfirmations: integer('observed_confirmations').notNull().default(0),
+    metadata: jsonb('metadata'),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    unique('funding_submission_attempt_transfer_tx_unique').on(table.transferId, table.txHash),
+    index('idx_funding_submission_attempt_transfer_submitted').on(table.transferId, table.submittedAt),
+    index('idx_funding_submission_attempt_status_updated').on(table.status, table.updatedAt)
+  ]
+);
+
+export const outboxEvents = pgTable(
+  'outbox_event',
+  {
+    eventId: text('event_id').primaryKey(),
+    topic: text('topic').notNull(),
+    aggregateType: text('aggregate_type').notNull(),
+    aggregateId: text('aggregate_id').notNull(),
+    payload: jsonb('payload').notNull(),
+    status: text('status').notNull().default('pending'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    lastError: text('last_error'),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index('idx_outbox_event_status_next_attempt').on(table.status, table.nextAttemptAt),
+    index('idx_outbox_event_topic_status').on(table.topic, table.status),
+    index('idx_outbox_event_aggregate').on(table.aggregateType, table.aggregateId)
   ]
 );
 

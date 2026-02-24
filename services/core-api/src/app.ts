@@ -42,9 +42,11 @@ const fundingCallbackSchema = z.object({
   token: z.enum(['USDC', 'USDT']),
   txHash: z.string().min(1),
   logIndex: z.number().int().nonnegative(),
+  transferId: z.string().min(1).optional(),
   depositAddress: z.string().min(1),
   amountUsd: z.number().positive(),
-  confirmedAt: z.string().datetime()
+  confirmedAt: z.string().datetime(),
+  metadata: z.record(z.unknown()).optional()
 });
 
 const retryPayoutSchema = z.object({
@@ -84,6 +86,12 @@ const watcherRouteResolveSchema = z.object({
   depositAddress: z.string().min(1)
 });
 
+const watcherSolanaPaymentResolveSchema = z.object({
+  watcherName: z.string().min(1),
+  token: z.enum(['USDC', 'USDT']),
+  referenceHash: z.string().regex(/^[a-fA-F0-9]{64}$/)
+});
+
 const recipientCreateSchema = z.object({
   fullName: z.string().min(1),
   bankAccountName: z.string().min(1),
@@ -118,6 +126,10 @@ const senderKycWebhookSchema = z.object({
 const transferCreateSchema = z.object({
   quoteId: z.string().min(1),
   recipientId: z.string().min(1)
+});
+
+const transferSolanaPaymentSchema = z.object({
+  txHash: z.string().min(1)
 });
 
 const transferListQuerySchema = z.object({
@@ -288,7 +300,9 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     requiredIdempotencyKey,
     transferListQuerySchema,
     transferCreateSchema,
-    buildInternalServiceToken
+    transferSolanaPaymentSchema,
+    buildInternalServiceToken,
+    fundingService
   });
 
   registerWatcherRoutes(app, {
@@ -296,7 +310,8 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     assertScope,
     watcherCheckpointSchema,
     watcherDedupeSchema,
-    watcherRouteResolveSchema
+    watcherRouteResolveSchema,
+    watcherSolanaPaymentResolveSchema
   });
 
   registerQuoteApiRoutes(app, {

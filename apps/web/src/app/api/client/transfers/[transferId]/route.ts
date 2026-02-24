@@ -11,6 +11,10 @@ interface TransferDetailResponse {
   payout?: {
     status: string;
   } | null;
+  pendingFundingSubmission?: {
+    txHash: string;
+    submittedAt: string;
+  } | null;
 }
 
 export async function GET(
@@ -38,7 +42,11 @@ export async function GET(
     {
       ...payload,
       backendStatus: payload.transfer.status,
-      uiStatus: mapToUiStatus(payload.transfer.status, payload.payout?.status ?? null)
+      uiStatus: mapToUiStatus(
+        payload.transfer.status,
+        payload.payout?.status ?? null,
+        payload.pendingFundingSubmission ?? null
+      )
     },
     { status: upstream.status }
   );

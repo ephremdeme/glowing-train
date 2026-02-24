@@ -6,9 +6,11 @@ export interface FundingConfirmedInput {
   token: SupportedToken;
   txHash: string;
   logIndex: number;
+  transferId?: string;
   depositAddress: string;
   amountUsd: number;
   confirmedAt: Date;
+  metadata?: Record<string, unknown>;
 }
 
 export interface RouteMatch {

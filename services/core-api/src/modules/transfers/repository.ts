@@ -1,5 +1,6 @@
 import { getDb, schema } from '@cryptopay/db';
 import { and, asc, desc, eq } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 
 type TransferStatus = typeof schema.transfers.$inferSelect.status;
 
@@ -104,6 +105,71 @@ export class TransferRepository {
         and(eq(schema.depositRoutes.transferId, schema.transfers.transferId), eq(schema.depositRoutes.status, 'active'))
       )
       .where(and(eq(schema.transfers.transferId, params.transferId), eq(schema.transfers.senderId, params.senderId)))
+      .limit(1);
+
+    return rows[0] ?? null;
+  }
+
+  async recordFundingSubmissionAttempt(params: {
+    transferId: string;
+    chain: 'base' | 'solana';
+    txHash: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    await this.db
+      .insert(schema.fundingSubmissionAttempts)
+      .values({
+        submissionId: `fsub_${randomUUID()}`,
+        transferId: params.transferId,
+        chain: params.chain,
+        txHash: params.txHash,
+        status: 'submitted',
+        metadata: params.metadata ?? null
+      })
+      .onConflictDoUpdate({
+        target: [schema.fundingSubmissionAttempts.transferId, schema.fundingSubmissionAttempts.txHash],
+        set: {
+          status: 'submitted',
+          metadata: params.metadata ?? null,
+          updatedAt: new Date()
+        }
+      });
+  }
+
+  async markFundingSubmissionAttemptFailed(params: {
+    transferId: string;
+    txHash: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    await this.db
+      .update(schema.fundingSubmissionAttempts)
+      .set({
+        status: 'failed',
+        metadata: params.metadata ?? null,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(schema.fundingSubmissionAttempts.transferId, params.transferId),
+          eq(schema.fundingSubmissionAttempts.txHash, params.txHash)
+        )
+      );
+  }
+
+  async findLatestPendingFundingSubmission(transferId: string): Promise<{ txHash: string; submittedAt: Date } | null> {
+    const rows = await this.db
+      .select({
+        txHash: schema.fundingSubmissionAttempts.txHash,
+        submittedAt: schema.fundingSubmissionAttempts.submittedAt
+      })
+      .from(schema.fundingSubmissionAttempts)
+      .where(
+        and(
+          eq(schema.fundingSubmissionAttempts.transferId, transferId),
+          eq(schema.fundingSubmissionAttempts.status, 'submitted')
+        )
+      )
+      .orderBy(desc(schema.fundingSubmissionAttempts.submittedAt))
       .limit(1);
 
     return rows[0] ?? null;
