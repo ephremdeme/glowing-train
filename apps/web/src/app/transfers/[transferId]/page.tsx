@@ -7,7 +7,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, ExternalLink } from 'lucide-react';
 import { RouteGuard } from '@/components/route-guard';
 import { FlowProgress } from '@/components/flow-progress';
-import { StatusCelebrationScene } from '@/components/illustrations/status-celebration-scene';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -135,9 +134,6 @@ export default function TransferStatusPage() {
 
         {data ? (
           <>
-            {/* Status illustration */}
-            <StatusCelebrationScene status={data.uiStatus} className="h-[100px] md:h-[120px]" />
-
             {/* Flow progress timeline */}
             <Card>
               <CardHeader>

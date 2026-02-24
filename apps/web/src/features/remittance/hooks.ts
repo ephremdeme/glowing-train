@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QuoteSummary } from '@/lib/contracts';
+import { readAccessToken } from '@/lib/session';
 import {
   confirmSolanaWalletPayment,
   createRecipient,
@@ -76,9 +77,9 @@ export function useCreateTransfer(token: string) {
   });
 }
 
-export function useConfirmSolanaWalletPayment(token: string) {
+export function useConfirmSolanaWalletPayment() {
   return useMutation({
     mutationFn: (input: { transferId: string; signature: string }) =>
-      confirmSolanaWalletPayment(token, input.transferId, input.signature)
+      confirmSolanaWalletPayment(readAccessToken() ?? '', input.transferId, input.signature)
   });
 }

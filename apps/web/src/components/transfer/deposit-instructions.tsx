@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { Route } from 'next';
 import {
@@ -25,7 +25,6 @@ import {
   type SubmitPayTransactionResult
 } from '@/lib/solana/remittance-acceptor';
 import type { QuoteSummary, TransferSummary } from '@/lib/contracts';
-import { readAccessToken } from '@/lib/session';
 import { walletMode } from '@/lib/wallet/evm';
 
 interface DepositInstructionsProps {
@@ -34,6 +33,8 @@ interface DepositInstructionsProps {
 }
 
 const SOLANA_SIG_KEY_PREFIX = 'cryptopay:web:solana-last-signature:';
+const SOLANA_AUTO_VERIFY_FAST_WINDOW_MS = 2 * 60_000;
+const SOLANA_AUTO_VERIFY_MAX_MS = 10 * 60_000;
 
 function solanaSignatureKey(transferId: string): string {
   return `${SOLANA_SIG_KEY_PREFIX}${transferId}`;
@@ -87,6 +88,14 @@ function currencyEtb(value: number): string {
   return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(value);
 }
 
+function solanaAutoVerifyDelayMs(elapsedMs: number): number {
+  if (elapsedMs < SOLANA_AUTO_VERIFY_FAST_WINDOW_MS) return 5_000;
+  if (elapsedMs < 4 * 60_000) return 10_000;
+  if (elapsedMs < 6 * 60_000) return 20_000;
+  if (elapsedMs < 8 * 60_000) return 40_000;
+  return 60_000;
+}
+
 function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
   const { quote } = transfer;
   const { connection } = useConnection();
@@ -97,16 +106,67 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [verifyResult, setVerifyResult] = useState<'idle' | 'verifying' | 'confirmed' | 'duplicate' | 'pending' | 'failed'>('idle');
   const [lastSignature, setLastSignature] = useState<string | null>(() => readStoredSolanaSignature(transfer.transferId));
-  const token = readAccessToken() ?? '';
-  const confirmPaymentMutation = useConfirmSolanaWalletPayment(token);
+  const autoVerifyTimerRef = useRef<number | null>(null);
+  const autoVerifyStartedAtRef = useRef<number | null>(null);
+  const autoVerifySignatureRef = useRef<string | null>(null);
+  const confirmPaymentMutation = useConfirmSolanaWalletPayment();
+
+  function clearAutoVerifyTimer(): void {
+    if (autoVerifyTimerRef.current !== null && typeof window !== 'undefined') {
+      window.clearTimeout(autoVerifyTimerRef.current);
+    }
+    autoVerifyTimerRef.current = null;
+  }
+
+  function stopAutoVerify(): void {
+    clearAutoVerifyTimer();
+    autoVerifyStartedAtRef.current = null;
+    autoVerifySignatureRef.current = null;
+  }
+
+  function scheduleAutoVerify(signature: string): void {
+    if (typeof window === 'undefined') return;
+
+    const now = Date.now();
+    if (autoVerifySignatureRef.current !== signature || autoVerifyStartedAtRef.current === null) {
+      autoVerifySignatureRef.current = signature;
+      autoVerifyStartedAtRef.current = now;
+    }
+
+    const startedAt = autoVerifyStartedAtRef.current;
+    const elapsedMs = startedAt ? now - startedAt : 0;
+    if (elapsedMs >= SOLANA_AUTO_VERIFY_MAX_MS) {
+      stopAutoVerify();
+      setVerifyResult('pending');
+      setVerifyMessage(
+        'Payment submitted. Backend verification is still pending. Auto-retry stopped after 10 minutes; use Retry backend verification.'
+      );
+      return;
+    }
+
+    const delayMs = solanaAutoVerifyDelayMs(elapsedMs);
+    clearAutoVerifyTimer();
+    autoVerifyTimerRef.current = window.setTimeout(() => {
+      const sig = autoVerifySignatureRef.current;
+      if (!sig) return;
+      void verifyBackendConfirmation(sig);
+    }, delayMs);
+  }
 
   useEffect(() => {
+    stopAutoVerify();
     setSolanaError(null);
     setSolanaResult(null);
     setVerifyMessage(null);
     setVerifyResult('idle');
     setLastSignature(readStoredSolanaSignature(transfer.transferId));
   }, [transfer.transferId]);
+
+  useEffect(() => {
+    return () => {
+      stopAutoVerify();
+    };
+  }, []);
 
   const mintConfigValidation = useMemo(() => {
     if (quote.chain !== 'solana') {
@@ -154,12 +214,6 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
   }
 
   async function verifyBackendConfirmation(signature: string): Promise<void> {
-    if (!token) {
-      setVerifyResult('failed');
-      setVerifyMessage('Session expired. Sign in again.');
-      return;
-    }
-
     setVerifyResult('verifying');
     setVerifyMessage('Verifying on backend...');
 
@@ -170,20 +224,26 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
       });
 
       if (confirmation.result === 'confirmed') {
+        stopAutoVerify();
         setVerifyResult('confirmed');
         setVerifyMessage('Payment verified. Transfer funding was confirmed.');
         return;
       }
 
       if (confirmation.result === 'duplicate') {
+        stopAutoVerify();
         setVerifyResult('duplicate');
         setVerifyMessage('This payment was already recorded for the transfer.');
         return;
       }
 
       setVerifyResult('pending');
-      setVerifyMessage('Payment submitted. Backend verification is pending, retry shortly.');
+      setVerifyMessage(
+        'Payment submitted. Backend verification is pending. Auto-retrying now, then backing off if confirmations take longer.'
+      );
+      scheduleAutoVerify(signature);
     } catch (error) {
+      stopAutoVerify();
       setVerifyResult('failed');
       setVerifyMessage(error instanceof Error ? error.message : 'Could not verify Solana payment.');
     }
@@ -276,10 +336,11 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
           variant="outline"
           onClick={() => {
             if (lastSignature) {
+              stopAutoVerify();
               void verifyBackendConfirmation(lastSignature);
             }
           }}
-          disabled={verifyResult === 'verifying' || !token}
+          disabled={verifyResult === 'verifying'}
         >
           {verifyResult === 'verifying' ? 'Verifying...' : 'Retry backend verification'}
         </Button>
