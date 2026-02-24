@@ -168,3 +168,8 @@ services:
       - .env.prod.local
     ports: !override
       - '127.0.0.1:18080:3000'
+
+  prometheus:
+    profiles: !override []
+    ports: !override
+      - '127.0.0.1:19090:9090'
