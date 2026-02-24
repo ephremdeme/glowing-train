@@ -96,6 +96,25 @@ function solanaAutoVerifyDelayMs(elapsedMs: number): number {
   return 60_000;
 }
 
+type VerifyState = 'idle' | 'verifying' | 'confirmed' | 'duplicate' | 'pending' | 'failed';
+
+function verificationAlertVariant(state: VerifyState): 'default' | 'destructive' | 'success' | 'warning' | 'info' {
+  if (state === 'failed') return 'destructive';
+  if (state === 'confirmed' || state === 'duplicate') return 'success';
+  if (state === 'pending') return 'warning';
+  if (state === 'verifying') return 'info';
+  return 'default';
+}
+
+function verificationAlertTitle(state: VerifyState): string {
+  if (state === 'verifying') return 'Confirming payment';
+  if (state === 'confirmed') return 'Payment confirmed';
+  if (state === 'duplicate') return 'Payment already confirmed';
+  if (state === 'pending') return 'Confirmation pending';
+  if (state === 'failed') return 'Verification failed';
+  return 'Payment status';
+}
+
 function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
   const { quote } = transfer;
   const { connection } = useConnection();
@@ -104,7 +123,7 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
   const [solanaError, setSolanaError] = useState<string | null>(null);
   const [solanaResult, setSolanaResult] = useState<SubmitPayTransactionResult | null>(null);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
-  const [verifyResult, setVerifyResult] = useState<'idle' | 'verifying' | 'confirmed' | 'duplicate' | 'pending' | 'failed'>('idle');
+  const [verifyResult, setVerifyResult] = useState<VerifyState>('idle');
   const [lastSignature, setLastSignature] = useState<string | null>(() => readStoredSolanaSignature(transfer.transferId));
   const autoVerifyTimerRef = useRef<number | null>(null);
   const autoVerifyStartedAtRef = useRef<number | null>(null);
@@ -139,7 +158,7 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
       stopAutoVerify();
       setVerifyResult('pending');
       setVerifyMessage(
-        'Payment submitted. Backend verification is still pending. Auto-retry stopped after 10 minutes; use Retry backend verification.'
+        'Your payment is still waiting for confirmation. Auto-check stopped after 10 minutes. Tap Retry to check again.'
       );
       return;
     }
@@ -226,20 +245,20 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
       if (confirmation.result === 'confirmed') {
         stopAutoVerify();
         setVerifyResult('confirmed');
-        setVerifyMessage('Payment verified. Transfer funding was confirmed.');
+        setVerifyMessage('Your payment was confirmed successfully.');
         return;
       }
 
       if (confirmation.result === 'duplicate') {
         stopAutoVerify();
         setVerifyResult('duplicate');
-        setVerifyMessage('This payment was already recorded for the transfer.');
+        setVerifyMessage('This payment was already linked to your transfer.');
         return;
       }
 
       setVerifyResult('pending');
       setVerifyMessage(
-        'Payment submitted. Backend verification is pending. Auto-retrying now, then backing off if confirmations take longer.'
+        'Your payment was submitted. We are waiting for network confirmation and will keep checking automatically.'
       );
       scheduleAutoVerify(signature);
     } catch (error) {
@@ -254,10 +273,10 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
       <div className="grid gap-1.5">
         <p className="text-sm font-semibold">Pay on Solana</p>
         <p className="text-xs text-muted-foreground">
-          Sign a wallet transaction to call the on-chain `pay(...)` instruction.
+          Approve the payment in your wallet to fund this transfer.
         </p>
         <p className="text-xs text-muted-foreground">
-          Wallet pay uses the remittance program and treasury account. The backend verifies your payment using the transaction signature.
+          We will confirm the payment automatically after it is broadcast.
         </p>
       </div>
 
@@ -282,10 +301,11 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
       ) : null}
 
       {solanaResult ? (
-        <Alert>
-          <AlertTitle>Payment submitted</AlertTitle>
+        <Alert variant="info">
+          <AlertTitle>Transaction submitted</AlertTitle>
           <AlertDescription>
-            <span className="block break-all">Signature: {solanaResult.signature}</span>
+            <span className="block">Your wallet sent the transaction. Network confirmation may take a moment.</span>
+            <span className="mt-1 block break-all text-xs">Signature: {solanaResult.signature}</span>
             <a href={solanaResult.explorerUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-primary underline">
               View on Solana Explorer
               <ExternalLink className="h-3.5 w-3.5" />
@@ -295,18 +315,8 @@ function SolanaPayPanel({ transfer }: { transfer: TransferSummary }) {
       ) : null}
 
       {verifyMessage ? (
-        <Alert variant={verifyResult === 'failed' ? 'destructive' : 'default'}>
-          <AlertTitle>
-            {verifyResult === 'verifying'
-              ? 'Verifying payment'
-              : verifyResult === 'confirmed'
-                ? 'Payment confirmed'
-                : verifyResult === 'duplicate'
-                  ? 'Payment already recorded'
-                  : verifyResult === 'pending'
-                    ? 'Verification pending'
-                    : 'Verification failed'}
-          </AlertTitle>
+        <Alert variant={verificationAlertVariant(verifyResult)}>
+          <AlertTitle>{verificationAlertTitle(verifyResult)}</AlertTitle>
           <AlertDescription>{verifyMessage}</AlertDescription>
         </Alert>
       ) : null}
@@ -376,7 +386,7 @@ export function DepositInstructions({ transfer }: DepositInstructionsProps) {
         <CardDescription>
           {quote.chain === 'base'
             ? 'Send the exact amount to the transfer deposit address below. Funds are settled on-chain and converted to ETB.'
-            : 'Use your Solana wallet to submit the remittance-program payment for this transfer. The backend verifies the submitted transaction signature.'}
+            : 'Use your Solana wallet to pay for this transfer. We will confirm the payment automatically.'}
         </CardDescription>
       </CardHeader>
 
@@ -397,7 +407,7 @@ export function DepositInstructions({ transfer }: DepositInstructionsProps) {
         <p className="text-xs text-muted-foreground">
           {quote.chain === 'base'
             ? 'This deposit route is generated by the offshore collector for this transfer.'
-            : 'This treasury token account is managed by the offshore collector. Solana funding is recognized from the wallet-pay transaction signature and transfer reference, not by sending directly to a per-transfer address.'}
+            : 'This is the collector treasury account used by the Solana payment flow for this transfer.'}
         </p>
 
         {/* Network + token */}
@@ -422,7 +432,7 @@ export function DepositInstructions({ transfer }: DepositInstructionsProps) {
               </>
             ) : (
               <>
-                Use the Solana wallet pay button below with the connected wallet on the correct cluster. The selected token must match <strong>{quote.token}</strong>.
+                Use the wallet pay button below on the correct Solana cluster. The selected token must match <strong>{quote.token}</strong>.
               </>
             )}
           </AlertDescription>

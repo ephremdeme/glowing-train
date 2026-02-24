@@ -147,34 +147,33 @@ export default function TransferStatusPage() {
             {/* Current state */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Current state</CardTitle>
-                <CardDescription>Mapped sender-facing state with backend status details.</CardDescription>
+                <CardTitle className="text-lg">Transfer status</CardTitle>
+                <CardDescription>Current progress and payout stage for this transfer.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 text-sm">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div className="grid gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Backend status</p>
-                    <p className="font-medium">{data.backendStatus}</p>
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Status</p>
+                    <div className="pt-0.5">
+                      <Badge variant={badgeVariant(toStatusChipVariant(data.uiStatus))}>{data.uiStatus}</Badge>
+                    </div>
                   </div>
                   <div className="grid gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">UI status</p>
-                    <p className="font-medium">UI status: {data.uiStatus}</p>
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Payout</p>
+                    <p className="font-medium">{data.payout?.status ?? 'Not started'}</p>
                   </div>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <div className="grid gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Payout status</p>
-                    <p className="font-medium">{data.payout?.status ?? 'n/a'}</p>
-                  </div>
                   <div className="grid gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
                     <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Last update</p>
                     <p className="font-medium">
                       {new Date(data.transitions[data.transitions.length - 1]?.occurredAt ?? data.transfer.createdAt).toLocaleString()}
                     </p>
                   </div>
-                </div>
-                <div className="pt-1">
-                  <Badge variant={badgeVariant(toStatusChipVariant(data.uiStatus))}>{data.uiStatus}</Badge>
+                  <div className="grid gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Reference</p>
+                    <p className="truncate font-medium">{data.transfer.transferId}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
