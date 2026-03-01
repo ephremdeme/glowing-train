@@ -71,6 +71,12 @@ services:
         - cryptopay/offshore-collector:prod-sim
     env_file:
       - .env.prod.local
+    environment:
+      BASE_DEPOSIT_FACTORY_ADDRESS: ${BASE_DEPOSIT_FACTORY_ADDRESS}
+      BASE_USDC_PROXY_INIT_CODE_HASH: ${BASE_USDC_PROXY_INIT_CODE_HASH}
+      BASE_USDT_PROXY_INIT_CODE_HASH: ${BASE_USDT_PROXY_INIT_CODE_HASH}
+      BASE_DEPOSIT_PROXY_INIT_CODE_HASH: ${BASE_DEPOSIT_PROXY_INIT_CODE_HASH}
+      BASE_TREASURY_ADDRESS: ${BASE_TREASURY_ADDRESS}
     ports: !override
       - '127.0.0.1:13002:3002'
 

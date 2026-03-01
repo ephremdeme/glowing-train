@@ -76,6 +76,11 @@ services:
       - .env
     environment:
       APP_REGION: offshore
+      BASE_DEPOSIT_FACTORY_ADDRESS: ${BASE_DEPOSIT_FACTORY_ADDRESS}
+      BASE_USDC_PROXY_INIT_CODE_HASH: ${BASE_USDC_PROXY_INIT_CODE_HASH}
+      BASE_USDT_PROXY_INIT_CODE_HASH: ${BASE_USDT_PROXY_INIT_CODE_HASH}
+      BASE_DEPOSIT_PROXY_INIT_CODE_HASH: ${BASE_DEPOSIT_PROXY_INIT_CODE_HASH}
+      BASE_TREASURY_ADDRESS: ${BASE_TREASURY_ADDRESS}
     command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/offshore-collector dev"]
     volumes:
       - ./:/workspace

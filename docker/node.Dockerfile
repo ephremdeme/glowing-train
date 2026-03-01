@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.7
 # Shared multi-stage Dockerfile for Node.js services in this monorepo.
 # Usage:
 #   docker build -f docker/node.Dockerfile \

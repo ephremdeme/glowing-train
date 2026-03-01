@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.7
 # Shared multi-stage Dockerfile for the Next.js frontend.
 # Build from repo root: docker build -f docker/web.Dockerfile -t cryptopay-web .
 
