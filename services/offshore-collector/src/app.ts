@@ -4,8 +4,9 @@ import { deny, errorEnvelope, registerServiceMetrics, withIdempotency } from '@c
 import { log } from '@cryptopay/observability';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { BasePaymentVerificationError, BasePaymentVerificationService } from './modules/base-payments/index.js';
 import { SolanaPaymentVerificationError, SolanaPaymentVerificationService } from './modules/solana-payments/index.js';
-import { HdWalletDepositStrategy, TransferRepository, TransferService } from './modules/transfers/index.js';
+import { Create2DepositStrategy, TransferRepository, TransferService } from './modules/transfers/index.js';
 import { buildTransferRoutes } from './routes/transfers.js';
 
 const createTransferSchema = z.object({
@@ -18,7 +19,7 @@ const createTransferSchema = z.object({
   idempotencyKey: z.string().min(8)
 });
 
-const solanaPaymentVerifySchema = z.object({
+const paymentVerifySchema = z.object({
   transferId: z.string().min(1),
   txHash: z.string().min(1)
 });
@@ -60,9 +61,10 @@ export async function buildOffshoreCollectorApp(): Promise<FastifyInstance> {
   const metrics = registerServiceMetrics(app, 'offshore-collector');
   const transferRepository = new TransferRepository();
   const transferRoutes = buildTransferRoutes(
-    new TransferService(transferRepository, new HdWalletDepositStrategy())
+    new TransferService(transferRepository, new Create2DepositStrategy())
   );
   const solanaPaymentVerifier = new SolanaPaymentVerificationService(transferRepository);
+  const basePaymentVerifier = new BasePaymentVerificationService(transferRepository);
 
   app.get('/healthz', async () => ({ ok: true, service: 'offshore-collector' }));
   app.get('/readyz', async () => ({ ok: true }));
@@ -71,46 +73,24 @@ export async function buildOffshoreCollectorApp(): Promise<FastifyInstance> {
     return metrics.registry.metrics();
   });
 
+  // ── Transfer creation ──────────────────────────────────────────────
+
   app.post('/v1/transfers', async (request, reply) => {
     const parsed = createTransferSchema.safeParse(request.body);
     if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_PAYLOAD',
-        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-        status: 400,
-        details: parsed.error.issues
-      });
+      return deny({ request, reply, code: 'INVALID_PAYLOAD', message: parsed.error.issues[0]?.message ?? 'Invalid payload.', status: 400, details: parsed.error.issues });
     }
 
     try {
       const key = requiredIdempotencyKey(request);
-
       const response = await withIdempotency({
-        db: { query },
-        scope: 'offshore-collector:transfers:create',
-        idempotencyKey: key,
-        requestId: request.id,
-        requestPayload: parsed.data,
-        execute: async () => {
-          const result = await transferRoutes.create(parsed.data);
-          return {
-            status: result.status,
-            body: result.body
-          };
-        }
+        db: { query }, scope: 'offshore-collector:transfers:create', idempotencyKey: key,
+        requestId: request.id, requestPayload: parsed.data,
+        execute: async () => { const result = await transferRoutes.create(parsed.data); return { status: result.status, body: result.body }; }
       });
-
       return reply.status(response.status).send(response.body);
     } catch (error) {
-      return deny({
-        request,
-        reply,
-        code: 'TRANSFER_CREATE_FAILED',
-        message: (error as Error).message,
-        status: 400
-      });
+      return deny({ request, reply, code: 'TRANSFER_CREATE_FAILED', message: (error as Error).message, status: 400 });
     }
   });
 
@@ -119,81 +99,40 @@ export async function buildOffshoreCollectorApp(): Promise<FastifyInstance> {
       const claims = toAuthClaims(request);
       assertScope(claims, 'collector:transfers:create');
     } catch (error) {
-      return deny({
-        request,
-        reply,
-        code: 'FORBIDDEN',
-        message: (error as Error).message,
-        status: 403
-      });
+      return deny({ request, reply, code: 'FORBIDDEN', message: (error as Error).message, status: 403 });
     }
 
     const parsed = createTransferSchema.safeParse(request.body);
     if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_PAYLOAD',
-        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-        status: 400,
-        details: parsed.error.issues
-      });
+      return deny({ request, reply, code: 'INVALID_PAYLOAD', message: parsed.error.issues[0]?.message ?? 'Invalid payload.', status: 400, details: parsed.error.issues });
     }
 
     try {
       const key = requiredIdempotencyKey(request);
-
       const response = await withIdempotency({
-        db: { query },
-        scope: 'offshore-collector:internal:transfers:create',
-        idempotencyKey: key,
-        requestId: request.id,
-        requestPayload: parsed.data,
-        execute: async () => {
-          const result = await transferRoutes.create(parsed.data);
-          return {
-            status: result.status,
-            body: result.body
-          };
-        }
+        db: { query }, scope: 'offshore-collector:internal:transfers:create', idempotencyKey: key,
+        requestId: request.id, requestPayload: parsed.data,
+        execute: async () => { const result = await transferRoutes.create(parsed.data); return { status: result.status, body: result.body }; }
       });
-
       return reply.status(response.status).send(response.body);
     } catch (error) {
-      return deny({
-        request,
-        reply,
-        code: 'TRANSFER_CREATE_FAILED',
-        message: (error as Error).message,
-        status: 400
-      });
+      return deny({ request, reply, code: 'TRANSFER_CREATE_FAILED', message: (error as Error).message, status: 400 });
     }
   });
+
+  // ── Solana payment verification ────────────────────────────────────
 
   app.post('/internal/v1/transfers/solana-payment/verify', async (request, reply) => {
     try {
       const claims = toAuthClaims(request);
       assertScope(claims, 'collector:solana-payments:verify');
     } catch (error) {
-      return deny({
-        request,
-        reply,
-        code: 'FORBIDDEN',
-        message: (error as Error).message,
-        status: 403
-      });
+      return deny({ request, reply, code: 'FORBIDDEN', message: (error as Error).message, status: 403 });
     }
 
-    const parsed = solanaPaymentVerifySchema.safeParse(request.body);
+    const parsed = paymentVerifySchema.safeParse(request.body);
     if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_PAYLOAD',
-        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-        status: 400,
-        details: parsed.error.issues
-      });
+      return deny({ request, reply, code: 'INVALID_PAYLOAD', message: parsed.error.issues[0]?.message ?? 'Invalid payload.', status: 400, details: parsed.error.issues });
     }
 
     const idempotencyKey =
@@ -202,48 +141,58 @@ export async function buildOffshoreCollectorApp(): Promise<FastifyInstance> {
 
     try {
       const response = await withIdempotency({
-        db: { query },
-        scope: 'offshore-collector:internal:solana-payment:verify',
-        idempotencyKey,
-        requestId: request.id,
-        requestPayload: parsed.data,
-        execute: async () => ({
-          status: 200,
-          body: await solanaPaymentVerifier.verify(parsed.data)
-        })
+        db: { query }, scope: 'offshore-collector:internal:solana-payment:verify', idempotencyKey,
+        requestId: request.id, requestPayload: parsed.data,
+        execute: async () => ({ status: 200, body: await solanaPaymentVerifier.verify(parsed.data) })
       });
-
       return reply.status(response.status).send(response.body);
     } catch (error) {
       if (error instanceof SolanaPaymentVerificationError) {
-        return deny({
-          request,
-          reply,
-          code: error.code,
-          message: error.message,
-          status: error.status
-        });
+        return deny({ request, reply, code: error.code, message: error.message, status: error.status });
       }
-
-      return deny({
-        request,
-        reply,
-        code: 'SOLANA_PAYMENT_VERIFY_FAILED',
-        message: (error as Error).message,
-        status: 500
-      });
+      return deny({ request, reply, code: 'SOLANA_PAYMENT_VERIFY_FAILED', message: (error as Error).message, status: 500 });
     }
   });
 
+  // ── Base payment verification ──────────────────────────────────────
+
+  app.post('/internal/v1/transfers/base-payment/verify', async (request, reply) => {
+    try {
+      const claims = toAuthClaims(request);
+      assertScope(claims, 'collector:base-payments:verify');
+    } catch (error) {
+      return deny({ request, reply, code: 'FORBIDDEN', message: (error as Error).message, status: 403 });
+    }
+
+    const parsed = paymentVerifySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return deny({ request, reply, code: 'INVALID_PAYLOAD', message: parsed.error.issues[0]?.message ?? 'Invalid payload.', status: 400, details: parsed.error.issues });
+    }
+
+    const idempotencyKey =
+      (typeof request.headers['idempotency-key'] === 'string' && request.headers['idempotency-key']) ||
+      `base-verify:${parsed.data.transferId}:${parsed.data.txHash}`;
+
+    try {
+      const response = await withIdempotency({
+        db: { query }, scope: 'offshore-collector:internal:base-payment:verify', idempotencyKey,
+        requestId: request.id, requestPayload: parsed.data,
+        execute: async () => ({ status: 200, body: await basePaymentVerifier.verify(parsed.data) })
+      });
+      return reply.status(response.status).send(response.body);
+    } catch (error) {
+      if (error instanceof BasePaymentVerificationError) {
+        return deny({ request, reply, code: error.code, message: error.message, status: error.status });
+      }
+      return deny({ request, reply, code: 'BASE_PAYMENT_VERIFY_FAILED', message: (error as Error).message, status: 500 });
+    }
+  });
+
+  // ── Error handler ──────────────────────────────────────────────────
+
   app.setErrorHandler((error, request, reply) => {
     const err = error as Error;
-
-    log('error', 'offshore-collector unhandled error', {
-      message: err.message,
-      stack: err.stack,
-      requestId: request.id
-    });
-
+    log('error', 'offshore-collector unhandled error', { message: err.message, stack: err.stack, requestId: request.id });
     reply.status(500).send(errorEnvelope(request, 'INTERNAL_ERROR', 'Unexpected internal error.'));
   });
 
