@@ -16,11 +16,12 @@ import (
 const transferTopic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 
 type EvmRpcSource struct {
-	RPCURL         string
-	HTTPClient     *http.Client
-	RouteStore     RouteStore
-	TokenContracts map[string]string
-	Chain          string
+	RPCURL                  string
+	HTTPClient              *http.Client
+	RouteStore              RouteStore
+	TokenContracts          map[string]string
+	Chain                   string
+	FinalizedConfirmations  int // number of confirmations to consider finalized (default: 12)
 }
 
 type rpcRequest struct {
@@ -102,6 +103,28 @@ func (s EvmRpcSource) Poll(ctx context.Context, cursor string) ([]FundingCandida
 			}
 
 			confirmations := int(latestBlock-blockNumber) + 1
+
+			// Determine finalization: default threshold is 12 blocks (~24s on Base)
+			finalizedThreshold := s.FinalizedConfirmations
+			if finalizedThreshold <= 0 {
+				finalizedThreshold = 12
+			}
+			finalized := confirmations >= finalizedThreshold
+
+			// Extract payer address ("from" topic in ERC-20 Transfer event)
+			var payerAddress string
+			if len(eventLog.Topics) >= 2 && len(eventLog.Topics[1]) >= 26 {
+				payerAddress = "0x" + eventLog.Topics[1][26:]
+			}
+
+			metadata := map[string]any{
+				"blockNumber": blockNumber,
+				"logIndex":    logIndexInt64,
+			}
+			if payerAddress != "" {
+				metadata["payerAddress"] = payerAddress
+			}
+
 			candidates = append(candidates, FundingCandidate{
 				Chain:          s.Chain,
 				Token:          strings.ToUpper(route.Token),
@@ -110,6 +133,8 @@ func (s EvmRpcSource) Poll(ctx context.Context, cursor string) ([]FundingCandida
 				DepositAddress: route.DepositAddress,
 				AmountUSD:      amountUSD,
 				Confirmations:  confirmations,
+				Finalized:      finalized,
+				Metadata:       metadata,
 			})
 		}
 	}

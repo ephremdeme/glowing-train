@@ -72,10 +72,11 @@ func main() {
 		MinConfirmations: envIntOrDefault("BASE_MIN_CONFIRMATIONS", 3),
 		Resolver:         routeResolver,
 		Publisher: internal.CallbackPublisher{
-			Endpoint: callbackURL,
-			Secret:   callbackSecret,
-			Client:   &http.Client{Timeout: 8 * time.Second},
-			Now:      time.Now,
+			Endpoint:   callbackURL,
+			Secret:     callbackSecret,
+			APIClient:  &client,
+			Client:     &http.Client{Timeout: 8 * time.Second},
+			Now:        time.Now,
 		},
 	}
 

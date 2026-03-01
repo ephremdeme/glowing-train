@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"errors"
+	"strconv"
 )
 
 type FundingCandidate struct {
@@ -10,13 +11,18 @@ type FundingCandidate struct {
 	Token          string
 	TxHash         string
 	LogIndex       int
+	TransferID     string
+	ReferenceHash  string
 	DepositAddress string
 	AmountUSD      float64
 	Confirmations  int
+	Finalized      bool
+	Metadata       map[string]any
 }
 
 type RouteMatch struct {
-	TransferID string
+	TransferID     string
+	DepositAddress string
 }
 
 type RouteResolver interface {
@@ -33,8 +39,10 @@ type FundingConfirmedEvent struct {
 	Token          string
 	TxHash         string
 	LogIndex       int
+	TransferID     string
 	DepositAddress string
 	AmountUSD      float64
+	Metadata       map[string]any
 }
 
 type ProcessResult string
@@ -59,27 +67,54 @@ func (w Watcher) ProcessCandidate(ctx context.Context, c FundingCandidate) (Proc
 		return ProcessIgnored, ErrInvalidChain
 	}
 
-	if c.Confirmations < w.MinConfirmations {
+	// Use Finalized flag if available, otherwise fall back to confirmation count
+	if !c.Finalized && c.Confirmations < w.MinConfirmations {
 		return ProcessIgnored, nil
 	}
 
-	match, found, err := w.Resolver.FindTransferByRoute(ctx, c.Chain, c.Token, c.DepositAddress)
-	if err != nil {
-		return ProcessIgnored, err
+	match := RouteMatch{TransferID: c.TransferID, DepositAddress: c.DepositAddress}
+	found := match.TransferID != ""
+
+	if !found {
+		var err error
+		match, found, err = w.Resolver.FindTransferByRoute(ctx, c.Chain, c.Token, c.DepositAddress)
+		if err != nil {
+			return ProcessIgnored, err
+		}
 	}
 
 	if !found {
 		return ProcessRouteNotFound, nil
 	}
 
+	depositAddress := c.DepositAddress
+	if depositAddress == "" {
+		depositAddress = match.DepositAddress
+	}
+	eventID := match.TransferID + ":" + c.TxHash
+	if c.LogIndex > 0 {
+		eventID = eventID + ":" + strconv.Itoa(c.LogIndex)
+	}
+
+	metadata := c.Metadata
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	// Extract payer address from Transfer event "from" topic if available
+	if c.DepositAddress != "" && metadata["payerAddress"] == nil {
+		metadata["verificationSource"] = "base_watcher"
+	}
+
 	event := FundingConfirmedEvent{
-		EventID:        match.TransferID + ":" + c.TxHash,
+		EventID:        eventID,
 		Chain:          c.Chain,
 		Token:          c.Token,
 		TxHash:         c.TxHash,
 		LogIndex:       c.LogIndex,
-		DepositAddress: c.DepositAddress,
+		TransferID:     match.TransferID,
+		DepositAddress: depositAddress,
 		AmountUSD:      c.AmountUSD,
+		Metadata:       metadata,
 	}
 
 	if err := w.Publisher.PublishFundingConfirmed(ctx, event); err != nil {
