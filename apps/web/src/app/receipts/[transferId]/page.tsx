@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { ArrowRight, Printer } from 'lucide-react';
 import { RouteGuard } from '@/components/route-guard';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -86,8 +87,17 @@ export default function ReceiptPage() {
           <h1 className="break-all text-3xl font-semibold tracking-tight md:text-4xl">{transferId ?? 'Unknown transfer'}</h1>
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={() => window.print()}>
+              <Printer className="mr-2 h-4 w-4" />
               Print receipt
             </Button>
+            {data ? (
+              <Button asChild variant="secondary">
+                <Link href={'/quote' as Route}>
+                  <ArrowRight className="mr-2 h-4 w-4" />
+                  Send again
+                </Link>
+              </Button>
+            ) : null}
             {transferId ? (
               <Button asChild variant="outline">
                 <Link href={`/transfers/${transferId}` as Route}>Back to status</Link>

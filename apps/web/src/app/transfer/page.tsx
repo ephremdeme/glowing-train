@@ -8,6 +8,7 @@ import { AlertCircle, ArrowRight, CheckCircle, Wallet } from 'lucide-react';
 import { RouteGuard } from '@/components/route-guard';
 import { RecipientSection } from '@/components/transfer/recipient-section';
 import { DepositInstructions } from '@/components/transfer/deposit-instructions';
+import { TransferStepper } from '@/components/transfer/transfer-stepper';
 import { TransferJourneyScene } from '@/components/illustrations/transfer-journey-scene';
 import { WalletConnectPanel } from '@/components/wallet/wallet-connect-panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -16,26 +17,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCreateTransfer, useSenderProfile } from '@/features/remittance/hooks';
 import { isSenderKycApproved, mapSenderKycUiStatus, senderKycGateMessage } from '@/features/remittance/mappers';
 import type { QuoteSummary, RecipientDetail, TransferSummary, WalletConnectionState } from '@/lib/contracts';
+import { errorMessage } from '@/lib/error';
+import { currencyEtb } from '@/lib/format';
 import { readAccessToken } from '@/lib/session';
 import { patchFlowDraft, readFlowDraft } from '@/lib/flow-state';
 
-function currencyEtb(value: number): string {
-  return new Intl.NumberFormat('en-ET', { style: 'currency', currency: 'ETB' }).format(value);
-}
 
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
 
 function hasValidTransferSummary(value: unknown): value is TransferSummary {
   if (!value || typeof value !== 'object') return false;
   const transfer = value as Partial<TransferSummary>;
   return Boolean(
     typeof transfer.transferId === 'string' &&
-      transfer.transferId.trim() &&
-      typeof transfer.depositAddress === 'string' &&
-      transfer.depositAddress.trim() &&
-      transfer.quote
+    transfer.transferId.trim() &&
+    typeof transfer.depositAddress === 'string' &&
+    transfer.depositAddress.trim() &&
+    transfer.quote
   );
 }
 
@@ -111,6 +108,15 @@ function TransferPageContent() {
         </div>
 
         <TransferJourneyScene className="h-[140px]" />
+
+        {/* Progress stepper */}
+        <TransferStepper
+          currentStep={
+            transfer ? 'fund'
+              : recipient ? 'recipient'
+                : 'quote'
+          }
+        />
 
         {quote && (
           <Card>
@@ -210,7 +216,7 @@ function TransferPageContent() {
               <CheckCircle className="h-4 w-4" />
               Transfer created successfully
             </div>
-            <DepositInstructions transfer={transfer} quote={quote} />
+            <DepositInstructions transfer={transfer} />
             {transfer.transferId ? (
               <div className="flex justify-end">
                 <Button variant="outline" onClick={() => router.push(`/transfers/${transfer.transferId}` as Route)}>

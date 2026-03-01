@@ -42,8 +42,8 @@ function NetworkToggle({
           key={c}
           onClick={() => onChange(c)}
           className={`rounded-lg px-3.5 py-2 text-xs font-medium capitalize transition-all ${chain === c
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground'
             }`}
         >
           {c}
@@ -81,7 +81,7 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
       .catch(() => {
         // Fallback or leave it null
       });
-      
+
     return () => { mounted = false; };
   }, []);
 
@@ -171,7 +171,7 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
                 min={1}
                 max={2000}
                 step={0.01}
-                value={editingField === 'usd' ? (form.sendAmountUsd || '') : (form.sendAmountUsd || '')}
+                value={form.sendAmountUsd || ''}
                 placeholder="0"
                 onFocus={() => setState((prev) => ({ ...prev, highlightedField: 'send' }))}
                 onBlur={() => setState((prev) => ({ ...prev, highlightedField: null }))}
@@ -235,7 +235,7 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
                 type="number"
                 min={0}
                 step={1}
-                value={editingField === 'etb' ? estimate.recipientAmountEtb || '' : estimate.recipientAmountEtb || ''}
+                value={estimate.recipientAmountEtb || ''}
                 placeholder="0"
                 onFocus={() => setState((prev) => ({ ...prev, highlightedField: 'receive' }))}
                 onBlur={() => setState((prev) => ({ ...prev, highlightedField: null }))}

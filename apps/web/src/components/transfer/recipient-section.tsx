@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Building2, UserRoundCheck } from 'lucide-react';
+import { errorMessage } from '@/lib/error';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,14 +20,7 @@ interface RecipientSectionProps {
   onRecipientReady: (detail: RecipientDetail | null) => void;
 }
 
-function errorMessage(error: unknown, fallback: string): string {
-  if (!(error instanceof Error)) return fallback;
-  const message = error.message.trim();
-  if (/token expired|jwt expired|session expired/i.test(message)) {
-    return 'Session expired. Sign in again.';
-  }
-  return message || fallback;
-}
+
 
 export function RecipientSection({ token, senderKycApproved, initialRecipientId = null, onRecipientReady }: RecipientSectionProps) {
   const [selectedRecipientId, setSelectedRecipientId] = useState(initialRecipientId ?? '');

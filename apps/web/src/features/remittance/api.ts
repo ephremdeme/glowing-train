@@ -1,5 +1,6 @@
 import { readApiMessage, readAuthMessage } from '@/lib/client-api';
 import type {
+  BasePaymentConfirmationPayload,
   MePayload,
   QuoteSummary,
   RecipientDetail,
@@ -198,6 +199,25 @@ export async function startSenderKycSession(token: string): Promise<{ token?: st
     '/api/client/kyc/sender/sumsub-token',
     { method: 'POST' },
     'Could not start verification.',
+    { token }
+  );
+}
+
+export async function confirmBaseWalletPayment(
+  token: string,
+  transferId: string,
+  txHash: string
+): Promise<BasePaymentConfirmationPayload> {
+  return requestJson<BasePaymentConfirmationPayload>(
+    `/api/client/transfers/${transferId}/base-payment`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({ txHash })
+    },
+    'Could not verify Base payment.',
     { token }
   );
 }

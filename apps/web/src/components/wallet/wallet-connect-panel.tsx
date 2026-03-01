@@ -13,6 +13,7 @@ import type { WalletConnectionState } from '@/lib/contracts';
 interface WalletConnectPanelProps {
   chain: 'base' | 'solana';
   onStateChange?: ((state: WalletConnectionState) => void) | undefined;
+  onConnected?: ((chain: string, address: string) => void) | undefined;
 }
 
 interface EthereumProvider {
@@ -71,7 +72,7 @@ function MockWalletPanel({ chain, onStateChange }: WalletConnectPanelProps) {
   );
 }
 
-function RealBaseWalletPanel({ onStateChange }: Pick<WalletConnectPanelProps, 'onStateChange'>) {
+function RealBaseWalletPanel({ onStateChange, onConnected }: Pick<WalletConnectPanelProps, 'onStateChange' | 'onConnected'>) {
   const [busy, setBusy] = useState(false);
   const [address, setAddress] = useState<string | null>(null);
   const [providerReady, setProviderReady] = useState(false);
@@ -125,7 +126,9 @@ function RealBaseWalletPanel({ onStateChange }: Pick<WalletConnectPanelProps, 'o
     setBusy(true);
     try {
       const accounts = (await provider.request({ method: 'eth_requestAccounts' })) as string[];
-      setAddress(accounts[0] ?? null);
+      const connected = accounts[0] ?? null;
+      setAddress(connected);
+      if (connected) onConnected?.('base', connected);
     } finally {
       setBusy(false);
     }
@@ -200,7 +203,7 @@ function RealSolanaWalletPanel({ onStateChange }: Pick<WalletConnectPanelProps, 
           <label className="grid gap-2 text-sm">
             <span className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Wallet selector</span>
             <select
-              className="h-11 rounded-2xl border border-input/90 bg-[#101a42]/85 px-4 text-sm"
+              className="h-11 rounded-2xl border border-input/90 bg-muted/80 px-4 text-sm"
               value={wallet?.adapter.name ?? ''}
               onChange={(event) => select((event.target.value || null) as any)}
             >
@@ -229,13 +232,13 @@ function RealSolanaWalletPanel({ onStateChange }: Pick<WalletConnectPanelProps, 
   );
 }
 
-export function WalletConnectPanel({ chain, onStateChange }: WalletConnectPanelProps) {
+export function WalletConnectPanel({ chain, onStateChange, onConnected }: WalletConnectPanelProps) {
   if (walletMode() === 'mock') {
     return <MockWalletPanel chain={chain} onStateChange={onStateChange} />;
   }
 
   if (chain === 'base') {
-    return <RealBaseWalletPanel onStateChange={onStateChange} />;
+    return <RealBaseWalletPanel onStateChange={onStateChange} onConnected={onConnected} />;
   }
 
   return <RealSolanaWalletPanel onStateChange={onStateChange} />;

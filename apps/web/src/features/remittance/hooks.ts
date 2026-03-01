@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QuoteSummary } from '@/lib/contracts';
 import { readAccessToken } from '@/lib/session';
 import {
+  confirmBaseWalletPayment,
   confirmSolanaWalletPayment,
   createRecipient,
   createTransfer,
@@ -81,5 +82,12 @@ export function useConfirmSolanaWalletPayment() {
   return useMutation({
     mutationFn: (input: { transferId: string; signature: string }) =>
       confirmSolanaWalletPayment(readAccessToken() ?? '', input.transferId, input.signature)
+  });
+}
+
+export function useConfirmBaseWalletPayment() {
+  return useMutation({
+    mutationFn: (input: { transferId: string; txHash: string }) =>
+      confirmBaseWalletPayment(readAccessToken() ?? '', input.transferId, input.txHash)
   });
 }

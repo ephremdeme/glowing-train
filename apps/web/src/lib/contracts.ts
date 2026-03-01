@@ -137,6 +137,14 @@ export interface SolanaPaymentConfirmationPayload {
   uiStatus: UiTransferStatus;
 }
 
+export interface BasePaymentConfirmationPayload {
+  result: 'confirmed' | 'duplicate' | 'pending_verification';
+  transferId: string;
+  txHash: string;
+  backendStatus: string;
+  uiStatus: UiTransferStatus;
+}
+
 export interface TransferHistoryItem {
   transferId: string;
   quoteId: string;

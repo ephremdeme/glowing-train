@@ -4,6 +4,7 @@ import { AppShell } from '@/components/app-shell';
 import { QueryProvider } from '@/components/providers/query-provider';
 import { WalletProvider } from '@/components/wallet/wallet-provider';
 import { ThemeProvider } from '@/components/theme-provider';
+import { Toaster } from 'sonner';
 import './globals.css';
 
 const fontDisplay = Manrope({
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <AppShell>{children}</AppShell>
             </WalletProvider>
           </QueryProvider>
+          <Toaster richColors closeButton position="top-right" />
         </ThemeProvider>
       </body>
     </html>
