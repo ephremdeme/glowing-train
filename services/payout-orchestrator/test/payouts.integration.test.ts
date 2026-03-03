@@ -68,8 +68,6 @@ async function ensureTables(): Promise<void> {
       sender_id text,
       receiver_id text,
       sender_kyc_status text,
-      receiver_kyc_status text,
-      receiver_national_id_verified boolean,
       chain text,
       token text,
       send_amount_usd numeric(12,2),
@@ -124,9 +122,9 @@ async function seedTransfer(transferId: string, status: string = 'FUNDING_CONFIR
     `
     insert into transfers (
       transfer_id, quote_id, sender_id, receiver_id,
-      sender_kyc_status, receiver_kyc_status, receiver_national_id_verified,
+      sender_kyc_status,
       chain, token, send_amount_usd, status
-    ) values ($1, $2, 's_1', 'r_1', 'approved', 'approved', true, 'base', 'USDC', 100, $3)
+    ) values ($1, $2, 's_1', 'r_1', 'approved', 'base', 'USDC', 100, $3)
     `,
     [transferId, quoteId, status]
   );
@@ -136,8 +134,8 @@ describe('payout orchestration integration', () => {
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
     process.env.APP_REGION = 'ethiopia';
-    process.env.DATABASE_URL = 'postgres://cryptopay:cryptopay@localhost:55432/cryptopay';
-    process.env.REDIS_URL = 'redis://localhost:6379';
+    process.env.DATABASE_URL ??= 'postgres://cryptopay:cryptopay@localhost:55432/cryptopay';
+    process.env.REDIS_URL ??= 'redis://localhost:6379';
     process.env.ETHIOPIA_SERVICES_CRYPTO_DISABLED = 'true';
 
     await ensureTables();
