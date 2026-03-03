@@ -27,11 +27,11 @@ type callbackPayload struct {
 }
 
 type CallbackPublisher struct {
-	Endpoint   string
-	Secret     string
-	APIClient  *CoreAPIClient
-	Client     *http.Client
-	Now        func() time.Time
+	Endpoint  string
+	Secret    string
+	APIClient *CoreAPIClient
+	Client    *http.Client
+	Now       func() time.Time
 }
 
 func (p CallbackPublisher) PublishFundingConfirmed(ctx context.Context, event FundingConfirmedEvent) error {
@@ -52,6 +52,10 @@ func (p CallbackPublisher) PublishFundingConfirmed(ctx context.Context, event Fu
 		now = time.Now
 	}
 
+	if event.ConfirmedAt.IsZero() {
+		return fmt.Errorf("confirmedAt is required")
+	}
+
 	payload := callbackPayload{
 		EventID:        event.EventID,
 		Chain:          event.Chain,
@@ -61,7 +65,7 @@ func (p CallbackPublisher) PublishFundingConfirmed(ctx context.Context, event Fu
 		TransferID:     event.TransferID,
 		DepositAddress: event.DepositAddress,
 		AmountUSD:      event.AmountUSD,
-		ConfirmedAt:    now().UTC().Format(time.RFC3339Nano),
+		ConfirmedAt:    event.ConfirmedAt.UTC().Format(time.RFC3339Nano),
 		Metadata:       event.Metadata,
 	}
 

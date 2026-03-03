@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"strconv"
@@ -16,12 +17,13 @@ import (
 const transferTopic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 
 type EvmRpcSource struct {
-	RPCURL                  string
-	HTTPClient              *http.Client
-	RouteStore              RouteStore
-	TokenContracts          map[string]string
-	Chain                   string
-	FinalizedConfirmations  int // number of confirmations to consider finalized (default: 12)
+	RPCURL                 string
+	HTTPClient             *http.Client
+	RouteStore             RouteStore
+	TokenContracts         map[string]string
+	Chain                  string
+	FinalizedConfirmations int  // number of confirmations to consider finalized (default: 12)
+	FactoryLevelScan       bool // if true, also scan token contracts globally for QR/manual deposits
 }
 
 type rpcRequest struct {
@@ -45,6 +47,10 @@ type evmLog struct {
 	BlockNumber string   `json:"blockNumber"`
 	Data        string   `json:"data"`
 	Topics      []string `json:"topics"`
+}
+
+type evmBlock struct {
+	Timestamp string `json:"timestamp"`
 }
 
 func (s EvmRpcSource) Poll(ctx context.Context, cursor string) ([]FundingCandidate, string, error) {
@@ -74,72 +80,182 @@ func (s EvmRpcSource) Poll(ctx context.Context, cursor string) ([]FundingCandida
 	fromBlock := current + 1
 	toBlock := latestBlock
 	candidates := make([]FundingCandidate, 0)
+	blockTimestampCache := make(map[int64]time.Time)
 
+	slog.Info("base-rpc: polling",
+		"fromBlock", fromBlock,
+		"toBlock", toBlock,
+		"routeCount", len(routes),
+		"factoryLevelScan", s.FactoryLevelScan,
+	)
+
+	// Build a set of known deposit addresses for dedup when factory-level scanning
+	knownAddresses := make(map[string]bool)
+
+	// —— Route-targeted scanning: query logs filtered by deposit address ——
 	for _, route := range routes {
 		contract, ok := s.TokenContracts[strings.ToUpper(route.Token)]
 		if !ok || contract == "" {
 			continue
 		}
 
+		knownAddresses[strings.ToLower(route.DepositAddress)] = true
+
 		logs, err := s.ethGetLogs(ctx, contract, route.DepositAddress, fromBlock, toBlock)
 		if err != nil {
 			return nil, cursor, err
 		}
 
-		for _, eventLog := range logs {
-			amountUSD, err := parseTokenAmountUSD(eventLog.Data)
-			if err != nil {
+		candidates = append(candidates, s.logsToFundingCandidates(ctx, logs, route.Token, route.DepositAddress, latestBlock, blockTimestampCache)...)
+	}
+
+	// —— Factory-level scanning: broad scan for QR/manual deposits ——
+	// Scans all Transfer events to the token contract without filtering by "to".
+	// Candidates whose "to" is NOT in knownAddresses are potential QR deposits
+	// that the watcher would otherwise miss.
+	if s.FactoryLevelScan {
+		for tokenName, contract := range s.TokenContracts {
+			if contract == "" {
 				continue
 			}
 
-			blockNumber, err := parseHexInt64(eventLog.BlockNumber)
+			logs, err := s.ethGetLogsBroad(ctx, contract, fromBlock, toBlock)
 			if err != nil {
+				slog.Warn("base-rpc: factory-level scan failed, continuing with route-targeted results",
+					"token", tokenName,
+					"error", err,
+				)
 				continue
 			}
 
-			logIndexInt64, err := parseHexInt64(eventLog.LogIndex)
-			if err != nil {
-				continue
+			for _, eventLog := range logs {
+				if len(eventLog.Topics) < 3 {
+					continue
+				}
+
+				toAddr := addressFromTopic(eventLog.Topics[2])
+				if knownAddresses[toAddr] {
+					// Already scanned via route-targeted mode
+					continue
+				}
+
+				// This is a potential QR/manual deposit to an unknown address.
+				// Create a candidate — ProcessCandidate will try to resolve it via the route resolver.
+				candidates = append(candidates, s.logsToFundingCandidates(
+					ctx,
+					[]evmLog{eventLog},
+					strings.ToUpper(tokenName),
+					toAddr,
+					latestBlock,
+					blockTimestampCache,
+				)...)
 			}
 
-			confirmations := int(latestBlock-blockNumber) + 1
-
-			// Determine finalization: default threshold is 12 blocks (~24s on Base)
-			finalizedThreshold := s.FinalizedConfirmations
-			if finalizedThreshold <= 0 {
-				finalizedThreshold = 12
-			}
-			finalized := confirmations >= finalizedThreshold
-
-			// Extract payer address ("from" topic in ERC-20 Transfer event)
-			var payerAddress string
-			if len(eventLog.Topics) >= 2 && len(eventLog.Topics[1]) >= 26 {
-				payerAddress = "0x" + eventLog.Topics[1][26:]
-			}
-
-			metadata := map[string]any{
-				"blockNumber": blockNumber,
-				"logIndex":    logIndexInt64,
-			}
-			if payerAddress != "" {
-				metadata["payerAddress"] = payerAddress
-			}
-
-			candidates = append(candidates, FundingCandidate{
-				Chain:          s.Chain,
-				Token:          strings.ToUpper(route.Token),
-				TxHash:         eventLog.TxHash,
-				LogIndex:       int(logIndexInt64),
-				DepositAddress: route.DepositAddress,
-				AmountUSD:      amountUSD,
-				Confirmations:  confirmations,
-				Finalized:      finalized,
-				Metadata:       metadata,
-			})
+			slog.Info("base-rpc: factory-level scan complete",
+				"token", tokenName,
+				"broadLogCount", len(logs),
+			)
 		}
 	}
 
+	slog.Info("base-rpc: poll complete",
+		"candidateCount", len(candidates),
+		"blockRange", fmt.Sprintf("%d-%d", fromBlock, toBlock),
+	)
+
 	return candidates, strconv.FormatInt(toBlock, 10), nil
+}
+
+// logsToFundingCandidates converts raw EVM logs to FundingCandidate structs.
+func (s EvmRpcSource) logsToFundingCandidates(
+	ctx context.Context,
+	logs []evmLog,
+	token string,
+	depositAddress string,
+	latestBlock int64,
+	blockTimestampCache map[int64]time.Time,
+) []FundingCandidate {
+	candidates := make([]FundingCandidate, 0, len(logs))
+
+	for _, eventLog := range logs {
+		amountUSD, err := parseTokenAmountUSD(eventLog.Data)
+		if err != nil {
+			continue
+		}
+
+		blockNumber, err := parseHexInt64(eventLog.BlockNumber)
+		if err != nil {
+			continue
+		}
+
+		logIndexInt64, err := parseHexInt64(eventLog.LogIndex)
+		if err != nil {
+			continue
+		}
+
+		confirmedAt, ok := blockTimestampCache[blockNumber]
+		if !ok {
+			resolvedConfirmedAt, err := s.ethBlockTimestamp(ctx, eventLog.BlockNumber)
+			if err != nil {
+				continue
+			}
+			confirmedAt = resolvedConfirmedAt
+			blockTimestampCache[blockNumber] = confirmedAt
+		}
+
+		confirmations := int(latestBlock-blockNumber) + 1
+
+		finalizedThreshold := s.FinalizedConfirmations
+		if finalizedThreshold <= 0 {
+			finalizedThreshold = 12
+		}
+		finalized := confirmations >= finalizedThreshold
+
+		var payerAddress string
+		if len(eventLog.Topics) >= 2 && len(eventLog.Topics[1]) >= 26 {
+			payerAddress = "0x" + eventLog.Topics[1][26:]
+		}
+
+		metadata := map[string]any{
+			"blockNumber": blockNumber,
+			"logIndex":    logIndexInt64,
+		}
+		if payerAddress != "" {
+			metadata["payerAddress"] = payerAddress
+		}
+
+		candidates = append(candidates, FundingCandidate{
+			Chain:          s.Chain,
+			Token:          strings.ToUpper(token),
+			TxHash:         eventLog.TxHash,
+			LogIndex:       int(logIndexInt64),
+			DepositAddress: depositAddress,
+			AmountUSD:      amountUSD,
+			ConfirmedAt:    confirmedAt,
+			Confirmations:  confirmations,
+			Finalized:      finalized,
+			Metadata:       metadata,
+		})
+	}
+
+	return candidates
+}
+
+func (s EvmRpcSource) ethBlockTimestamp(ctx context.Context, blockNumberHex string) (time.Time, error) {
+	var block evmBlock
+	if err := s.rpcCall(ctx, "eth_getBlockByNumber", []interface{}{blockNumberHex, false}, &block); err != nil {
+		return time.Time{}, fmt.Errorf("eth_getBlockByNumber: %w", err)
+	}
+
+	timestampSeconds, err := parseHexInt64(block.Timestamp)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if timestampSeconds <= 0 {
+		return time.Time{}, fmt.Errorf("invalid block timestamp: %s", block.Timestamp)
+	}
+
+	return time.Unix(timestampSeconds, 0).UTC(), nil
 }
 
 func (s EvmRpcSource) ethBlockNumber(ctx context.Context) (int64, error) {
@@ -169,6 +285,33 @@ func (s EvmRpcSource) ethGetLogs(ctx context.Context, contract string, depositAd
 	}
 
 	return logs, nil
+}
+
+// ethGetLogsBroad queries Transfer events from a token contract without filtering by "to" address.
+// Used by factory-level scanning to catch QR/manual deposits to CREATE2 addresses
+// that are not yet registered as active routes.
+func (s EvmRpcSource) ethGetLogsBroad(ctx context.Context, contract string, fromBlock int64, toBlock int64) ([]evmLog, error) {
+	params := map[string]interface{}{
+		"fromBlock": fmt.Sprintf("0x%x", fromBlock),
+		"toBlock":   fmt.Sprintf("0x%x", toBlock),
+		"address":   contract,
+		"topics":    []interface{}{transferTopic},
+	}
+
+	var logs []evmLog
+	if err := s.rpcCall(ctx, "eth_getLogs", []interface{}{params}, &logs); err != nil {
+		return nil, fmt.Errorf("eth_getLogs (broad): %w", err)
+	}
+
+	return logs, nil
+}
+
+// addressFromTopic extracts a 0x-prefixed address from an ABI-encoded topic.
+func addressFromTopic(topic string) string {
+	if len(topic) < 42 {
+		return topic
+	}
+	return "0x" + strings.ToLower(topic[len(topic)-40:])
 }
 
 func (s EvmRpcSource) rpcCall(ctx context.Context, method string, params interface{}, out interface{}) error {

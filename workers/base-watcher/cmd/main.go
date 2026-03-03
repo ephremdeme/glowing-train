@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -34,6 +35,8 @@ func envIntOrDefault(name string, fallback int) int {
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -48,7 +51,7 @@ func main() {
 		Issuer:    envOrDefault("AUTH_JWT_ISSUER", "cryptopay-internal"),
 		Audience:  envOrDefault("AUTH_JWT_AUDIENCE", "cryptopay-services"),
 		Subject:   "base-watcher",
-		HTTPClient: &http.Client{Timeout: 8 * time.Second},
+		HTTPClient: &http.Client{Timeout: 15 * time.Second},
 	}
 
 	routeResolver := internal.CoreAPIRouteResolver{Client: &client, WatcherName: "base-watcher"}
@@ -57,10 +60,11 @@ func main() {
 	dedupeStore := internal.CoreAPIDedupeStore{Client: &client, WatcherName: "base-watcher"}
 
 	source := internal.EvmRpcSource{
-		RPCURL:     rpcURL,
-		HTTPClient: &http.Client{Timeout: 10 * time.Second},
-		RouteStore: routeStore,
-		Chain:      "base",
+		RPCURL:           rpcURL,
+		HTTPClient:       &http.Client{Timeout: 30 * time.Second},
+		RouteStore:       routeStore,
+		Chain:            "base",
+		FactoryLevelScan: true,
 		TokenContracts: map[string]string{
 			"USDC": os.Getenv("BASE_USDC_CONTRACT"),
 			"USDT": os.Getenv("BASE_USDT_CONTRACT"),
@@ -75,7 +79,7 @@ func main() {
 			Endpoint:   callbackURL,
 			Secret:     callbackSecret,
 			APIClient:  &client,
-			Client:     &http.Client{Timeout: 8 * time.Second},
+			Client:     &http.Client{Timeout: 15 * time.Second},
 			Now:        time.Now,
 		},
 	}
@@ -87,7 +91,7 @@ func main() {
 		Watcher:         watcher,
 		CheckpointStore: checkpointStore,
 		DedupeStore:     dedupeStore,
-		Logger:          log.Default(),
+		Logger:          slog.Default(),
 	}
 
 	if err := runner.Run(ctx); err != nil {
