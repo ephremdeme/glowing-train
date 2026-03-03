@@ -54,7 +54,7 @@ func (c CoreAPIClient) Do(ctx context.Context, method string, path string, body 
 		req.Header.Set("content-type", "application/json")
 	}
 
-	token, err := c.createToken()
+	token, err := c.CreateToken()
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func (c CoreAPIClient) Do(ctx context.Context, method string, path string, body 
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-func (c CoreAPIClient) createToken() (string, error) {
+func (c CoreAPIClient) CreateToken() (string, error) {
 	now := time.Now().Unix()
 	claims := map[string]any{
 		"sub":       c.Subject,
