@@ -1,5 +1,5 @@
 import { getDb, schema } from '@cryptopay/db';
-import { and, desc, eq, ne, or } from 'drizzle-orm';
+import { and, desc, eq, ne } from 'drizzle-orm';
 
 export class RecipientsRepository {
   private readonly db = getDb();
@@ -109,33 +109,5 @@ export class RecipientsRepository {
       .returning({ recipientId: schema.recipients.recipientId });
 
     return rows.length > 0;
-  }
-
-  async findReceiverKycByRecipient(recipientId: string): Promise<{
-    kycStatus: 'approved' | 'pending' | 'rejected';
-    nationalIdVerified: boolean;
-  } | null> {
-    const rows = await this.db
-      .select({
-        kycStatus: schema.receiverKycProfiles.kycStatus,
-        nationalIdVerified: schema.receiverKycProfiles.nationalIdVerified
-      })
-      .from(schema.receiverKycProfiles)
-      .where(
-        or(
-          eq(schema.receiverKycProfiles.recipientId, recipientId),
-          eq(schema.receiverKycProfiles.receiverId, recipientId)
-        )
-      )
-      .limit(1);
-
-    return (rows[0] as { kycStatus: 'approved' | 'pending' | 'rejected'; nationalIdVerified: boolean } | undefined) ?? null;
-  }
-
-  async linkReceiverKycToRecipient(params: { receiverId: string; recipientId: string }): Promise<void> {
-    await this.db
-      .update(schema.receiverKycProfiles)
-      .set({ recipientId: params.recipientId, updatedAt: new Date() })
-      .where(eq(schema.receiverKycProfiles.receiverId, params.receiverId));
   }
 }

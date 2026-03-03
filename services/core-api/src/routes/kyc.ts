@@ -1,32 +1,20 @@
-import { assertHasRole, type AuthClaims, verifySignedPayloadSignature } from '@cryptopay/auth';
+import { type AuthClaims, verifySignedPayloadSignature } from '@cryptopay/auth';
 import { query } from '@cryptopay/db';
 import { deny, withIdempotency } from '@cryptopay/http';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { AuditService } from '../modules/audit/index.js';
-import { ReceiverKycService } from '../modules/receiver-kyc/index.js';
 
 export function registerKycRoutes(
   app: FastifyInstance,
   deps: {
     toCustomerClaims: (request: FastifyRequest) => AuthClaims;
-    toAuthClaims: (request: FastifyRequest) => AuthClaims;
     requiredIdempotencyKey: (request: FastifyRequest) => string;
     senderKycWebhookSchema: { safeParse: (value: unknown) => { success: true; data: any } | { success: false; error: { issues: Array<{ message?: string }> } } };
-    receiverKycUpsertSchema: { safeParse: (value: unknown) => { success: true; data: any } | { success: false; error: { issues: Array<{ message?: string }> } } };
     auditService: AuditService;
-    receiverKycService: ReceiverKycService;
   }
 ): void {
-  const {
-    toCustomerClaims,
-    toAuthClaims,
-    requiredIdempotencyKey,
-    senderKycWebhookSchema,
-    receiverKycUpsertSchema,
-    auditService,
-    receiverKycService
-  } = deps;
-app.get('/v1/kyc/sender/status', async (request, reply) => {
+  const { toCustomerClaims, requiredIdempotencyKey, senderKycWebhookSchema, auditService } = deps;
+  app.get('/v1/kyc/sender/status', async (request, reply) => {
   let claims: AuthClaims;
   try {
     claims = toCustomerClaims(request);
@@ -220,104 +208,5 @@ app.post('/internal/v1/kyc/sender/sumsub/webhook', async (request, reply) => {
   });
 
   return reply.status(response.status).send(response.body);
-});
-app.post('/internal/v1/kyc/receivers/upsert', async (request, reply) => {
-  let claims: AuthClaims;
-  try {
-    claims = toAuthClaims(request);
-    assertHasRole(claims, ['ops_admin', 'compliance_admin']);
-  } catch (error) {
-    await auditService.append({
-      actorType: 'admin',
-      actorId: 'unknown',
-      action: 'receiver_kyc_upsert_denied',
-      entityType: 'receiver_kyc_profile',
-      entityId: 'unknown',
-      reason: (error as Error).message
-    });
-    return deny({
-      request,
-      reply,
-      code: 'FORBIDDEN',
-      message: (error as Error).message,
-      status: 403
-    });
-  }
-
-  const parsed = receiverKycUpsertSchema.safeParse(request.body);
-  if (!parsed.success) {
-    return deny({
-      request,
-      reply,
-      code: 'INVALID_PAYLOAD',
-      message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-      status: 400,
-      details: parsed.error.issues
-    });
-  }
-
-  const upsertInput = {
-    receiverId: parsed.data.receiverId,
-    kycStatus: parsed.data.kycStatus,
-    nationalIdVerified: parsed.data.nationalIdVerified,
-    ...(parsed.data.nationalId ? { nationalIdPlaintext: parsed.data.nationalId } : {})
-  };
-
-  const profile = await receiverKycService.upsert(upsertInput);
-
-  await auditService.append({
-    actorType: 'admin',
-    actorId: claims.sub,
-    action: 'receiver_kyc_upsert',
-    entityType: 'receiver_kyc_profile',
-    entityId: profile.receiverId,
-    reason: parsed.data.reason,
-    metadata: {
-      kycStatus: profile.kycStatus,
-      nationalIdVerified: profile.nationalIdVerified
-    }
   });
-
-  return reply.status(200).send({
-    receiverId: profile.receiverId,
-    kycStatus: profile.kycStatus,
-    nationalIdVerified: profile.nationalIdVerified,
-    updatedAt: profile.updatedAt.toISOString()
-  });
-});
-
-app.get('/internal/v1/kyc/receivers/:receiverId', async (request, reply) => {
-  try {
-    const claims = toAuthClaims(request);
-    assertHasRole(claims, ['ops_viewer', 'ops_admin', 'compliance_viewer', 'compliance_admin']);
-  } catch (error) {
-    return deny({
-      request,
-      reply,
-      code: 'FORBIDDEN',
-      message: (error as Error).message,
-      status: 403
-    });
-  }
-
-  const receiverId = (request.params as { receiverId: string }).receiverId;
-  const profile = await receiverKycService.getByReceiverId(receiverId);
-  if (!profile) {
-    return deny({
-      request,
-      reply,
-      code: 'RECEIVER_KYC_NOT_FOUND',
-      message: `Receiver KYC profile ${receiverId} not found.`,
-      status: 404
-    });
-  }
-
-  return reply.send({
-    receiverId: profile.receiverId,
-    kycStatus: profile.kycStatus,
-    nationalIdVerified: profile.nationalIdVerified,
-    nationalIdHash: profile.nationalIdHash,
-    updatedAt: profile.updatedAt.toISOString()
-  });
-});
 }

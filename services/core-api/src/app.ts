@@ -14,7 +14,6 @@ import { z } from 'zod';
 import { AuditService } from './modules/audit/index.js';
 import { FundingConfirmationRepository, FundingConfirmationService } from './modules/funding-confirmations/index.js';
 import { QuoteRepository, QuoteService } from './modules/quotes/index.js';
-import { ReceiverKycRepository, ReceiverKycService } from './modules/receiver-kyc/index.js';
 import { registerCustomerProfileRoutes } from './routes/customer-profile.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerInternalFundingRoutes } from './routes/internal-funding.js';
@@ -62,14 +61,6 @@ const reconciliationRunSchema = z.object({
   outputPath: z.string().min(1).optional()
 });
 
-const receiverKycUpsertSchema = z.object({
-  receiverId: z.string().min(1),
-  kycStatus: z.enum(['approved', 'pending', 'rejected']),
-  nationalIdVerified: z.boolean(),
-  nationalId: z.string().min(4).optional(),
-  reason: z.string().min(3)
-});
-
 const watcherCheckpointSchema = z.object({
   chain: z.enum(['base', 'solana']),
   cursor: z.string().min(1)
@@ -98,10 +89,7 @@ const recipientCreateSchema = z.object({
   bankAccountNumber: z.string().min(4),
   bankCode: z.string().min(1),
   phoneE164: z.string().min(8).max(20).optional(),
-  countryCode: z.string().min(2).max(3),
-  nationalId: z.string().min(4).optional(),
-  nationalIdVerified: z.boolean().default(false),
-  kycStatus: z.enum(['approved', 'pending', 'rejected']).default('pending')
+  countryCode: z.string().min(2).max(3)
 });
 
 const recipientUpdateSchema = z.object({
@@ -110,10 +98,7 @@ const recipientUpdateSchema = z.object({
   bankAccountNumber: z.string().min(4).optional(),
   bankCode: z.string().min(1).optional(),
   phoneE164: z.string().min(8).max(20).optional(),
-  countryCode: z.string().min(2).max(3).optional(),
-  nationalId: z.string().min(4).optional(),
-  nationalIdVerified: z.boolean().optional(),
-  kycStatus: z.enum(['approved', 'pending', 'rejected']).optional()
+  countryCode: z.string().min(2).max(3).optional()
 });
 
 const senderKycWebhookSchema = z.object({
@@ -129,6 +114,10 @@ const transferCreateSchema = z.object({
 });
 
 const transferSolanaPaymentSchema = z.object({
+  txHash: z.string().min(1)
+});
+
+const transferBasePaymentSchema = z.object({
   txHash: z.string().min(1)
 });
 
@@ -267,7 +256,6 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
   });
   const fundingService = new FundingConfirmationService(new FundingConfirmationRepository());
   const auditService = new AuditService();
-  const receiverKycService = new ReceiverKycService(new ReceiverKycRepository());
 
   registerHealthRoutes(app, metrics);
 
@@ -281,18 +269,14 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     toCustomerClaims,
     recipientCreateSchema,
     recipientUpdateSchema,
-    receiverKycService,
     auditService
   });
 
   registerKycRoutes(app, {
     toCustomerClaims,
-    toAuthClaims,
     requiredIdempotencyKey,
     senderKycWebhookSchema,
-    receiverKycUpsertSchema,
-    auditService,
-    receiverKycService
+    auditService
   });
 
   registerTransferRoutes(app, {
@@ -301,6 +285,7 @@ export async function buildCoreApiApp(): Promise<FastifyInstance> {
     transferListQuerySchema,
     transferCreateSchema,
     transferSolanaPaymentSchema,
+    transferBasePaymentSchema,
     buildInternalServiceToken,
     fundingService
   });

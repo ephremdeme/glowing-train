@@ -3,7 +3,6 @@ import { deny } from '@cryptopay/http';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import { AuditService } from '../modules/audit/index.js';
-import { ReceiverKycService } from '../modules/receiver-kyc/index.js';
 import { RecipientsRepository } from '../modules/recipients/repository.js';
 
 export function registerRecipientRoutes(
@@ -12,11 +11,10 @@ export function registerRecipientRoutes(
     toCustomerClaims: (request: FastifyRequest) => AuthClaims;
     recipientCreateSchema: { safeParse: (value: unknown) => { success: true; data: any } | { success: false; error: { issues: Array<{ message?: string }> } } };
     recipientUpdateSchema: { safeParse: (value: unknown) => { success: true; data: any } | { success: false; error: { issues: Array<{ message?: string }> } } };
-    receiverKycService: ReceiverKycService;
     auditService: AuditService;
   }
 ): void {
-  const { toCustomerClaims, recipientCreateSchema, recipientUpdateSchema, receiverKycService, auditService } = deps;
+  const { toCustomerClaims, recipientCreateSchema, recipientUpdateSchema, auditService } = deps;
   const repository = new RecipientsRepository();
 
   app.post('/v1/recipients', async (request, reply) => {
@@ -57,18 +55,6 @@ export function registerRecipientRoutes(
       countryCode: parsed.data.countryCode.toUpperCase()
     });
 
-    const kycProfile = await receiverKycService.upsert({
-      receiverId: recipient.recipientId,
-      kycStatus: parsed.data.kycStatus,
-      nationalIdVerified: parsed.data.nationalIdVerified,
-      ...(parsed.data.nationalId ? { nationalIdPlaintext: parsed.data.nationalId } : {})
-    });
-
-    await repository.linkReceiverKycToRecipient({
-      receiverId: recipient.recipientId,
-      recipientId: recipient.recipientId
-    });
-
     await auditService.append({
       actorType: 'customer',
       actorId: claims.sub,
@@ -86,10 +72,6 @@ export function registerRecipientRoutes(
       phoneE164: recipient.phoneE164,
       countryCode: recipient.countryCode,
       status: recipient.status,
-      receiverKyc: {
-        kycStatus: kycProfile.kycStatus,
-        nationalIdVerified: kycProfile.nationalIdVerified
-      },
       createdAt: recipient.createdAt.toISOString(),
       updatedAt: recipient.updatedAt.toISOString()
     });
@@ -153,8 +135,6 @@ export function registerRecipientRoutes(
       });
     }
 
-    const kyc = await repository.findReceiverKycByRecipient(recipientId);
-
     return reply.send({
       recipientId: recipient.recipientId,
       fullName: recipient.fullName,
@@ -164,10 +144,6 @@ export function registerRecipientRoutes(
       phoneE164: recipient.phoneE164,
       countryCode: recipient.countryCode,
       status: recipient.status,
-      receiverKyc: {
-        kycStatus: kyc?.kycStatus ?? 'pending',
-        nationalIdVerified: kyc?.nationalIdVerified ?? false
-      },
       createdAt: recipient.createdAt.toISOString(),
       updatedAt: recipient.updatedAt.toISOString()
     });
@@ -221,42 +197,6 @@ export function registerRecipientRoutes(
       });
     }
 
-    let receiverKyc:
-      | {
-          kycStatus: 'approved' | 'pending' | 'rejected';
-          nationalIdVerified: boolean;
-        }
-      | null = null;
-
-    const hasReceiverKycUpdate =
-      parsed.data.kycStatus !== undefined || parsed.data.nationalIdVerified !== undefined || parsed.data.nationalId !== undefined;
-
-    if (hasReceiverKycUpdate) {
-      const existingKyc = await repository.findReceiverKycByRecipient(recipientId);
-
-      const profile = await receiverKycService.upsert({
-        receiverId: recipientId,
-        kycStatus: parsed.data.kycStatus ?? existingKyc?.kycStatus ?? 'pending',
-        nationalIdVerified: parsed.data.nationalIdVerified ?? existingKyc?.nationalIdVerified ?? false,
-        ...(parsed.data.nationalId ? { nationalIdPlaintext: parsed.data.nationalId } : {})
-      });
-
-      await repository.linkReceiverKycToRecipient({
-        receiverId: recipientId,
-        recipientId
-      });
-
-      receiverKyc = {
-        kycStatus: profile.kycStatus,
-        nationalIdVerified: profile.nationalIdVerified
-      };
-    } else {
-      const existingKyc = await repository.findReceiverKycByRecipient(recipientId);
-      if (existingKyc) {
-        receiverKyc = existingKyc;
-      }
-    }
-
     await auditService.append({
       actorType: 'customer',
       actorId: claims.sub,
@@ -264,20 +204,6 @@ export function registerRecipientRoutes(
       entityType: 'recipient',
       entityId: recipientId
     });
-
-    if (hasReceiverKycUpdate) {
-      await auditService.append({
-        actorType: 'customer',
-        actorId: claims.sub,
-        action: 'recipient_kyc_updated',
-        entityType: 'receiver_kyc_profile',
-        entityId: recipientId,
-        metadata: {
-          kycStatus: receiverKyc?.kycStatus ?? null,
-          nationalIdVerified: receiverKyc?.nationalIdVerified ?? null
-        }
-      });
-    }
 
     return reply.send({
       recipientId: recipient.recipientId,
@@ -288,7 +214,6 @@ export function registerRecipientRoutes(
       phoneE164: recipient.phoneE164,
       countryCode: recipient.countryCode,
       status: recipient.status,
-      receiverKyc,
       createdAt: recipient.createdAt.toISOString(),
       updatedAt: recipient.updatedAt.toISOString()
     });
