@@ -224,11 +224,7 @@ test('multipage happy path: signup -> login -> quote -> transfer -> status -> hi
         countryCode: 'ET',
         status: 'active',
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        receiverKyc: {
-          kycStatus: 'approved',
-          nationalIdVerified: true
-        }
+        updatedAt: new Date().toISOString()
       })
     });
   });

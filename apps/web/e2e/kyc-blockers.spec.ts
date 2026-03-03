@@ -88,11 +88,7 @@ test('sender blocker shows pending/rejected guidance and restart action', async 
         countryCode: 'ET',
         status: 'active',
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        receiverKyc: {
-          kycStatus: 'rejected',
-          nationalIdVerified: false
-        }
+        updatedAt: new Date().toISOString()
       })
     });
   });
@@ -176,11 +172,7 @@ test('receiver KYC state no longer blocks transfer creation', async ({ page }) =
         countryCode: 'ET',
         status: 'active',
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        receiverKyc: {
-          kycStatus: 'pending',
-          nationalIdVerified: false
-        }
+        updatedAt: new Date().toISOString()
       })
     });
   });

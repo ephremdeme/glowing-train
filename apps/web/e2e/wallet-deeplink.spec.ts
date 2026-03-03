@@ -96,11 +96,7 @@ async function mockCommonRoutes(page: import('@playwright/test').Page, chain: 'b
         countryCode: 'ET',
         status: 'active',
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        receiverKyc: {
-          kycStatus: 'approved',
-          nationalIdVerified: true
-        }
+        updatedAt: new Date().toISOString()
       })
     });
   });
