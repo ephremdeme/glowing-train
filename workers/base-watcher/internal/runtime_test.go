@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"testing"
 	"time"
 )
@@ -67,6 +67,7 @@ func TestRunner_ProcessesAndMarksDedupe(t *testing.T) {
 				LogIndex:       1,
 				DepositAddress: "dep_1",
 				AmountUSD:      10,
+				ConfirmedAt:    time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC),
 				Confirmations:  10,
 			}},
 			nextCursor: "20",
@@ -79,7 +80,7 @@ func TestRunner_ProcessesAndMarksDedupe(t *testing.T) {
 		},
 		CheckpointStore: checkpoint,
 		DedupeStore:     dedupe,
-		Logger:          log.New(io.Discard, "", 0),
+		Logger:          slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -111,7 +112,7 @@ func TestRunner_PropagatesSourceError(t *testing.T) {
 		Watcher:         Watcher{},
 		CheckpointStore: &checkpointStub{cursor: "0"},
 		DedupeStore:     &dedupeStub{seen: map[string]bool{}},
-		Logger:          log.New(io.Discard, "", 0),
+		Logger:          slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

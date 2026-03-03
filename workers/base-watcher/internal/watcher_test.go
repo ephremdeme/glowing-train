@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 type resolverStub struct {
@@ -48,7 +49,7 @@ func TestWatcher_PublishesWhenRouteFoundAndConfirmed(t *testing.T) {
 
 	result, err := w.ProcessCandidate(context.Background(), FundingCandidate{
 		Chain: "base", Token: "USDC", TxHash: "0xabc", LogIndex: 3,
-		DepositAddress: "dep_1", AmountUSD: 100, Confirmations: 2,
+		DepositAddress: "dep_1", AmountUSD: 100, Confirmations: 2, ConfirmedAt: time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC),
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -75,7 +76,9 @@ func TestWatcher_ReturnsRouteNotFound(t *testing.T) {
 	pub := &publisherStub{}
 	w := Watcher{Chain: "base", MinConfirmations: 1, Resolver: resolverStub{found: false}, Publisher: pub}
 
-	result, err := w.ProcessCandidate(context.Background(), FundingCandidate{Chain: "base", Token: "USDT", TxHash: "0x2", Confirmations: 5})
+	result, err := w.ProcessCandidate(context.Background(), FundingCandidate{
+		Chain: "base", Token: "USDT", TxHash: "0x2", Confirmations: 5, ConfirmedAt: time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC),
+	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -88,7 +91,9 @@ func TestWatcher_PropagatesPublisherError(t *testing.T) {
 	pub := &publisherStub{err: errors.New("publish failed")}
 	w := Watcher{Chain: "base", MinConfirmations: 1, Resolver: resolverStub{found: true, match: RouteMatch{TransferID: "tr_1"}}, Publisher: pub}
 
-	_, err := w.ProcessCandidate(context.Background(), FundingCandidate{Chain: "base", Token: "USDC", TxHash: "0x3", Confirmations: 5})
+	_, err := w.ProcessCandidate(context.Background(), FundingCandidate{
+		Chain: "base", Token: "USDC", TxHash: "0x3", Confirmations: 5, ConfirmedAt: time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC),
+	})
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -101,7 +106,7 @@ func TestWatcher_FinalizedBypassesMinConfirmations(t *testing.T) {
 	// Only 1 confirmation but Finalized=true should bypass MinConfirmations check
 	result, err := w.ProcessCandidate(context.Background(), FundingCandidate{
 		Chain: "base", Token: "USDC", TxHash: "0xfin", Confirmations: 1,
-		Finalized: true, DepositAddress: "dep_fin",
+		Finalized: true, DepositAddress: "dep_fin", ConfirmedAt: time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC),
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -118,7 +123,7 @@ func TestWatcher_MetadataPassedThrough(t *testing.T) {
 	meta := map[string]any{"payerAddress": "0xabc123", "blockNumber": int64(42)}
 	result, err := w.ProcessCandidate(context.Background(), FundingCandidate{
 		Chain: "base", Token: "USDC", TxHash: "0xmeta",
-		DepositAddress: "dep_meta", Confirmations: 5, Metadata: meta,
+		DepositAddress: "dep_meta", Confirmations: 5, ConfirmedAt: time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC), Metadata: meta,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -144,7 +149,7 @@ func TestWatcher_PrePopulatedTransferIDSkipsResolver(t *testing.T) {
 	// Candidate already has TransferID set — should skip resolver
 	result, err := w.ProcessCandidate(context.Background(), FundingCandidate{
 		Chain: "base", Token: "USDC", TxHash: "0xpre", TransferID: "tr_pre",
-		DepositAddress: "dep_pre", Confirmations: 5,
+		DepositAddress: "dep_pre", Confirmations: 5, ConfirmedAt: time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC),
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)

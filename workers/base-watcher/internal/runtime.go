@@ -3,7 +3,7 @@ package internal
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strconv"
 	"time"
 )
@@ -29,7 +29,7 @@ type Runner struct {
 	Watcher         Watcher
 	CheckpointStore CheckpointStore
 	DedupeStore     DedupeStore
-	Logger          *log.Logger
+	Logger          *slog.Logger
 }
 
 func (r Runner) Run(ctx context.Context) error {
@@ -37,7 +37,7 @@ func (r Runner) Run(ctx context.Context) error {
 		return fmt.Errorf("runner dependencies not configured")
 	}
 	if r.Logger == nil {
-		r.Logger = log.Default()
+		r.Logger = slog.Default()
 	}
 	if r.PollInterval <= 0 {
 		r.PollInterval = 5 * time.Second
@@ -48,10 +48,17 @@ func (r Runner) Run(ctx context.Context) error {
 		return fmt.Errorf("load cursor: %w", err)
 	}
 
-	r.Logger.Printf("%s: starting watcher loop from cursor=%s", r.Name, cursor)
+	r.Logger.Info("starting watcher loop",
+		"watcher", r.Name,
+		"cursor", cursor,
+		"pollInterval", r.PollInterval.String(),
+	)
 
 	if err := r.runOnce(ctx, cursor); err != nil {
-		r.Logger.Printf("%s: initial poll failed: %v", r.Name, err)
+		r.Logger.Error("initial poll failed",
+			"watcher", r.Name,
+			"error", err,
+		)
 	}
 
 	ticker := time.NewTicker(r.PollInterval)
@@ -60,10 +67,15 @@ func (r Runner) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			r.Logger.Info("watcher shutting down", "watcher", r.Name)
 			return nil
 		case <-ticker.C:
 			if err := r.runOnce(ctx, cursor); err != nil {
-				r.Logger.Printf("%s: poll failed: %v", r.Name, err)
+				r.Logger.Error("poll failed",
+					"watcher", r.Name,
+					"cursor", cursor,
+					"error", err,
+				)
 				continue
 			}
 
@@ -81,6 +93,16 @@ func (r Runner) runOnce(ctx context.Context, currentCursor string) error {
 		return fmt.Errorf("poll source: %w", err)
 	}
 
+	r.Logger.Info("poll complete",
+		"watcher", r.Name,
+		"cursor", currentCursor,
+		"nextCursor", nextCursor,
+		"candidateCount", len(candidates),
+	)
+
+	confirmedCount := 0
+	skippedCount := 0
+
 	for _, candidate := range candidates {
 		eventKey := buildEventKey(candidate)
 
@@ -89,19 +111,52 @@ func (r Runner) runOnce(ctx context.Context, currentCursor string) error {
 			return fmt.Errorf("check dedupe: %w", err)
 		}
 		if seen {
+			skippedCount++
+			r.Logger.Debug("candidate already seen, skipping",
+				"eventKey", eventKey,
+				"txHash", candidate.TxHash,
+			)
 			continue
 		}
 
 		result, err := r.Watcher.ProcessCandidate(ctx, candidate)
 		if err != nil {
+			r.Logger.Error("process candidate failed",
+				"watcher", r.Name,
+				"eventKey", eventKey,
+				"txHash", candidate.TxHash,
+				"depositAddress", candidate.DepositAddress,
+				"error", err,
+			)
 			return fmt.Errorf("process candidate %s: %w", eventKey, err)
 		}
 
+		r.Logger.Info("candidate processed",
+			"watcher", r.Name,
+			"eventKey", eventKey,
+			"txHash", candidate.TxHash,
+			"depositAddress", candidate.DepositAddress,
+			"amountUSD", candidate.AmountUSD,
+			"confirmations", candidate.Confirmations,
+			"result", string(result),
+		)
+
 		if result == ProcessConfirmed {
+			confirmedCount++
 			if err := r.DedupeStore.Mark(ctx, eventKey); err != nil {
 				return fmt.Errorf("mark dedupe: %w", err)
 			}
 		}
+	}
+
+	if len(candidates) > 0 {
+		r.Logger.Info("poll cycle summary",
+			"watcher", r.Name,
+			"total", len(candidates),
+			"confirmed", confirmedCount,
+			"skipped", skippedCount,
+			"unresolved", len(candidates)-confirmedCount-skippedCount,
+		)
 	}
 
 	if err := r.CheckpointStore.SaveCursor(ctx, nextCursor); err != nil {
