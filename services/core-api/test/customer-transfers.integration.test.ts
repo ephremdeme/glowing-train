@@ -46,20 +46,6 @@ async function ensureTables(): Promise<void> {
   `);
 
   await query(`
-    create table if not exists receiver_kyc_profile (
-      receiver_id text primary key,
-      recipient_id text,
-      kyc_status text not null check (kyc_status in ('approved', 'pending', 'rejected')),
-      national_id_verified boolean not null default false,
-      national_id_hash text,
-      national_id_encrypted jsonb,
-      updated_at timestamptz not null default now()
-    )
-  `);
-
-  await query('alter table receiver_kyc_profile add column if not exists recipient_id text');
-
-  await query(`
     create table if not exists quotes (
       quote_id text primary key,
       chain text not null check (chain in ('base', 'solana')),
@@ -80,8 +66,6 @@ async function ensureTables(): Promise<void> {
       sender_id text not null,
       receiver_id text not null,
       sender_kyc_status text not null,
-      receiver_kyc_status text not null,
-      receiver_national_id_verified boolean not null default false,
       chain text not null,
       token text not null,
       send_amount_usd numeric(12, 2) not null,
@@ -207,15 +191,6 @@ async function seedRecipient(recipientId: string, customerId: string): Promise<v
     `,
     [recipientId, customerId]
   );
-
-  await query(
-    `
-      insert into receiver_kyc_profile (receiver_id, recipient_id, kyc_status, national_id_verified)
-      values ($1, $1, 'pending', false)
-      on conflict (receiver_id) do nothing
-    `,
-    [recipientId]
-  );
 }
 
 async function seedTransfer(
@@ -240,9 +215,9 @@ async function seedTransfer(
     `
       insert into transfers (
         transfer_id, quote_id, sender_id, receiver_id,
-        sender_kyc_status, receiver_kyc_status, receiver_national_id_verified,
+        sender_kyc_status,
         chain, token, send_amount_usd, status
-      ) values ($1, $2, $3, $4, 'approved', 'approved', true, 'base', 'USDC', 100, $5)
+      ) values ($1, $2, $3, $4, 'approved', 'base', 'USDC', 100, $5)
     `,
     [transferId, quoteId, senderId, recipientId, status]
   );
@@ -305,7 +280,7 @@ describe('customer transfer APIs integration', () => {
 
   beforeEach(async () => {
     await query(
-      'truncate table transfer_transition, onchain_funding_event, payout_instruction, deposit_routes, transfers, quotes, receiver_kyc_profile, recipient, sender_kyc_profile, customer_account, audit_log, idempotency_record cascade'
+      'truncate table transfer_transition, onchain_funding_event, payout_instruction, deposit_routes, transfers, quotes, recipient, sender_kyc_profile, customer_account, audit_log, idempotency_record cascade'
     );
   });
 
@@ -462,7 +437,7 @@ describe('customer transfer APIs integration', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('updates recipient receiver KYC through recipient patch and writes audit entry', async () => {
+  it('ignores removed recipient KYC fields and updates supported recipient fields', async () => {
     await seedCustomer('cust_patch', 'Patch User');
     await seedRecipient('rcp_patch', 'cust_patch');
 
@@ -473,6 +448,7 @@ describe('customer transfer APIs integration', () => {
         authorization: `Bearer ${customerToken('cust_patch')}`
       },
       payload: {
+        fullName: 'Updated Recipient Name',
         kycStatus: 'approved',
         nationalIdVerified: true,
         nationalId: 'ET-NEW-1234'
@@ -482,22 +458,16 @@ describe('customer transfer APIs integration', () => {
     expect(response.statusCode).toBe(200);
     const body = response.json() as {
       recipientId: string;
-      receiverKyc: { kycStatus: string; nationalIdVerified: boolean } | null;
+      fullName: string;
+      receiverKyc?: unknown;
     };
 
     expect(body.recipientId).toBe('rcp_patch');
-    expect(body.receiverKyc?.kycStatus).toBe('approved');
-    expect(body.receiverKyc?.nationalIdVerified).toBe(true);
-
-    const kyc = await query(
-      'select kyc_status, national_id_verified from receiver_kyc_profile where receiver_id = $1 limit 1',
-      ['rcp_patch']
-    );
-    expect(kyc.rows[0]?.kyc_status).toBe('approved');
-    expect(kyc.rows[0]?.national_id_verified).toBe(true);
+    expect(body.fullName).toBe('Updated Recipient Name');
+    expect(body).not.toHaveProperty('receiverKyc');
 
     const audit = await query(
-      "select count(*)::int as count from audit_log where action = 'recipient_kyc_updated' and entity_id = $1",
+      "select count(*)::int as count from audit_log where action = 'recipient_updated' and entity_id = $1",
       ['rcp_patch']
     );
     expect(audit.rows[0]?.count).toBe(1);
