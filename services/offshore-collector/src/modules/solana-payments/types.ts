@@ -14,9 +14,9 @@ export interface VerifiedSolanaPayment {
   amountUsd: number;
   depositAddress: string;
   confirmedAt: string;
-  referenceHash: string;
-  payerAddress: string;
-  paymentId: string;
+  referenceHash?: string;
+  payerAddress?: string;
+  paymentId?: string;
 }
 
 export class SolanaPaymentVerificationError extends Error {
@@ -32,4 +32,3 @@ export class SolanaPaymentVerificationError extends Error {
     this.retryable = params.retryable ?? false;
   }
 }
-
