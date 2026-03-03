@@ -120,10 +120,11 @@ export function registerOpsRoutes(
       });
     }
 
-    const [transitions, payout, funding] = await Promise.all([
+    const [transitions, payout, funding, settlement] = await Promise.all([
       repository.listTransitionsByTransferId(transferId),
       repository.findPayoutByTransferId(transferId),
-      repository.findFundingByTransferId(transferId)
+      repository.findFundingByTransferId(transferId),
+      repository.findSettlementByTransferId(transferId)
     ]);
 
     return reply.send({
@@ -133,8 +134,6 @@ export function registerOpsRoutes(
         sender_id: transfer.senderId,
         receiver_id: transfer.receiverId,
         sender_kyc_status: transfer.senderKycStatus,
-        receiver_kyc_status: transfer.receiverKycStatus,
-        receiver_national_id_verified: transfer.receiverNationalIdVerified,
         chain: transfer.chain,
         token: transfer.token,
         send_amount_usd: transfer.sendAmountUsd,
@@ -175,6 +174,22 @@ export function registerOpsRoutes(
             amount_usd: funding.amountUsd,
             confirmed_at: funding.confirmedAt,
             created_at: funding.createdAt
+          }
+        : null,
+      settlement: settlement
+        ? {
+            transfer_id: settlement.transferId,
+            chain: settlement.chain,
+            token: settlement.token,
+            deposit_address: settlement.depositAddress,
+            status: settlement.status,
+            attempt_count: settlement.attemptCount,
+            next_attempt_at: settlement.nextAttemptAt,
+            last_sweep_tx_hash: settlement.lastSweepTxHash,
+            swept_at: settlement.sweptAt,
+            last_error: settlement.lastError,
+            created_at: settlement.createdAt,
+            updated_at: settlement.updatedAt
           }
         : null
     });

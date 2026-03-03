@@ -28,8 +28,6 @@ async function ensureTables(): Promise<void> {
       sender_id text not null,
       receiver_id text not null,
       sender_kyc_status text not null check (sender_kyc_status in ('approved', 'pending', 'rejected')),
-      receiver_kyc_status text not null check (receiver_kyc_status in ('approved', 'pending', 'rejected')),
-      receiver_national_id_verified boolean not null default false,
       chain text not null check (chain in ('base', 'solana')),
       token text not null check (token in ('USDC', 'USDT')),
       send_amount_usd numeric(12, 2) not null check (send_amount_usd > 0 and send_amount_usd <= 2000),
@@ -64,6 +62,23 @@ async function ensureTables(): Promise<void> {
       confirmed_at timestamptz not null,
       created_at timestamptz not null default now(),
       unique(chain, tx_hash, log_index)
+    )
+  `);
+
+  await query(`
+    create table if not exists settlement_record (
+      transfer_id text primary key references transfers(transfer_id) on delete cascade,
+      chain text not null check (chain in ('base', 'solana')),
+      token text not null check (token in ('USDC', 'USDT')),
+      deposit_address text not null,
+      status text not null check (status in ('pending_sweep', 'sweeping', 'swept', 'review_required')),
+      attempt_count integer not null default 0,
+      next_attempt_at timestamptz not null default now(),
+      last_sweep_tx_hash text,
+      swept_at timestamptz,
+      last_error text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
     )
   `);
 
@@ -110,10 +125,10 @@ async function seedTransfer(routeAddress: string): Promise<string> {
     `
     insert into transfers (
       transfer_id, quote_id, sender_id, receiver_id,
-      sender_kyc_status, receiver_kyc_status, receiver_national_id_verified,
+      sender_kyc_status,
       chain, token, send_amount_usd, status
     ) values (
-      $1,$2,'sender_1','receiver_1','approved','approved',true,
+      $1,$2,'sender_1','receiver_1','approved',
       'base','USDC',100,'AWAITING_FUNDING'
     )
     `,
@@ -138,8 +153,8 @@ describe('funding confirmation integration', () => {
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
     process.env.APP_REGION = 'offshore';
-    process.env.DATABASE_URL = 'postgres://cryptopay:cryptopay@localhost:55432/cryptopay';
-    process.env.REDIS_URL = 'redis://localhost:6379';
+    process.env.DATABASE_URL ??= 'postgres://cryptopay:cryptopay@localhost:55432/cryptopay';
+    process.env.REDIS_URL ??= 'redis://localhost:6379';
     process.env.ETHIOPIA_SERVICES_CRYPTO_DISABLED = 'true';
 
     await ensureTables();
@@ -149,7 +164,9 @@ describe('funding confirmation integration', () => {
   });
 
   beforeEach(async () => {
-    await query('truncate table onchain_funding_event, transfer_transition, audit_log, deposit_routes, transfers, quotes cascade');
+    await query(
+      'truncate table settlement_record, onchain_funding_event, transfer_transition, audit_log, deposit_routes, transfers, quotes cascade'
+    );
   });
 
   afterAll(async () => {
@@ -184,6 +201,15 @@ describe('funding confirmation integration', () => {
 
     const eventCount = await query('select count(*)::int as count from onchain_funding_event where transfer_id = $1', [transferId]);
     expect(eventCount.rows[0]?.count).toBe(1);
+
+    const settlement = await query(
+      'select chain, token, deposit_address, status from settlement_record where transfer_id = $1',
+      [transferId]
+    );
+    expect(settlement.rows[0]?.chain).toBe('base');
+    expect(settlement.rows[0]?.token).toBe('USDC');
+    expect(settlement.rows[0]?.deposit_address).toBe('dep_confirm_once');
+    expect(settlement.rows[0]?.status).toBe('pending_sweep');
   });
 
   it('deduplicates duplicate chain events safely', async () => {

@@ -73,6 +73,15 @@ export class OpsRepository {
     return rows[0] ?? null;
   }
 
+  async findSettlementByTransferId(transferId: string): Promise<(typeof schema.settlementRecords.$inferSelect) | null> {
+    const rows = await this.db
+      .select()
+      .from(schema.settlementRecords)
+      .where(eq(schema.settlementRecords.transferId, transferId))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
   async listSlaBreaches(thresholdMinutes: number): Promise<
     Array<{
       transferId: string;
