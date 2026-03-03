@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { CheckCircle, Copy } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface CopyRowProps {
     label: string;
@@ -17,6 +18,7 @@ export function CopyRow({ label, value }: CopyRowProps) {
             await navigator.clipboard.writeText(value);
             setCopyError(null);
             setCopied(true);
+            toast.success('Copied!', { description: `${label} copied to clipboard.`, duration: 2000 });
             setTimeout(() => setCopied(false), 2000);
         } catch {
             setCopyError('Copy failed');

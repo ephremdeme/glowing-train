@@ -21,10 +21,7 @@ export const recipientCreateSchema = z.object({
   bankAccountNumber: z.string().min(6),
   bankCode: z.string().min(2),
   phoneE164: z.string().optional(),
-  countryCode: z.string().min(2).max(2).default('ET'),
-  kycStatus: z.enum(['approved', 'pending', 'rejected']).optional(),
-  nationalIdVerified: z.boolean().optional(),
-  nationalId: z.string().optional()
+  countryCode: z.string().min(2).max(2).default('ET')
 });
 
 export const recipientUpdateSchema = z.object({
@@ -33,10 +30,7 @@ export const recipientUpdateSchema = z.object({
   bankAccountNumber: z.string().min(6).optional(),
   bankCode: z.string().min(2).optional(),
   phoneE164: z.string().optional(),
-  countryCode: z.string().min(2).max(3).optional(),
-  nationalId: z.string().optional(),
-  nationalIdVerified: z.boolean().optional(),
-  kycStatus: z.enum(['approved', 'pending', 'rejected']).optional()
+  countryCode: z.string().min(2).max(3).optional()
 });
 
 export const quoteCreateSchema = z.object({
@@ -104,12 +98,7 @@ export interface RecipientSummary {
   updatedAt: string;
 }
 
-export interface RecipientDetail extends RecipientSummary {
-  receiverKyc?: {
-    kycStatus: 'approved' | 'pending' | 'rejected';
-    nationalIdVerified: boolean;
-  } | null;
-}
+export interface RecipientDetail extends RecipientSummary {}
 
 export interface QuoteSummary {
   quoteId: string;

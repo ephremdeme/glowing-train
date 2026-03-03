@@ -117,7 +117,10 @@ function RealBaseWalletPanel({ onStateChange, onConnected }: Pick<WalletConnectP
       address,
       connectorName: providerReady ? 'Injected EVM Wallet' : null
     });
-  }, [address, onStateChange, providerReady]);
+    if (address && onConnected) {
+      onConnected('base', address);
+    }
+  }, [address, onStateChange, onConnected, providerReady]);
 
   async function connect(): Promise<void> {
     const provider = getEthereumProvider();
