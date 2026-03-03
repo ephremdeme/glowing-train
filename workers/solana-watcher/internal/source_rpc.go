@@ -16,14 +16,14 @@ import (
 )
 
 type SolanaRpcSource struct {
-	RPCURL      string
-	HTTPClient  *http.Client
-	RouteStore  RouteStore
-	TokenMints  map[string]string // token -> mint pubkey (base58)
+	RPCURL       string
+	HTTPClient   *http.Client
+	RouteStore   RouteStore
+	TokenMints   map[string]string // token -> mint pubkey (base58)
 	TreasuryATAs map[string]string // token -> treasury ATA (base58)
-	ProgramID   string
-	Chain       string
-	Limit       int
+	ProgramID    string
+	Chain        string
+	Limit        int
 }
 
 type rpcRequest struct {
@@ -44,6 +44,7 @@ type rpcResponse struct {
 type signatureItem struct {
 	Signature string `json:"signature"`
 	Slot      int64  `json:"slot"`
+	BlockTime *int64 `json:"blockTime"`
 	Err       any    `json:"err"`
 }
 
@@ -52,15 +53,25 @@ type tokenAmount struct {
 }
 
 type tokenBalance struct {
+	AccountIndex  int         `json:"accountIndex"`
 	Owner         string      `json:"owner"`
 	Mint          string      `json:"mint"`
 	UITokenAmount tokenAmount `json:"uiTokenAmount"`
 }
 
+type accountKey struct {
+	Pubkey string `json:"pubkey"`
+}
+
 type transactionResult struct {
+	Transaction struct {
+		Message struct {
+			AccountKeys []accountKey `json:"accountKeys"`
+		} `json:"message"`
+	} `json:"transaction"`
 	Meta struct {
-		Err              any            `json:"err"`
-		LogMessages      []string       `json:"logMessages"`
+		Err               any            `json:"err"`
+		LogMessages       []string       `json:"logMessages"`
 		PreTokenBalances  []tokenBalance `json:"preTokenBalances"`
 		PostTokenBalances []tokenBalance `json:"postTokenBalances"`
 	} `json:"meta"`
@@ -91,18 +102,35 @@ func (s SolanaRpcSource) Poll(ctx context.Context, cursor string) ([]FundingCand
 		return nil, strconv.FormatInt(current, 10), nil
 	}
 
+	candidates := make([]FundingCandidate, 0)
+	seenTxKeys := map[string]bool{} // dedup across both modes
+
+	// Mode 1: Program payment events (wallet-pay via the Anchor program)
 	if strings.TrimSpace(s.ProgramID) != "" && len(s.TreasuryATAs) > 0 {
-		candidates, err := s.pollProgramPayments(ctx, current, limit)
+		programCandidates, err := s.pollProgramPayments(ctx, current, limit)
 		if err != nil {
 			return nil, cursor, err
 		}
-		return candidates, strconv.FormatInt(latestSlot, 10), nil
+		for _, c := range programCandidates {
+			key := c.TxHash + ":" + strconv.Itoa(c.LogIndex)
+			seenTxKeys[key] = true
+			candidates = append(candidates, c)
+		}
 	}
 
-	candidates, err := s.pollLegacyRouteAddresses(ctx, current, limit)
+	// Mode 2: Legacy route address scanning (QR/manual deposits — plain SPL transfers)
+	legacyCandidates, err := s.pollLegacyRouteAddresses(ctx, current, limit)
 	if err != nil {
 		return nil, cursor, err
 	}
+	for _, c := range legacyCandidates {
+		key := c.TxHash + ":" + strconv.Itoa(c.LogIndex)
+		if seenTxKeys[key] {
+			continue // already picked up by program mode
+		}
+		candidates = append(candidates, c)
+	}
+
 	return candidates, strconv.FormatInt(latestSlot, 10), nil
 }
 
@@ -132,17 +160,23 @@ func (s SolanaRpcSource) pollProgramPayments(ctx context.Context, current int64,
 			}
 			seenSignatures[sig.Signature] = true
 
+			confirmedAt, err := s.resolveSignatureConfirmedAt(ctx, sig)
+			if err != nil {
+				continue
+			}
+
 			tx, err := s.getTransaction(ctx, sig.Signature)
 			if err != nil {
 				continue
 			}
 
 			events := extractProgramPaymentCandidates(tx, programPaymentParseInput{
-				Chain:       s.Chain,
-				TxHash:      sig.Signature,
-				ProgramID:   s.ProgramID,
-				TokenMints:  s.TokenMints,
-				TreasuryATAs: s.TreasuryATAs,
+				Chain:               s.Chain,
+				TxHash:              sig.Signature,
+				ProgramID:           s.ProgramID,
+				TokenMints:          s.TokenMints,
+				TreasuryATAs:        s.TreasuryATAs,
+				FallbackConfirmedAt: confirmedAt,
 			})
 			candidates = append(candidates, events...)
 		}
@@ -181,6 +215,11 @@ func (s SolanaRpcSource) pollLegacyRouteAddresses(ctx context.Context, current i
 				continue
 			}
 
+			confirmedAt, err := s.resolveSignatureConfirmedAt(ctx, sig)
+			if err != nil {
+				continue
+			}
+
 			tx, err := s.getTransaction(ctx, sig.Signature)
 			if err != nil {
 				continue
@@ -198,6 +237,7 @@ func (s SolanaRpcSource) pollLegacyRouteAddresses(ctx context.Context, current i
 				LogIndex:       0,
 				DepositAddress: route.DepositAddress,
 				AmountUSD:      amountUSD,
+				ConfirmedAt:    confirmedAt,
 				Finalized:      true,
 			})
 		}
@@ -215,11 +255,12 @@ func isInvalidRouteAddressError(err error) bool {
 }
 
 type programPaymentParseInput struct {
-	Chain        string
-	TxHash       string
-	ProgramID    string
-	TokenMints   map[string]string
-	TreasuryATAs map[string]string
+	Chain               string
+	TxHash              string
+	ProgramID           string
+	TokenMints          map[string]string
+	TreasuryATAs        map[string]string
+	FallbackConfirmedAt time.Time
 }
 
 func extractProgramPaymentCandidates(tx transactionResult, in programPaymentParseInput) []FundingCandidate {
@@ -298,7 +339,7 @@ func decodePaymentAcceptedEvent(raw []byte, eventIndex int, mintToToken map[stri
 	offset += 8
 	externalRefHash := raw[offset : offset+32]
 	offset += 32
-	_ = int64(binary.LittleEndian.Uint64(raw[offset : offset+8])) // timestamp currently unused
+	eventTimestampSeconds := int64(binary.LittleEndian.Uint64(raw[offset : offset+8]))
 
 	if amountBaseUnits == 0 {
 		return FundingCandidate{}, false
@@ -320,6 +361,14 @@ func decodePaymentAcceptedEvent(raw []byte, eventIndex int, mintToToken map[stri
 		return FundingCandidate{}, false
 	}
 
+	confirmedAt := in.FallbackConfirmedAt
+	if eventTimestampSeconds > 0 {
+		confirmedAt = time.Unix(eventTimestampSeconds, 0).UTC()
+	}
+	if confirmedAt.IsZero() {
+		return FundingCandidate{}, false
+	}
+
 	return FundingCandidate{
 		Chain:          in.Chain,
 		Token:          token,
@@ -328,12 +377,13 @@ func decodePaymentAcceptedEvent(raw []byte, eventIndex int, mintToToken map[stri
 		ReferenceHash:  hex.EncodeToString(externalRefHash),
 		DepositAddress: treasuryATA,
 		AmountUSD:      amountUSD,
+		ConfirmedAt:    confirmedAt,
 		Finalized:      true,
 		Metadata: map[string]any{
-			"payerAddress":        base58Encode(payerBytes),
-			"paymentId":           strconv.FormatUint(paymentID, 10),
-			"referenceHash":       hex.EncodeToString(externalRefHash),
-			"verificationSource":  "solana_watcher_fallback",
+			"payerAddress":       base58Encode(payerBytes),
+			"paymentId":          strconv.FormatUint(paymentID, 10),
+			"referenceHash":      hex.EncodeToString(externalRefHash),
+			"verificationSource": "solana_watcher_fallback",
 		},
 	}, true
 }
@@ -394,6 +444,37 @@ func (s SolanaRpcSource) getSignaturesForAddress(ctx context.Context, address st
 	return out, nil
 }
 
+func (s SolanaRpcSource) getBlockTime(ctx context.Context, slot int64) (int64, error) {
+	var out *int64
+	if err := s.rpcCall(
+		ctx,
+		"getBlockTime",
+		[]interface{}{slot},
+		&out,
+	); err != nil {
+		return 0, err
+	}
+	if out == nil {
+		return 0, fmt.Errorf("block time unavailable for slot %d", slot)
+	}
+	return *out, nil
+}
+
+func (s SolanaRpcSource) resolveSignatureConfirmedAt(ctx context.Context, sig signatureItem) (time.Time, error) {
+	if sig.BlockTime != nil && *sig.BlockTime > 0 {
+		return time.Unix(*sig.BlockTime, 0).UTC(), nil
+	}
+
+	blockTime, err := s.getBlockTime(ctx, sig.Slot)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if blockTime <= 0 {
+		return time.Time{}, fmt.Errorf("invalid block time for slot %d", sig.Slot)
+	}
+	return time.Unix(blockTime, 0).UTC(), nil
+}
+
 func (s SolanaRpcSource) getTransaction(ctx context.Context, signature string) (transactionResult, error) {
 	var out transactionResult
 	if err := s.rpcCall(
@@ -410,7 +491,7 @@ func (s SolanaRpcSource) getTransaction(ctx context.Context, signature string) (
 func (s SolanaRpcSource) rpcCall(ctx context.Context, method string, params interface{}, out interface{}) error {
 	client := s.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 8 * time.Second}
+		client = &http.Client{Timeout: 60 * time.Second}
 	}
 
 	reqBody, err := json.Marshal(rpcRequest{
@@ -453,41 +534,48 @@ func (s SolanaRpcSource) rpcCall(ctx context.Context, method string, params inte
 	return json.Unmarshal(rpcResp.Result, out)
 }
 
-func extractTokenCreditUSD(tx transactionResult, owner string, mint string) (float64, bool) {
-	key := strings.ToLower(strings.TrimSpace(owner)) + "|" + strings.TrimSpace(mint)
-
-	pre := map[string]*big.Int{}
-	for _, balance := range tx.Meta.PreTokenBalances {
-		if strings.ToLower(strings.TrimSpace(balance.Owner))+"|"+strings.TrimSpace(balance.Mint) != key {
-			continue
+func extractTokenCreditUSD(tx transactionResult, depositAddress string, mint string) (float64, bool) {
+	// Find the account index for the deposit address
+	targetIndex := -1
+	for i, key := range tx.Transaction.Message.AccountKeys {
+		if strings.EqualFold(key.Pubkey, depositAddress) {
+			targetIndex = i
+			break
 		}
-		value, ok := new(big.Int).SetString(balance.UITokenAmount.Amount, 10)
-		if !ok {
-			continue
-		}
-		pre[key] = value
 	}
 
-	post := map[string]*big.Int{}
-	for _, balance := range tx.Meta.PostTokenBalances {
-		if strings.ToLower(strings.TrimSpace(balance.Owner))+"|"+strings.TrimSpace(balance.Mint) != key {
-			continue
-		}
-		value, ok := new(big.Int).SetString(balance.UITokenAmount.Amount, 10)
-		if !ok {
-			continue
-		}
-		post[key] = value
-	}
-
-	postValue, postOK := post[key]
-	if !postOK {
+	if targetIndex == -1 {
 		return 0, false
 	}
 
+	targetMint := strings.ToLower(strings.TrimSpace(mint))
+
+	// Get pre balance
 	preValue := big.NewInt(0)
-	if existing, ok := pre[key]; ok {
-		preValue = existing
+	for _, balance := range tx.Meta.PreTokenBalances {
+		if balance.AccountIndex == targetIndex && strings.ToLower(strings.TrimSpace(balance.Mint)) == targetMint {
+			if val, ok := new(big.Int).SetString(balance.UITokenAmount.Amount, 10); ok {
+				preValue = val
+			}
+			break
+		}
+	}
+
+	// Get post balance
+	postValue := big.NewInt(0)
+	foundPost := false
+	for _, balance := range tx.Meta.PostTokenBalances {
+		if balance.AccountIndex == targetIndex && strings.ToLower(strings.TrimSpace(balance.Mint)) == targetMint {
+			if val, ok := new(big.Int).SetString(balance.UITokenAmount.Amount, 10); ok {
+				postValue = val
+				foundPost = true
+			}
+			break
+		}
+	}
+
+	if !foundPost {
+		return 0, false
 	}
 
 	delta := new(big.Int).Sub(postValue, preValue)

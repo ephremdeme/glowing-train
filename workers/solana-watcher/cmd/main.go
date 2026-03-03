@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -67,7 +68,7 @@ func main() {
 		Issuer:     envOrDefault("AUTH_JWT_ISSUER", "cryptopay-internal"),
 		Audience:   envOrDefault("AUTH_JWT_AUDIENCE", "cryptopay-services"),
 		Subject:    "solana-watcher",
-		HTTPClient: &http.Client{Timeout: 8 * time.Second},
+		HTTPClient: &http.Client{Timeout: 15 * time.Second},
 	}
 
 	routeResolver := internal.CoreAPIRouteResolver{Client: &client, WatcherName: "solana-watcher"}
@@ -77,7 +78,7 @@ func main() {
 
 	source := internal.SolanaRpcSource{
 		RPCURL:     rpcURL,
-		HTTPClient: &http.Client{Timeout: 10 * time.Second},
+		HTTPClient:   &http.Client{Timeout: 60 * time.Second},
 		RouteStore: routeStore,
 		ProgramID:  envFirstOrDefault([]string{"SOLANA_PROGRAM_ID", "NEXT_PUBLIC_SOLANA_PROGRAM_ID"}, defaultDevnetProgramID),
 		Chain:      "solana",
@@ -96,10 +97,11 @@ func main() {
 		Chain:    "solana",
 		Resolver: routeResolver,
 		Publisher: internal.CallbackPublisher{
-			Endpoint: callbackURL,
-			Secret:   callbackSecret,
-			Client:   &http.Client{Timeout: 8 * time.Second},
-			Now:      time.Now,
+			Endpoint:   callbackURL,
+			Secret:     callbackSecret,
+			APIClient:  &client,
+			Client:     &http.Client{Timeout: 15 * time.Second},
+			Now:        time.Now,
 		},
 	}
 
@@ -110,7 +112,7 @@ func main() {
 		Watcher:         watcher,
 		CheckpointStore: checkpointStore,
 		DedupeStore:     dedupeStore,
-		Logger:          log.Default(),
+		Logger:          slog.Default(),
 	}
 
 	if err := runner.Run(ctx); err != nil {

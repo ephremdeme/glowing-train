@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"time"
 )
 
 type FundingCandidate struct {
@@ -15,12 +16,13 @@ type FundingCandidate struct {
 	ReferenceHash  string
 	DepositAddress string
 	AmountUSD      float64
+	ConfirmedAt    time.Time
 	Metadata       map[string]any
 	Finalized      bool
 }
 
 type RouteMatch struct {
-	TransferID    string
+	TransferID     string
 	DepositAddress string
 }
 
@@ -42,6 +44,7 @@ type FundingConfirmedEvent struct {
 	TransferID     string
 	DepositAddress string
 	AmountUSD      float64
+	ConfirmedAt    time.Time
 	Metadata       map[string]any
 }
 
@@ -67,6 +70,9 @@ func (w Watcher) ProcessCandidate(ctx context.Context, c FundingCandidate) (Proc
 	}
 
 	if !c.Finalized {
+		return ProcessIgnored, nil
+	}
+	if c.ConfirmedAt.IsZero() {
 		return ProcessIgnored, nil
 	}
 
@@ -107,6 +113,7 @@ func (w Watcher) ProcessCandidate(ctx context.Context, c FundingCandidate) (Proc
 		TransferID:     match.TransferID,
 		DepositAddress: depositAddress,
 		AmountUSD:      c.AmountUSD,
+		ConfirmedAt:    c.ConfirmedAt,
 		Metadata:       c.Metadata,
 	}
 
