@@ -7,7 +7,8 @@
  * Mirrors the SolanaPaymentVerificationService pattern.
  */
 
-import { createHash } from 'node:crypto';
+import { keccak_256 } from '@noble/hashes/sha3.js';
+import { log } from '@cryptopay/observability';
 import type { TransferRepositoryPort } from '../transfers/types.js';
 import {
     BasePaymentVerificationError,
@@ -42,6 +43,11 @@ interface TxReceipt {
     to: string;
     logs: ReceiptLog[];
     blockNumber: string;
+}
+
+interface RpcBlock {
+    number: string;
+    timestamp: string;
 }
 
 function envOrDefault(name: string, fallback: string): string {
@@ -98,11 +104,7 @@ function readVerificationConfig(): BaseVerificationConfig {
  *
  * address = keccak256(0xff ++ factory ++ salt ++ keccak256(initCode))[12:]
  *
- * NOTE: This uses sha256 as a stand-in for keccak256 since Node's crypto
- * module does not natively support keccak256. For production, replace with
- * a proper keccak256 implementation (e.g. from ethers.js or @noble/hashes).
- * The same stand-in is used in deposit-address.ts — both MUST use the same
- * hash function to produce matching addresses.
+ * Uses @noble/hashes keccak256 to match the Solidity contract exactly.
  */
 function computeCreate2Address(factoryAddress: string, salt: string, initCodeHash: string): string {
     const factoryBytes = Buffer.from(factoryAddress.toLowerCase().replace('0x', ''), 'hex');
@@ -116,7 +118,7 @@ function computeCreate2Address(factoryAddress: string, salt: string, initCodeHas
         initHashBytes
     ]);
 
-    const hash = createHash('sha256').update(payload).digest();
+    const hash = Buffer.from(keccak_256(payload));
     return '0x' + hash.subarray(12).toString('hex');
 }
 
@@ -148,8 +150,11 @@ export class BasePaymentVerificationService {
     ) { }
 
     async verify(input: VerifyBasePaymentInput): Promise<VerifiedBasePayment> {
+        log('info', 'base-verifier: starting verification', { transferId: input.transferId, txHash: input.txHash });
+
         const transferWithRoute = await this.repository.findTransferWithRouteById(input.transferId);
         if (!transferWithRoute) {
+            log('warn', 'base-verifier: transfer not found', { transferId: input.transferId });
             throw new BasePaymentVerificationError('Transfer not found.', {
                 code: 'TRANSFER_NOT_FOUND',
                 status: 404
@@ -158,6 +163,7 @@ export class BasePaymentVerificationService {
 
         const { transfer, depositRoute } = transferWithRoute;
         if (transfer.chain !== 'base') {
+            log('warn', 'base-verifier: wrong chain', { transferId: input.transferId, chain: transfer.chain });
             throw new BasePaymentVerificationError('Transfer is not a Base transfer.', {
                 code: 'INVALID_TRANSFER_CHAIN',
                 status: 400
@@ -167,9 +173,8 @@ export class BasePaymentVerificationService {
         const config = this.configReader();
 
         // Verify the deposit address matches the CREATE2 address for this transfer.
-        // Must use the SAME salt derivation as deposit-address.ts:
-        //   salt = '0x' + sha256(transferId).hex()
-        const salt = '0x' + createHash('sha256').update(transfer.transferId).digest('hex');
+        // salt = '0x' + keccak256(transferId).hex()
+        const salt = '0x' + Buffer.from(keccak_256(Buffer.from(transfer.transferId))).toString('hex');
         const initCodeHash = transfer.token === 'USDC' ? config.initCodeHashUsdc : config.initCodeHashUsdt;
         const expectedDepositAddress = computeCreate2Address(
             config.factoryAddress,
@@ -178,17 +183,25 @@ export class BasePaymentVerificationService {
         );
 
         if (depositRoute.depositAddress.toLowerCase() !== expectedDepositAddress.toLowerCase()) {
+            log('error', 'base-verifier: address mismatch', {
+                transferId: input.transferId,
+                expected: expectedDepositAddress,
+                actual: depositRoute.depositAddress,
+            });
             throw new BasePaymentVerificationError('Deposit address does not match expected CREATE2 address.', {
                 code: 'DEPOSIT_ADDRESS_MISMATCH',
                 status: 400
             });
         }
 
+        log('info', 'base-verifier: address matched, fetching receipt', { transferId: input.transferId, depositAddress: expectedDepositAddress });
+
         // Fetch the transaction receipt
         let receipt: TxReceipt;
         try {
             receipt = await this.getTransactionReceipt(config.rpcUrl, input.txHash);
         } catch (error) {
+            log('error', 'base-verifier: RPC failure', { transferId: input.transferId, error: (error as Error).message });
             throw new BasePaymentVerificationError('Failed to read Base transaction from RPC.', {
                 code: 'BASE_RPC_READ_FAILED',
                 status: 502,
@@ -198,9 +211,24 @@ export class BasePaymentVerificationService {
 
         // Check transaction success
         if (receipt.status !== '0x1') {
+            log('warn', 'base-verifier: tx failed on-chain', { transferId: input.transferId, txHash: input.txHash });
             throw new BasePaymentVerificationError('Base transaction failed on-chain.', {
                 code: 'TX_FAILED',
                 status: 400
+            });
+        }
+
+        let confirmedAt: string;
+        try {
+            confirmedAt = await this.getBlockConfirmedAt(config.rpcUrl, receipt.blockNumber);
+        } catch (error) {
+            if (error instanceof BasePaymentVerificationError) {
+                throw error;
+            }
+            throw new BasePaymentVerificationError('Failed to read Base block timestamp from RPC.', {
+                code: 'BASE_RPC_READ_FAILED',
+                status: 502,
+                retryable: isRetryableRpcError(error)
             });
         }
 
@@ -240,7 +268,6 @@ export class BasePaymentVerificationService {
         }
 
         const payerAddress = addressFromTopic(transferLog.topics[1]!);
-        const confirmedAt = new Date().toISOString();
 
         return {
             verified: true,
@@ -289,5 +316,46 @@ export class BasePaymentVerificationService {
         }
 
         return data.result;
+    }
+
+    private async getBlockConfirmedAt(rpcUrl: string, blockNumber: string): Promise<string> {
+        const response = await fetch(rpcUrl, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'eth_getBlockByNumber',
+                params: [blockNumber, false]
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`RPC status ${response.status}`);
+        }
+
+        const data = (await response.json()) as {
+            result: RpcBlock | null;
+            error?: { message: string };
+        };
+
+        if (data.error) {
+            throw new Error(`RPC error: ${data.error.message}`);
+        }
+
+        if (!data.result?.timestamp) {
+            throw new BasePaymentVerificationError('Block timestamp not available yet. Retry shortly.', {
+                code: 'TX_NOT_FOUND',
+                status: 409,
+                retryable: true
+            });
+        }
+
+        const timestampSeconds = Number.parseInt(data.result.timestamp.replace(/^0x/i, ''), 16);
+        if (!Number.isFinite(timestampSeconds) || timestampSeconds <= 0) {
+            throw new Error(`invalid block timestamp: ${data.result.timestamp}`);
+        }
+
+        return new Date(timestampSeconds * 1000).toISOString();
     }
 }

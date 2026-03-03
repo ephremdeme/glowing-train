@@ -3,7 +3,6 @@ import type {
   DepositRouteRecord,
   IdempotencyRecord,
   QuoteSnapshot,
-  ReceiverKycProfileSnapshot,
   TransferRepositoryPort,
   TransferCreationResult,
   TransferRecord
@@ -29,8 +28,6 @@ function mapTransfer(row: DbRow): TransferRecord {
     senderId: row.sender_id as string,
     receiverId: row.receiver_id as string,
     senderKycStatus: row.sender_kyc_status as TransferRecord['senderKycStatus'],
-    receiverKycStatus: row.receiver_kyc_status as TransferRecord['receiverKycStatus'],
-    receiverNationalIdVerified: row.receiver_national_id_verified as boolean,
     chain: row.chain as TransferRecord['chain'],
     token: row.token as TransferRecord['token'],
     sendAmountUsd: Number(row.send_amount_usd),
@@ -67,45 +64,6 @@ export class TransferRepository implements TransferRepositoryPort {
     return mapQuote(result.rows[0] as DbRow);
   }
 
-  async findReceiverKycProfile(receiverId: string): Promise<ReceiverKycProfileSnapshot | null> {
-    try {
-      const result = await query(
-        `
-        select receiver_id, kyc_status, national_id_verified
-        from receiver_kyc_profile
-        where receiver_id = $1
-        limit 1
-        `,
-        [receiverId]
-      );
-
-      const row = result.rows[0] as
-        | {
-            receiver_id: string;
-            kyc_status: ReceiverKycProfileSnapshot['kycStatus'];
-            national_id_verified: boolean;
-          }
-        | undefined;
-
-      if (!row) {
-        return null;
-      }
-
-      return {
-        receiverId: row.receiver_id,
-        kycStatus: row.kyc_status,
-        nationalIdVerified: row.national_id_verified
-      };
-    } catch (error) {
-      const code = (error as { code?: string }).code;
-      if (code === '42P01') {
-        return null;
-      }
-
-      throw error;
-    }
-  }
-
   async findIdempotency(key: string): Promise<IdempotencyRecord | null> {
     const result = await query(
       'select key, request_hash, response_status, response_body, expires_at from idempotency_record where key = $1',
@@ -114,12 +72,12 @@ export class TransferRepository implements TransferRepositoryPort {
 
     const row = result.rows[0] as
       | {
-          key: string;
-          request_hash: string;
-          response_status: number;
-          response_body: unknown;
-          expires_at: string | Date;
-        }
+        key: string;
+        request_hash: string;
+        response_status: number;
+        response_body: unknown;
+        expires_at: string | Date;
+      }
       | undefined;
     if (!row) {
       return null;
@@ -189,13 +147,11 @@ export class TransferRepository implements TransferRepositoryPort {
           sender_id,
           receiver_id,
           sender_kyc_status,
-          receiver_kyc_status,
-          receiver_national_id_verified,
           chain,
           token,
           send_amount_usd,
           status
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
         returning *
         `,
         [
@@ -204,8 +160,6 @@ export class TransferRepository implements TransferRepositoryPort {
           params.transfer.senderId,
           params.transfer.receiverId,
           params.transfer.senderKycStatus,
-          params.transfer.receiverKycStatus,
-          params.transfer.receiverNationalIdVerified,
           params.transfer.chain,
           params.transfer.token,
           params.transfer.sendAmountUsd,

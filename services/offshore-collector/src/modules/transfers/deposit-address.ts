@@ -8,6 +8,7 @@
 
 import type { SupportedChain, SupportedToken } from '@cryptopay/domain';
 import { createHash } from 'node:crypto';
+import { keccak_256 } from '@noble/hashes/sha3.js';
 
 type DepositRouteKind = 'address_route' | 'solana_program_pay';
 
@@ -46,9 +47,7 @@ interface Create2Config {
  *
  * address = keccak256(0xff ++ factory ++ salt ++ keccak256(initCode))[12:]
  *
- * This uses Node's crypto module with 'sha256' as a stand-in for keccak256.
- * For production, replace with a proper keccak256 implementation
- * (e.g. from ethers.js or @noble/hashes).
+ * Uses @noble/hashes keccak256 to match the Solidity contract exactly.
  */
 function computeCreate2Address(factory: string, salt: string, initCodeHash: string): string {
     const factoryBytes = Buffer.from(factory.toLowerCase().replace('0x', ''), 'hex');
@@ -62,7 +61,7 @@ function computeCreate2Address(factory: string, salt: string, initCodeHash: stri
         initHashBytes
     ]);
 
-    const hash = createHash('sha256').update(payload).digest();
+    const hash = Buffer.from(keccak_256(payload));
     return '0x' + hash.subarray(12).toString('hex');
 }
 
@@ -98,7 +97,7 @@ export class Create2DepositStrategy implements DepositAddressStrategy {
         const { chain, token, transferId } = params;
 
         if (chain === 'base') {
-            const salt = '0x' + createHash('sha256').update(transferId).digest('hex');
+            const salt = '0x' + Buffer.from(keccak_256(Buffer.from(transferId))).toString('hex');
             const initCodeHash = token === 'USDC' ? this.create2Config.initCodeHashUsdc : this.create2Config.initCodeHashUsdt;
             const depositAddress = computeCreate2Address(
                 this.create2Config.factoryAddress,
@@ -126,7 +125,7 @@ export class Create2DepositStrategy implements DepositAddressStrategy {
         }
 
         // Fallback for future chains
-        const fallbackHash = createHash('sha256').update(transferId).digest('hex');
+        const fallbackHash = Buffer.from(keccak_256(Buffer.from(transferId))).toString('hex');
         return {
             depositAddress: `dep_${fallbackHash.slice(0, 32)}`,
             depositMemo: null,

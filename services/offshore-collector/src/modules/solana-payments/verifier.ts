@@ -187,7 +187,7 @@ export class SolanaPaymentVerificationService {
   constructor(
     private readonly repository: TransferRepositoryPort,
     private readonly configReader: () => SolanaVerificationConfig = readVerificationConfig
-  ) {}
+  ) { }
 
   async verify(input: VerifySolanaPaymentInput): Promise<VerifiedSolanaPayment> {
     const transferWithRoute = await this.repository.findTransferWithRouteById(input.transferId);
@@ -318,7 +318,21 @@ export class SolanaPaymentVerificationService {
       });
     }
 
-    const confirmedAt = new Date((tx.blockTime ?? Math.floor(Date.now() / 1000)) * 1000).toISOString();
+    let confirmedAtSeconds: number;
+    try {
+      confirmedAtSeconds = await this.resolveConfirmedAtSeconds(connection, tx);
+    } catch (error) {
+      if (error instanceof SolanaPaymentVerificationError) {
+        throw error;
+      }
+      throw new SolanaPaymentVerificationError('Failed to read Solana block timestamp from RPC.', {
+        code: 'SOLANA_RPC_READ_FAILED',
+        status: 502,
+        retryable: isRetryableRpcError(error)
+      });
+    }
+
+    const confirmedAt = new Date(confirmedAtSeconds * 1000).toISOString();
 
     return {
       verified: true,
@@ -333,5 +347,27 @@ export class SolanaPaymentVerificationService {
       payerAddress: decoded.payerAddress,
       paymentId: decoded.paymentId
     };
+  }
+
+  private async resolveConfirmedAtSeconds(
+    connection: Connection,
+    tx: Awaited<ReturnType<Connection['getParsedTransaction']>>
+  ): Promise<number> {
+    if (typeof tx?.blockTime === 'number' && tx.blockTime > 0) {
+      return tx.blockTime;
+    }
+
+    if (typeof tx?.slot === 'number') {
+      const slotBlockTime = await connection.getBlockTime(tx.slot);
+      if (typeof slotBlockTime === 'number' && slotBlockTime > 0) {
+        return slotBlockTime;
+      }
+    }
+
+    throw new SolanaPaymentVerificationError('Solana block timestamp is not available yet. Retry shortly.', {
+      code: 'TX_NOT_FOUND',
+      status: 409,
+      retryable: true
+    });
   }
 }
