@@ -5,9 +5,11 @@ export {
   loadOffshoreCollectorServiceEnv,
   loadPayoutOrchestratorServiceEnv,
   loadReconciliationWorkerServiceEnv,
+  loadBaseSweeperWorkerServiceEnv,
   type CoreApiServiceEnv,
   type CustomerAuthServiceEnv,
   type OffshoreCollectorServiceEnv,
   type PayoutOrchestratorServiceEnv,
-  type ReconciliationWorkerServiceEnv
+  type ReconciliationWorkerServiceEnv,
+  type BaseSweeperWorkerServiceEnv
 } from './service-env.js';

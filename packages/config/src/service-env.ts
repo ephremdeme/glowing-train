@@ -93,7 +93,23 @@ const reconciliationWorkerSchema = jwtSchema.extend({
   RETENTION_SCHEDULER_ENABLED: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
   KEY_VERIFICATION_SCHEDULER_ENABLED: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
   PAYOUT_OUTBOX_SCHEDULER_ENABLED: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
+  BASE_SWEEP_REQUIRED_FOR_PAYOUT: boolFromString,
   RECONCILIATION_SCHEDULED_OUTPUT_PATH: optionalString
+});
+
+const baseSweeperWorkerSchema = jwtSchema.extend({
+  BASE_RPC_URL: z.string().url(),
+  BASE_NETWORK: z.enum(['mainnet', 'sepolia']).default('sepolia'),
+  BASE_CHAIN_ID: z.coerce.number().int().positive().default(84532),
+  BASE_DEPOSIT_FACTORY_ADDRESS: z.string().min(1),
+  BASE_SWEEP_OWNER_PRIVATE_KEY: z.string().min(1),
+  BASE_USDC_CONTRACT: z.string().min(1),
+  BASE_USDT_CONTRACT: z.string().min(1),
+  BASE_SWEEP_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(5_000),
+  BASE_SWEEP_BATCH_SIZE: z.coerce.number().int().positive().max(100).default(10),
+  BASE_SWEEP_MAX_ATTEMPTS: z.coerce.number().int().positive().max(100).default(8),
+  BASE_SWEEP_RETRY_BASE_MS: z.coerce.number().int().positive().default(5_000),
+  BASE_SWEEP_RECLAIM_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000)
 });
 
 export type CoreApiServiceEnv = z.infer<typeof coreApiSchema>;
@@ -101,6 +117,7 @@ export type CustomerAuthServiceEnv = z.infer<typeof customerAuthSchema>;
 export type OffshoreCollectorServiceEnv = z.infer<typeof offshoreCollectorSchema>;
 export type PayoutOrchestratorServiceEnv = z.infer<typeof payoutOrchestratorSchema>;
 export type ReconciliationWorkerServiceEnv = z.infer<typeof reconciliationWorkerSchema>;
+export type BaseSweeperWorkerServiceEnv = z.infer<typeof baseSweeperWorkerSchema>;
 
 export function loadCoreApiServiceEnv(input: NodeJS.ProcessEnv = process.env): CoreApiServiceEnv {
   return coreApiSchema.parse(input);
@@ -126,4 +143,10 @@ export function loadReconciliationWorkerServiceEnv(
   input: NodeJS.ProcessEnv = process.env
 ): ReconciliationWorkerServiceEnv {
   return reconciliationWorkerSchema.parse(input);
+}
+
+export function loadBaseSweeperWorkerServiceEnv(
+  input: NodeJS.ProcessEnv = process.env
+): BaseSweeperWorkerServiceEnv {
+  return baseSweeperWorkerSchema.parse(input);
 }
