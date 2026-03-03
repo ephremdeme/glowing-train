@@ -75,6 +75,12 @@ components:
         confirmedAt:
           type: string
           format: date-time
+    TransferPaymentSubmitRequest:
+      type: object
+      required: [txHash]
+      properties:
+        txHash:
+          type: string
 paths:
   /healthz:
     get:
@@ -331,47 +337,6 @@ paths:
       responses:
         '200':
           description: Key verification completed
-  /internal/v1/kyc/receivers/upsert:
-    post:
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [receiverId, kycStatus, nationalIdVerified, reason]
-              properties:
-                receiverId:
-                  type: string
-                kycStatus:
-                  type: string
-                  enum: [approved, pending, rejected]
-                nationalIdVerified:
-                  type: boolean
-                nationalId:
-                  type: string
-                reason:
-                  type: string
-      responses:
-        '200':
-          description: Receiver KYC profile upserted
-  /internal/v1/kyc/receivers/{receiverId}:
-    get:
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: receiverId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Receiver KYC profile
-        '404':
-          description: Not found
   /v1/me:
     get:
       security:
@@ -427,13 +392,6 @@ paths:
                   type: string
                 countryCode:
                   type: string
-                nationalId:
-                  type: string
-                nationalIdVerified:
-                  type: boolean
-                kycStatus:
-                  type: string
-                  enum: [approved, pending, rejected]
       responses:
         '200':
           description: Recipient updated
@@ -488,8 +446,7 @@ paths:
       summary: Create sender transfer
       description: |
         Creates a transfer for the authenticated sender using a locked quote and recipient.
-        Sender KYC approval is required before creation. Receiver KYC records remain supported
-        in the system for compatibility/audit but do not block transfer creation in this flow.
+        Sender KYC approval is required before creation.
       security:
         - bearerAuth: []
       parameters:
@@ -497,6 +454,8 @@ paths:
       responses:
         '201':
           description: Transfer created
+        '403':
+          description: Sender KYC required
   /v1/transfers/{transferId}:
     get:
       security:
@@ -512,3 +471,59 @@ paths:
           description: Sender transfer detail for receipt/status
         '404':
           description: Not found
+  /v1/transfers/{transferId}/solana-payment:
+    post:
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferPaymentSubmitRequest'
+      responses:
+        '202':
+          description: Accepted for verification or confirmed
+        '200':
+          description: Duplicate or already processed
+        '400':
+          description: Validation or chain mismatch error
+        '404':
+          description: Transfer not found
+        '409':
+          description: Transfer state does not accept payment submission
+  /v1/transfers/{transferId}/base-payment:
+    post:
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferPaymentSubmitRequest'
+      responses:
+        '202':
+          description: Accepted for verification or confirmed
+        '200':
+          description: Duplicate or already processed
+        '400':
+          description: Validation or chain mismatch error
+        '404':
+          description: Transfer not found
+        '409':
+          description: Transfer state does not accept payment submission

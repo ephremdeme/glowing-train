@@ -36,15 +36,49 @@ components:
         senderKycStatus:
           type: string
           enum: [approved, pending, rejected]
-        receiverKycStatus:
-          type: string
-          enum: [approved, pending, rejected]
-          description: Optional legacy compatibility field. If omitted, service defaults to approved for request normalization/idempotency.
-        receiverNationalIdVerified:
-          type: boolean
-          description: Optional legacy compatibility field. If omitted, service defaults to true for request normalization/idempotency.
         idempotencyKey:
           type: string
+    PaymentVerifyRequest:
+      type: object
+      required: [transferId, txHash]
+      properties:
+        transferId:
+          type: string
+        txHash:
+          type: string
+    PaymentVerifiedResponse:
+      type: object
+      required: [verified, transferId, chain, token, txHash, amountUsd, depositAddress, confirmedAt]
+      properties:
+        verified:
+          type: boolean
+          enum: [true]
+        transferId:
+          type: string
+        chain:
+          type: string
+          enum: [base, solana]
+        token:
+          type: string
+          enum: [USDC, USDT]
+        txHash:
+          type: string
+        amountUsd:
+          type: number
+        depositAddress:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        referenceHash:
+          type: string
+          nullable: true
+        payerAddress:
+          type: string
+          nullable: true
+        paymentId:
+          type: string
+          nullable: true
 paths:
   /healthz:
     get:
@@ -61,7 +95,6 @@ paths:
       summary: Create transfer (sender KYC gated)
       description: |
         Creates an offshore transfer intent. Sender KYC approval is required.
-        Receiver KYC fields are accepted for backward compatibility but are non-blocking.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -85,3 +118,59 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /internal/v1/transfers/create:
+    post:
+      summary: Internal transfer create
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransferRequest'
+      responses:
+        '201':
+          description: Transfer created
+        '400':
+          description: Validation error
+  /internal/v1/transfers/solana-payment/verify:
+    post:
+      summary: Verify Solana wallet payment
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentVerifyRequest'
+      responses:
+        '200':
+          description: Payment verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentVerifiedResponse'
+        '400':
+          description: Verification failed
+  /internal/v1/transfers/base-payment/verify:
+    post:
+      summary: Verify Base wallet payment
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentVerifyRequest'
+      responses:
+        '200':
+          description: Payment verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentVerifiedResponse'
+        '400':
+          description: Verification failed
