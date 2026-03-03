@@ -7,8 +7,6 @@ export interface CreateTransferInput {
   senderId: string;
   receiverId: string;
   senderKycStatus: KycStatus;
-  receiverKycStatus?: KycStatus | undefined;
-  receiverNationalIdVerified?: boolean | undefined;
   idempotencyKey: string;
 }
 
@@ -20,20 +18,12 @@ export interface QuoteSnapshot {
   expiresAt: Date;
 }
 
-export interface ReceiverKycProfileSnapshot {
-  receiverId: string;
-  kycStatus: KycStatus;
-  nationalIdVerified: boolean;
-}
-
 export interface TransferRecord {
   transferId: string;
   quoteId: string;
   senderId: string;
   receiverId: string;
   senderKycStatus: KycStatus;
-  receiverKycStatus: KycStatus;
-  receiverNationalIdVerified: boolean;
   chain: SupportedChain;
   token: SupportedToken;
   sendAmountUsd: number;
@@ -71,7 +61,6 @@ export interface IdempotencyRecord {
 
 export interface TransferRepositoryPort {
   findQuoteById(quoteId: string): Promise<QuoteSnapshot | null>;
-  findReceiverKycProfile(receiverId: string): Promise<ReceiverKycProfileSnapshot | null>;
   findIdempotency(key: string): Promise<IdempotencyRecord | null>;
   findTransferWithRouteById(transferId: string): Promise<{
     transfer: TransferRecord;
