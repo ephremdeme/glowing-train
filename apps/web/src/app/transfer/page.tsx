@@ -4,7 +4,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, ArrowRight, CheckCircle, Wallet } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle, Loader2, Wallet } from 'lucide-react';
 import { RouteGuard } from '@/components/route-guard';
 import { RecipientSection } from '@/components/transfer/recipient-section';
 import { DepositInstructions } from '@/components/transfer/deposit-instructions';
@@ -14,13 +14,13 @@ import { WalletConnectPanel } from '@/components/wallet/wallet-connect-panel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useCreateTransfer, useSenderProfile } from '@/features/remittance/hooks';
+import { useCreateTransfer, useSenderProfile, useTransferStatus } from '@/features/remittance/hooks';
 import { isSenderKycApproved, mapSenderKycUiStatus, senderKycGateMessage } from '@/features/remittance/mappers';
 import type { QuoteSummary, RecipientDetail, TransferSummary, WalletConnectionState } from '@/lib/contracts';
 import { errorMessage } from '@/lib/error';
 import { currencyEtb } from '@/lib/format';
 import { readAccessToken } from '@/lib/session';
-import { patchFlowDraft, readFlowDraft } from '@/lib/flow-state';
+import { patchFlowDraft, readFlowDraft, clearFlowDraft } from '@/lib/flow-state';
 
 
 
@@ -51,6 +51,7 @@ function TransferPageContent() {
   const [transfer, setTransfer] = useState<TransferSummary | null>(() => readFlowDraft().transfer ?? null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
   const token = readAccessToken() ?? '';
   const senderProfileQuery = useSenderProfile(token);
@@ -99,6 +100,33 @@ function TransferPageContent() {
     }
   }
 
+  const currentStep = paymentConfirmed ? 'complete' : transfer ? 'fund' : recipient ? 'recipient' : 'quote';
+
+  function handlePaymentConfirmed() {
+    setPaymentConfirmed(true);
+    // clear the flow draft so the user starts fresh on next visit
+    clearFlowDraft();
+  }
+
+  const shouldPoll = transfer && !paymentConfirmed;
+  const transferStatusQuery = useTransferStatus(token, transfer?.transferId, shouldPoll ? { refetchInterval: 3000 } : undefined);
+
+  const FUNDED_STATUSES = new Set([
+    'FUNDING_CONFIRMED',
+    'PAYOUT_INITIATED',
+    'PAYOUT_COMPLETED',
+  ]);
+
+  useEffect(() => {
+    if (
+      transferStatusQuery.data &&
+      FUNDED_STATUSES.has(transferStatusQuery.data.backendStatus) &&
+      !paymentConfirmed
+    ) {
+      handlePaymentConfirmed();
+    }
+  }, [transferStatusQuery.data, paymentConfirmed]);
+
   return (
     <div className="mx-auto max-w-2xl">
       <div className="grid gap-6">
@@ -110,13 +138,7 @@ function TransferPageContent() {
         <TransferJourneyScene className="h-[140px]" />
 
         {/* Progress stepper */}
-        <TransferStepper
-          currentStep={
-            transfer ? 'fund'
-              : recipient ? 'recipient'
-                : 'quote'
-          }
-        />
+        <TransferStepper currentStep={currentStep} />
 
         {quote && (
           <Card>
@@ -210,13 +232,13 @@ function TransferPageContent() {
           </Alert>
         ) : null}
 
-        {transfer && quote ? (
+        {transfer && quote && !paymentConfirmed ? (
           <div className="grid gap-4">
             <div className="flex items-center gap-2 text-sm font-medium text-green-700">
               <CheckCircle className="h-4 w-4" />
               Transfer created successfully
             </div>
-            <DepositInstructions transfer={transfer} />
+            <DepositInstructions transfer={transfer} onConfirmed={handlePaymentConfirmed} />
             {transfer.transferId ? (
               <div className="flex justify-end">
                 <Button variant="outline" onClick={() => router.push(`/transfers/${transfer.transferId}` as Route)}>
@@ -225,6 +247,23 @@ function TransferPageContent() {
                 </Button>
               </div>
             ) : null}
+          </div>
+        ) : null}
+
+        {paymentConfirmed && transfer ? (
+          <div className="grid gap-4">
+            <div className="rounded-2xl border border-green-600/30 bg-green-500/10 p-6 text-center">
+              <CheckCircle className="mx-auto mb-3 h-10 w-10 text-green-500" />
+              <h2 className="text-xl font-semibold">Payment received!</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Your deposit is confirmed. Redirecting to transfer status...</p>
+            </div>
+            <Button onClick={() => router.push(`/transfers/${transfer.transferId}` as Route)}>
+              View transfer status
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => { clearFlowDraft(); router.push('/quote' as Route); }}>
+              Start a new transfer
+            </Button>
           </div>
         ) : null}
 
