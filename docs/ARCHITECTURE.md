@@ -14,6 +14,7 @@ flowchart LR
     B --> D[Solana Watcher]
     C --> E[Core Remittance API]
     D --> E[Core Remittance API]
+    E --> H[Base Sweeper Worker]
     E --> F[Payout Orchestrator]
     F --> G[Bank Payout Adapter]
     G --> I[Ethiopia Payout Partner]
@@ -39,7 +40,7 @@ flowchart LR
 
 ### 3.3 Core Remittance API (Node.js/TypeScript)
 - Owns transfer state machine and business rules.
-- Enforces KYC prerequisites and USD 2,000 cap.
+- Enforces sender KYC prerequisites and USD 2,000 cap.
 - Receives watcher confirmations and triggers payout orchestration.
 - Writes double-entry ledger postings and audit logs.
 - Publishes domain events through DB outbox.
@@ -55,7 +56,13 @@ flowchart LR
 - Flags mismatches/stuck transfers.
 - Outputs CSV report for operations/compliance.
 
-## 3.6 Implementation Defaults (Current)
+### 3.6 Base Sweeper Worker (Node.js/TypeScript)
+- Claims Base settlement rows from `settlement_record` with `FOR UPDATE SKIP LOCKED`.
+- Executes single-call `sweep(bytes32,address)` transactions against Base DepositFactory.
+- Applies bounded retry with backoff+jitter and terminal `review_required` state.
+- Writes audit records for sweep success/retry/review-required outcomes.
+
+## 3.7 Implementation Defaults (Current)
 - Customer auth endpoints are owned by `customer-auth`; web BFF talks to it directly.
 - `core-api` remains a resource server (customer JWT bearer validation), not an auth proxy.
 - Node DB stack is `postgres.js` + Drizzle via `@cryptopay/db`.
@@ -63,6 +70,7 @@ flowchart LR
 - Shared scheduled operations logic (retention, key verification) lives in `@cryptopay/ops-jobs`.
 - `services/core-api/src/app.ts` is composition-only; grouped handlers are in `services/core-api/src/routes/*`.
 - v1 payout method is `bank` only.
+- Base payouts are gated on settlement sweep completion when `BASE_SWEEP_REQUIRED_FOR_PAYOUT=true`.
 
 ## 4. Trust Boundaries
 
@@ -77,7 +85,7 @@ flowchart LR
 - Isolated credentials and network policy from Ethiopia services.
 
 ### 4.3 Boundary C: Ethiopia Fiat and Compliance Zone
-- Contains KYC, transfer orchestration, payout coordination, ledger, audit, reconciliation.
+- Contains sender KYC, transfer orchestration, payout coordination, ledger, audit, reconciliation.
 - Must not import crypto SDKs or use on-chain RPC endpoints.
 - Handles only fiat-facing and compliance-required records.
 
@@ -164,8 +172,7 @@ flowchart LR
 | FX/settlement provider | Mock in MVP | Offshore finance flow represented as integration boundary |
 
 ## 10. Data and Privacy Constraints
-- Receiver National ID must be stored as tokenized/encrypted value, not plain text where avoidable.
-- Keep only required KYC fields and verification metadata.
+- Keep only required sender KYC fields and verification metadata.
 - Avoid storing raw files unless legally required.
 - Apply retention and access control policy per data class.
 

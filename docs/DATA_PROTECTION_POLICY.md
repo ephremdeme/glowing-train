@@ -7,13 +7,10 @@
 - Retain auditability without storing secrets.
 
 ## Sensitive data handling
-- Receiver National ID: store tokenized/encrypted value only.
-- KYC records: store status, provider reference, timestamps, and minimal metadata.
+- Sender KYC records: store status, provider reference, timestamps, and minimal metadata.
+- Recipient payout profile: store only fields required for bank payout execution.
 - Never store private keys or wallet seed material.
-- Store receiver profile in `receiver_kyc_profile` with:
-  - `national_id_encrypted` envelope
-  - `national_id_hash` for deterministic lookup/dedupe
-  - `national_id_verified` boolean gate for transfer eligibility
+- Receiver KYC/National ID records are not part of v1 runtime data model.
 
 ## Encryption model
 - Use `@cryptopay/security` encrypted-field envelope:

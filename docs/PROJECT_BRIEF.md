@@ -19,8 +19,8 @@ Revenue model (MVP assumption): FX spread + service fee embedded in quote.
 - Ethiopia-side services must never touch crypto, stablecoins, private keys, wallets, or chain RPC operations.
 - All on-chain and stablecoin handling is offshore only.
 - v1 is non-custodial only: no customer key custody, no stored customer crypto balances.
-- KYC is mandatory for sender and receiver.
-- Receiver verification must include Ethiopian National ID support.
+- KYC is mandatory for sender.
+- Receiver KYC/National ID verification is not part of v1 runtime transfer gating.
 - Transfer cap is USD 2,000 per transfer.
 - SLA is payout completion within 10 minutes after on-chain confirmation.
 
@@ -44,7 +44,7 @@ Revenue model (MVP assumption): FX spread + service fee embedded in quote.
 ## 6. Compliance Data Principle (Minimal but Real)
 Store only what is required for execution and audit:
 - Sender KYC: status, provider reference, decision timestamps.
-- Receiver KYC: legal name, National ID token/hash, verification status, verification timestamp.
+- Recipient payout profile: legal name, bank account metadata required for ETB payout.
 - Avoid storing unnecessary raw documents or excess PII in core services.
 - Encrypt sensitive PII at rest and restrict read access by role.
 

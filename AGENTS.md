@@ -19,8 +19,8 @@ Primary goal: fast, compliant ETB payout to recipients in Ethiopia, funded by di
 5. Ethiopia payout methods:
    - v1: bank transfer only.
    - Telebirr support: later phase.
-6. KYC is required for both sender and receiver.
-   - Receiver verification must support Ethiopian National ID.
+6. KYC is required for sender only in v1.
+   - Recipient payout details are validated, but receiver KYC and National ID verification are not part of runtime v1 gating.
 7. Maximum transfer amount: USD 2,000 per transfer.
 8. SLA: recipient payout within 10 minutes after on-chain confirmation.
 9. Do not design for v2 “phone wallet” in current implementation planning.
@@ -41,8 +41,8 @@ Primary goal: fast, compliant ETB payout to recipients in Ethiopia, funded by di
 - Offshore compliance screening tied to funding event
 
 ### Ethiopia domain (crypto-prohibited)
-- Sender/receiver onboarding and KYC orchestration
-- Receiver National ID verification
+- Sender onboarding and KYC orchestration
+- Recipient payout profile management (bank details)
 - Transfer intake/orchestration metadata (no crypto custody)
 - Payout instruction and status tracking with partner
 - Recipient communication and support workflows
@@ -120,7 +120,7 @@ Primary goal: fast, compliant ETB payout to recipients in Ethiopia, funded by di
 - Use explicit transfer state machine with immutable transition history.
 - Suggested core entities:
    - sender_kyc_profile
-   - receiver_kyc_profile
+   - recipient
    - remittance_transfer
    - onchain_funding_event (offshore domain)
    - settlement_record (offshore domain)
