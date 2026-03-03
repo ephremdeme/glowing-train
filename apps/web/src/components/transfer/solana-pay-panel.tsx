@@ -11,6 +11,7 @@ import {
 } from '@/hooks/use-payment-verification';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useConfirmSolanaWalletPayment } from '@/features/remittance/hooks';
 import { getMintConfig } from '@/lib/solana/remittance-config';
 import {
@@ -26,6 +27,7 @@ export function SolanaPayPanel({ transfer, onConfirmed }: { transfer: TransferSu
     const [submitting, setSubmitting] = useState(false);
     const [solanaError, setSolanaError] = useState<string | null>(null);
     const [solanaResult, setSolanaResult] = useState<SubmitPayTransactionResult | null>(null);
+    const [manualSignature, setManualSignature] = useState('');
     const confirmMutation = useConfirmSolanaWalletPayment();
 
     const verification = usePaymentVerification({
@@ -64,6 +66,17 @@ export function SolanaPayPanel({ transfer, onConfirmed }: { transfer: TransferSu
             setSolanaError(error instanceof Error ? error.message : 'Solana payment failed.');
         } finally {
             setSubmitting(false);
+        }
+    }
+
+    async function submitManualSignature(): Promise<void> {
+        const signature = manualSignature.trim();
+        if (!signature) return;
+        setSolanaError(null);
+        try {
+            await verification.submitAndVerify(signature);
+        } catch (error) {
+            setSolanaError(error instanceof Error ? error.message : 'Could not verify the provided signature.');
         }
     }
 
@@ -129,6 +142,22 @@ export function SolanaPayPanel({ transfer, onConfirmed }: { transfer: TransferSu
                     'Pay with Solana wallet'
                 )}
             </Button>
+
+            <div className="grid gap-2 rounded-xl border border-border/60 bg-background/40 p-3">
+                <p className="text-xs font-medium text-muted-foreground">Already paid from another wallet?</p>
+                <Input
+                    value={manualSignature}
+                    onChange={(event) => setManualSignature(event.target.value)}
+                    placeholder="Paste Solana transaction signature"
+                />
+                <Button
+                    variant="outline"
+                    onClick={submitManualSignature}
+                    disabled={!manualSignature.trim() || verification.verifyState === 'verifying'}
+                >
+                    {verification.verifyState === 'verifying' ? 'Verifying...' : 'Verify existing transaction'}
+                </Button>
+            </div>
 
             {verification.canRetry ? (
                 <Button variant="outline" onClick={verification.retryVerification} disabled={verification.verifyState === 'verifying'}>

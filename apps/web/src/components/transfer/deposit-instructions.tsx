@@ -155,7 +155,9 @@ export function DepositInstructions({ transfer, onConfirmed }: DepositInstructio
               <div className="grid gap-3">
                 <CopyRow label={quote.chain === 'base' ? 'Deposit address' : 'Treasury token account'} value={transfer.depositAddress} />
                 <p className="text-xs text-muted-foreground">
-                  Copy the address above and paste it in your wallet app to send {quote.token} on {quote.chain.toUpperCase()}.
+                  {quote.chain === 'solana'
+                    ? `Copy the token account above and send the exact ${quote.sendAmountUsd} ${quote.token}. Then paste the transaction signature in the Solana payment panel so we can link it to this transfer.`
+                    : `Copy the address above and paste it in your wallet app to send ${quote.token} on ${quote.chain.toUpperCase()}.`}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {walletPresets.map((preset) => (
