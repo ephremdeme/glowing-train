@@ -3,20 +3,41 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 async function ensureTables(): Promise<void> {
   await query(`
+    create table if not exists quotes (
+      quote_id text primary key,
+      chain text not null,
+      token text not null,
+      send_amount_usd numeric(12,2) not null,
+      fx_rate_usd_to_etb numeric(18,6) not null,
+      fee_usd numeric(12,2) not null,
+      recipient_amount_etb numeric(14,2) not null,
+      expires_at timestamptz not null,
+      created_at timestamptz not null default now()
+    )
+  `);
+
+  await query(`
     create table if not exists transfers (
       transfer_id text primary key,
       quote_id text not null,
       sender_id text not null,
       receiver_id text not null,
       sender_kyc_status text not null,
-      receiver_kyc_status text not null,
-      receiver_national_id_verified boolean not null default false,
       chain text not null,
       token text not null,
       send_amount_usd numeric(12,2) not null,
       status text not null,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
+    )
+  `);
+
+  await query(`
+    create table if not exists ledger_journal (
+      journal_id text primary key,
+      transfer_id text not null,
+      description text,
+      created_at timestamptz not null default now()
     )
   `);
 
@@ -69,7 +90,31 @@ describe('query-plan checks (reconciliation hot paths)', () => {
       return;
     }
 
-    await query('truncate table ledger_entry, transfers restart identity cascade');
+    await query('truncate table ledger_entry, ledger_journal, transfers, quotes restart identity cascade');
+
+    await query(`
+      insert into quotes (
+        quote_id,
+        chain,
+        token,
+        send_amount_usd,
+        fx_rate_usd_to_etb,
+        fee_usd,
+        recipient_amount_etb,
+        expires_at
+      )
+      select
+        'q_' || gs::text,
+        'base',
+        'USDC',
+        100,
+        140,
+        1,
+        13860,
+        now() + interval '1 day'
+      from generate_series(1, 1200) as gs
+      on conflict (quote_id) do nothing
+    `);
 
     await query(`
       insert into transfers (
@@ -78,8 +123,6 @@ describe('query-plan checks (reconciliation hot paths)', () => {
         sender_id,
         receiver_id,
         sender_kyc_status,
-        receiver_kyc_status,
-        receiver_national_id_verified,
         chain,
         token,
         send_amount_usd,
@@ -93,8 +136,6 @@ describe('query-plan checks (reconciliation hot paths)', () => {
         'sender_' || (gs % 5)::text,
         'recipient_' || (gs % 7)::text,
         'approved',
-        'approved',
-        true,
         'base',
         'USDC',
         100,
@@ -106,6 +147,16 @@ describe('query-plan checks (reconciliation hot paths)', () => {
         now() - (gs * interval '15 minute'),
         now() - (gs * interval '15 minute')
       from generate_series(1, 1200) as gs
+    `);
+
+    await query(`
+      insert into ledger_journal (journal_id, transfer_id, description)
+      select
+        'j_' || gs::text,
+        'tr_' || ((gs % 300) + 1)::text,
+        'query-plan fixture'
+      from generate_series(1, 5000) as gs
+      on conflict (journal_id) do nothing
     `);
 
     await query(`

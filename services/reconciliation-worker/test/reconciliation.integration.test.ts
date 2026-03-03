@@ -114,8 +114,8 @@ describe('reconciliation integration', () => {
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
     process.env.APP_REGION = 'ethiopia';
-    process.env.DATABASE_URL = 'postgres://cryptopay:cryptopay@localhost:55432/cryptopay';
-    process.env.REDIS_URL = 'redis://localhost:6379';
+    process.env.DATABASE_URL ??= 'postgres://cryptopay:cryptopay@localhost:55432/cryptopay';
+    process.env.REDIS_URL ??= 'redis://localhost:6379';
     process.env.ETHIOPIA_SERVICES_CRYPTO_DISABLED = 'true';
 
     await ensureTables();
@@ -138,7 +138,7 @@ describe('reconciliation integration', () => {
     );
 
     await query(
-      "insert into transfers (transfer_id, quote_id, sender_id, receiver_id, sender_kyc_status, receiver_kyc_status, receiver_national_id_verified, chain, token, send_amount_usd, status) values ('tr_1', 'q_1', 's_1', 'r_1', 'approved', 'approved', true, 'base', 'USDC', 100, 'PAYOUT_INITIATED')"
+      "insert into transfers (transfer_id, quote_id, sender_id, receiver_id, sender_kyc_status, chain, token, send_amount_usd, status) values ('tr_1', 'q_1', 's_1', 'r_1', 'approved', 'base', 'USDC', 100, 'PAYOUT_INITIATED')"
     );
 
     await query(
@@ -167,7 +167,7 @@ describe('reconciliation integration', () => {
     );
 
     await query(
-      "insert into transfers (transfer_id, quote_id, sender_id, receiver_id, sender_kyc_status, receiver_kyc_status, receiver_national_id_verified, chain, token, send_amount_usd, status) values ('tr_2', 'q_2', 's_2', 'r_2', 'approved', 'approved', true, 'base', 'USDT', 200, 'PAYOUT_INITIATED')"
+      "insert into transfers (transfer_id, quote_id, sender_id, receiver_id, sender_kyc_status, chain, token, send_amount_usd, status) values ('tr_2', 'q_2', 's_2', 'r_2', 'approved', 'base', 'USDT', 200, 'PAYOUT_INITIATED')"
     );
 
     await query(

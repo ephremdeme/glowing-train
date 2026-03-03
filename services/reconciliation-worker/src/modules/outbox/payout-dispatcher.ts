@@ -70,6 +70,7 @@ export class PayoutOutboxDispatcher {
       batchSize: number;
       maxAttempts: number;
       retryBaseMs: number;
+      baseSweepRequiredForPayout: boolean;
     }
   ) {}
 
@@ -93,6 +94,27 @@ export class PayoutOutboxDispatcher {
 
   private async claimNext(): Promise<ClaimedOutboxEvent | null> {
     return withTransaction(async (tx) => {
+      const baseSweepGateCondition = this.config.baseSweepRequiredForPayout
+        ? `
+            and (
+              exists (
+                select 1
+                from transfers t
+                where t.transfer_id = outbox_event.aggregate_id
+                  and (
+                    t.chain <> 'base'
+                    or exists (
+                      select 1
+                      from settlement_record sr
+                      where sr.transfer_id = t.transfer_id
+                        and sr.status = 'swept'
+                    )
+                  )
+              )
+            )
+          `
+        : '';
+
       const rows = await tx.query<{
         event_id: string;
         payload: unknown;
@@ -103,6 +125,7 @@ export class PayoutOutboxDispatcher {
           select event_id
           from outbox_event
           where topic = 'transfer.funding_confirmed'
+            ${baseSweepGateCondition}
             and (
               (status = 'pending' and next_attempt_at <= now())
               or (status = 'processing' and updated_at <= now() - (${PROCESSING_RECLAIM_TIMEOUT_MS} * interval '1 millisecond'))

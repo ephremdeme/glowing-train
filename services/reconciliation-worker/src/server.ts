@@ -32,7 +32,8 @@ runServiceAndExit({
       payoutOrchestratorUrl: env.PAYOUT_ORCHESTRATOR_URL,
       batchSize: env.PAYOUT_OUTBOX_BATCH_SIZE,
       maxAttempts: env.PAYOUT_OUTBOX_MAX_ATTEMPTS,
-      retryBaseMs: env.PAYOUT_OUTBOX_RETRY_BASE_MS
+      retryBaseMs: env.PAYOUT_OUTBOX_RETRY_BASE_MS,
+      baseSweepRequiredForPayout: env.BASE_SWEEP_REQUIRED_FOR_PAYOUT
     });
 
     const timers: NodeJS.Timeout[] = [];
