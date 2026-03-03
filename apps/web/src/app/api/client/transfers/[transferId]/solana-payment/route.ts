@@ -36,6 +36,8 @@ export async function POST(
     );
   }
 
+  console.info(`[solana-payment] transferId=${transferId} signature=${parsed.data.signature} → forwarding to core-api`);
+
   const upstream = await forwardCoreApi({
     path: `/v1/transfers/${transferId}/solana-payment`,
     method: 'POST',
@@ -43,6 +45,8 @@ export async function POST(
     idempotencyKey: makeIdempotencyKey('web-solana-payment'),
     body: { txHash: parsed.data.signature }
   });
+
+  console.info(`[solana-payment] transferId=${transferId} upstream.status=${upstream.status}`);
 
   const payload = (await parseUpstreamPayload(upstream)) as CorePayload | { error?: { message?: string } };
   if (

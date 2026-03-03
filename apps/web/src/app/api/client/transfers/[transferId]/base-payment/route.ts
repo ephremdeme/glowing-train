@@ -36,6 +36,8 @@ export async function POST(
         );
     }
 
+    console.info(`[base-payment] transferId=${transferId} txHash=${parsed.data.txHash} → forwarding to core-api`);
+
     const upstream = await forwardCoreApi({
         path: `/v1/transfers/${transferId}/base-payment`,
         method: 'POST',
@@ -43,6 +45,8 @@ export async function POST(
         idempotencyKey: makeIdempotencyKey('web-base-payment'),
         body: { txHash: parsed.data.txHash }
     });
+
+    console.info(`[base-payment] transferId=${transferId} upstream.status=${upstream.status}`);
 
     const payload = (await parseUpstreamPayload(upstream)) as CorePayload | { error?: { message?: string } };
     if (

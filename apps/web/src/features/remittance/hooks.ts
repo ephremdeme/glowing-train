@@ -11,13 +11,15 @@ import {
   fetchRecipientDetail,
   fetchRecipients,
   fetchSenderProfile,
+  fetchTransferStatusDetail,
   type CreateRecipientInput
 } from '@/features/remittance/api';
 
 export const remittanceKeys = {
   senderProfile: (authScope: string) => ['remittance', 'sender-profile', authScope] as const,
   recipients: (authScope: string) => ['remittance', 'recipients', authScope] as const,
-  recipient: (authScope: string, recipientId: string) => ['remittance', 'recipient', authScope, recipientId] as const
+  recipient: (authScope: string, recipientId: string) => ['remittance', 'recipient', authScope, recipientId] as const,
+  transferStatus: (authScope: string, transferId: string) => ['remittance', 'transfer-status', authScope, transferId] as const
 };
 
 function tokenScope(token: string): string {
@@ -89,5 +91,15 @@ export function useConfirmBaseWalletPayment() {
   return useMutation({
     mutationFn: (input: { transferId: string; txHash: string }) =>
       confirmBaseWalletPayment(readAccessToken() ?? '', input.transferId, input.txHash)
+  });
+}
+
+export function useTransferStatus(token: string, transferId: string | null | undefined, options?: { refetchInterval?: number }) {
+  const authScope = tokenScope(token);
+  return useQuery({
+    queryKey: remittanceKeys.transferStatus(authScope, transferId ?? 'none'),
+    queryFn: () => fetchTransferStatusDetail(token, transferId as string),
+    enabled: Boolean(token && transferId),
+    ...(options?.refetchInterval !== undefined ? { refetchInterval: options.refetchInterval } : {})
   });
 }
