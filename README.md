@@ -22,6 +22,8 @@ pnpm --filter @cryptopay/db migrate
 pnpm dev:customer-auth
 pnpm dev:core-api
 pnpm dev:offshore-collector
+pnpm dev:reconciliation-worker
+pnpm dev:base-sweeper-worker
 ```
 
 ### 4. Run the web app
@@ -104,3 +106,7 @@ If Playwright is not available in your environment, run typecheck + contract tes
 - No key handling or crypto balances in frontend.
 - Transfer max is USD 2,000.
 - MVP payout rail is bank transfer first.
+
+## Operations Notes
+- Base settlement sweep and payout gating runbook: `docs/RUNBOOK_BASE_SWEEPER.md`.
+- Set `BASE_SWEEP_REQUIRED_FOR_PAYOUT=true` only after verifying sweep worker health and settlement transitions.

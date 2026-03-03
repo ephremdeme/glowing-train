@@ -72,6 +72,7 @@ pnpm dev:customer-auth
 pnpm dev:offshore-collector
 pnpm dev:payout-orchestrator
 pnpm dev:reconciliation-worker
+pnpm dev:base-sweeper-worker
 pnpm dev:web
 ```
 
@@ -81,6 +82,7 @@ pnpm dev:web
 - Payout Orchestrator: `http://localhost:3003`
 - Reconciliation Worker: `http://localhost:3004`
 - Customer Auth: `http://localhost:3005`
+- Base Sweeper Worker: `http://localhost:3006`
 - Web Client: `http://localhost:3000`
 
 Each service exposes:
@@ -138,6 +140,15 @@ pnpm --filter @cryptopay/web test:e2e
 - `NEXT_PUBLIC_LANDING_USDT_ETB_RATE=140`
 - `NEXT_PUBLIC_LANDING_FEE_USD=1`
 - `GOOGLE_OAUTH_REDIRECT_URL=http://localhost:3000/auth/google/callback`
+
+## Base Sweep env flags
+- `BASE_SWEEP_REQUIRED_FOR_PAYOUT=true|false` (default `false`, enable after sweep worker rollout verification)
+- `BASE_SWEEP_POLL_INTERVAL_MS` worker poll cadence
+- `BASE_SWEEP_BATCH_SIZE` max claims per poll
+- `BASE_SWEEP_MAX_ATTEMPTS` retry cap before `review_required`
+- `BASE_SWEEP_RETRY_BASE_MS` retry backoff base
+- `BASE_SWEEP_RECLAIM_TIMEOUT_MS` timeout to reclaim stuck `sweeping` claims
+- `BASE_SWEEP_OWNER_PRIVATE_KEY` owner key for DepositFactory `sweep` calls (secret-managed at runtime)
 
 ## Playwright MCP notes
 - Configure `~/.codex/config.toml` with Playwright MCP command.

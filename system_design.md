@@ -56,7 +56,7 @@ flowchart TB
     ethiopia --> partner["Ethiopia Payout Partner"]
 ```
 
-Crypto operations stay offshore. Ethiopia-side services are explicitly crypto-free and handle KYC state, payout orchestration, audit, and reconciliation only.
+Crypto operations stay offshore. Ethiopia-side services are explicitly crypto-free and handle sender KYC, payout orchestration, audit, and reconciliation only.
 
 ## 4) Happy-path Sequence
 ```mermaid
@@ -67,6 +67,7 @@ sequenceDiagram
     participant A as Customer Auth
     participant O as Offshore Collector
     participant W as Watcher
+    participant S as Base Sweeper
     participant P as Payout Orchestrator
     participant B as Bank Adapter
 
@@ -80,6 +81,7 @@ sequenceDiagram
     O-->>U: transferId + depositAddress
     U->>W: On-chain transfer to deposit address
     W->>C: POST /internal/v1/funding-confirmed (signed)
+    C->>S: Sweep Base settlement (chain=base)
     C->>P: POST /internal/v1/payouts/initiate
     P->>B: initiate payout
     B-->>P: providerReference
@@ -87,6 +89,7 @@ sequenceDiagram
 ```
 
 Funding confirmation time starts SLA tracking. The target is payout initiation within 10 minutes of on-chain confirmation.
+For Base transfers, payout initiation is gated on settlement sweep completion when the reconciliation gate flag is enabled.
 
 ## 5) Failure-path Sequence
 ```mermaid
@@ -123,9 +126,9 @@ Duplicate funding callbacks are safely deduplicated. Exhausted payout retries tr
     cai --> ach["auth_challenge"]
     ca --> mfa["customer_mfa_totp"]
     q["quotes"] --> t["transfers"]
-    rec --> rkyc["receiver_kyc_profile"]
     t --> dr["deposit_routes"]
     t --> ofe["onchain_funding_event"]
+    t --> sr["settlement_record"]
     t --> pi["payout_instruction"]
     pi --> pse["payout_status_event"]
     t --> tt["transfer_transition"]
@@ -136,10 +139,9 @@ Duplicate funding callbacks are safely deduplicated. Exhausted payout retries tr
     audit["audit_log"]
     wc["watcher_checkpoint"]
     wd["watcher_event_dedupe"]
-    rkyc["receiver_kyc_profile"]
 ```
 
-Core integrity tables are transfer-centric with immutable transitions and audit history. Watcher checkpoint/dedupe tables guarantee safe resume and replay protection. `receiver_kyc_profile` stores minimal KYC state with encrypted/hash National ID fields.
+Core integrity tables are transfer-centric with immutable transitions and audit history. Watcher checkpoint/dedupe tables guarantee safe resume and replay protection. `settlement_record` stores Base sweep lifecycle state for payout gating.
 
 ## 7) Key Reliability Controls
 - Idempotency on mutation endpoints and watcher callbacks.
