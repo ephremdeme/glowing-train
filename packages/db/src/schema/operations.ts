@@ -1,6 +1,5 @@
 import {
   bigserial,
-  boolean,
   index,
   integer,
   jsonb,
@@ -9,7 +8,6 @@ import {
   text,
   timestamp,
   unique,
-  uniqueIndex
 } from 'drizzle-orm/pg-core';
 import { customerAccounts } from './customer.js';
 
@@ -76,8 +74,6 @@ export const transfers = pgTable(
     senderId: text('sender_id').notNull(),
     receiverId: text('receiver_id').notNull(),
     senderKycStatus: text('sender_kyc_status').$type<'approved' | 'pending' | 'rejected'>().notNull(),
-    receiverKycStatus: text('receiver_kyc_status').$type<'approved' | 'pending' | 'rejected'>().notNull(),
-    receiverNationalIdVerified: boolean('receiver_national_id_verified').notNull().default(false),
     chain: text('chain').$type<'base' | 'solana'>().notNull(),
     token: text('token').$type<'USDC' | 'USDT'>().notNull(),
     sendAmountUsd: numeric('send_amount_usd', { precision: 12, scale: 2 }).notNull(),
@@ -164,6 +160,30 @@ export const onchainFundingEvents = pgTable(
     unique('onchain_funding_event_transfer_unique').on(table.transferId),
     unique('onchain_funding_event_chain_tx_log_unique').on(table.chain, table.txHash, table.logIndex),
     index('idx_onchain_funding_event_transfer').on(table.transferId)
+  ]
+);
+
+export const settlementRecords = pgTable(
+  'settlement_record',
+  {
+    transferId: text('transfer_id')
+      .primaryKey()
+      .references(() => transfers.transferId, { onDelete: 'cascade' }),
+    chain: text('chain').$type<'base' | 'solana'>().notNull(),
+    token: text('token').$type<'USDC' | 'USDT'>().notNull(),
+    depositAddress: text('deposit_address').notNull(),
+    status: text('status').$type<'pending_sweep' | 'sweeping' | 'swept' | 'review_required'>().notNull(),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSweepTxHash: text('last_sweep_tx_hash'),
+    sweptAt: timestamp('swept_at', { withTimezone: true }),
+    lastError: text('last_error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index('idx_settlement_record_status_next_attempt').on(table.status, table.nextAttemptAt),
+    index('idx_settlement_record_chain_status').on(table.chain, table.status)
   ]
 );
 
@@ -272,25 +292,6 @@ export const recipients = pgTable(
   },
   (table) => [
     index('idx_recipient_customer_id').on(table.customerId)
-  ]
-);
-
-export const receiverKycProfiles = pgTable(
-  'receiver_kyc_profile',
-  {
-    receiverId: text('receiver_id').primaryKey(),
-    recipientId: text('recipient_id').references(() => recipients.recipientId, { onDelete: 'set null' }),
-    kycStatus: text('kyc_status').$type<'approved' | 'pending' | 'rejected'>().notNull(),
-    nationalIdVerified: boolean('national_id_verified').notNull().default(false),
-    nationalIdHash: text('national_id_hash'),
-    nationalIdEncrypted: jsonb('national_id_encrypted'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
-  },
-  (table) => [
-    index('idx_receiver_kyc_profile_kyc_status').on(table.kycStatus),
-    index('idx_receiver_kyc_profile_national_id_hash').on(table.nationalIdHash),
-    uniqueIndex('idx_receiver_kyc_profile_recipient_id').on(table.recipientId)
   ]
 );
 
