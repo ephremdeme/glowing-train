@@ -27,10 +27,6 @@ class InMemoryTransferRepository implements TransferRepositoryPort {
     return null;
   }
 
-  async findReceiverKycProfile(): Promise<null> {
-    return null;
-  }
-
   async findIdempotency(key: string): Promise<IdempotencyRecord | null> {
     return this.idempotency.get(key) ?? null;
   }
@@ -47,8 +43,6 @@ class InMemoryTransferRepository implements TransferRepositoryPort {
         senderId: 's_1',
         receiverId: 'r_1',
         senderKycStatus: 'approved',
-        receiverKycStatus: 'approved',
-        receiverNationalIdVerified: true,
         chain: 'base',
         token: 'USDC',
         sendAmountUsd: 100,
@@ -96,8 +90,6 @@ function buildValidInput(): CreateTransferInput {
     senderId: 'sender_1',
     receiverId: 'receiver_1',
     senderKycStatus: 'approved',
-    receiverKycStatus: 'approved',
-    receiverNationalIdVerified: true,
     idempotencyKey: 'idem-key-001'
   };
 }
@@ -120,7 +112,7 @@ describe('TransferService unit', () => {
     await expect(service.createTransfer(input)).rejects.toBeInstanceOf(TransferValidationError);
   });
 
-  it('normalizes omitted receiver KYC fields for idempotency compatibility', async () => {
+  it('returns idempotent response when payload repeats with sender-only KYC', async () => {
     const repo = new InMemoryTransferRepository();
     repo.setQuote({
       quoteId: 'q_1',
@@ -149,8 +141,6 @@ describe('TransferService unit', () => {
         senderId: 'sender_1',
         receiverId: 'receiver_1',
         senderKycStatus: 'approved',
-        receiverKycStatus: 'approved',
-        receiverNationalIdVerified: true,
         idempotencyKey: 'idem-compat-001'
       },
       new Date('2026-02-12T00:00:01.000Z')

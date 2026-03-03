@@ -42,8 +42,6 @@ async function ensureTables(): Promise<void> {
       sender_id text not null,
       receiver_id text not null,
       sender_kyc_status text not null check (sender_kyc_status in ('approved', 'pending', 'rejected')),
-      receiver_kyc_status text not null check (receiver_kyc_status in ('approved', 'pending', 'rejected')),
-      receiver_national_id_verified boolean not null default false,
       chain text not null check (chain in ('base', 'solana')),
       token text not null check (token in ('USDC', 'USDT')),
       send_amount_usd numeric(12, 2) not null check (send_amount_usd > 0 and send_amount_usd <= 2000),
@@ -79,17 +77,6 @@ async function ensureTables(): Promise<void> {
     'create unique index if not exists idx_deposit_routes_chain_token_address on deposit_routes(chain, token, deposit_address)'
   );
 
-  await query(`
-    create table if not exists receiver_kyc_profile (
-      receiver_id text primary key,
-      kyc_status text not null check (kyc_status in ('approved', 'pending', 'rejected')),
-      national_id_verified boolean not null default false,
-      national_id_hash text,
-      national_id_encrypted jsonb,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
-    )
-  `);
 }
 
 async function seedQuote(params?: { quoteId?: string; expiresAt?: string; chain?: 'base' | 'solana'; token?: 'USDC' | 'USDT' }): Promise<string> {
@@ -137,7 +124,6 @@ describe('transfer creation integration', () => {
   beforeEach(async () => {
     await query('truncate table quotes cascade');
     await repository.clearTransferDataForTests();
-    await query('truncate table receiver_kyc_profile');
   });
 
   afterAll(async () => {
@@ -153,8 +139,6 @@ describe('transfer creation integration', () => {
       senderId: 'sender_1',
       receiverId: 'receiver_1',
       senderKycStatus: 'approved',
-      receiverKycStatus: 'approved',
-      receiverNationalIdVerified: true,
       idempotencyKey: 'idem-transfer-001'
     });
 
@@ -163,8 +147,6 @@ describe('transfer creation integration', () => {
       senderId: 'sender_1',
       receiverId: 'receiver_2',
       senderKycStatus: 'approved',
-      receiverKycStatus: 'approved',
-      receiverNationalIdVerified: true,
       idempotencyKey: 'idem-transfer-002'
     });
 
@@ -182,8 +164,6 @@ describe('transfer creation integration', () => {
       senderId: 'sender_1',
       receiverId: 'receiver_1',
       senderKycStatus: 'approved',
-      receiverKycStatus: 'approved',
-      receiverNationalIdVerified: true,
       idempotencyKey: 'idem-transfer-003'
     });
 
@@ -192,8 +172,6 @@ describe('transfer creation integration', () => {
       senderId: 'sender_1',
       receiverId: 'receiver_1',
       senderKycStatus: 'approved',
-      receiverKycStatus: 'approved',
-      receiverNationalIdVerified: true,
       idempotencyKey: 'idem-transfer-003'
     });
 
@@ -209,8 +187,6 @@ describe('transfer creation integration', () => {
       senderId: 'sender_1',
       receiverId: 'receiver_1',
       senderKycStatus: 'approved',
-      receiverKycStatus: 'approved',
-      receiverNationalIdVerified: true,
       idempotencyKey: 'idem-transfer-004'
     });
 
@@ -220,8 +196,6 @@ describe('transfer creation integration', () => {
         senderId: 'sender_1',
         receiverId: 'receiver_2',
         senderKycStatus: 'approved',
-        receiverKycStatus: 'approved',
-        receiverNationalIdVerified: true,
         idempotencyKey: 'idem-transfer-004'
       })
     ).rejects.toBeInstanceOf(IdempotencyConflictError);
@@ -238,8 +212,7 @@ describe('transfer creation integration', () => {
       idempotencyKey: 'idem-transfer-005'
     });
 
-    expect(created.transfer.receiverKycStatus).toBe('approved');
-    expect(created.transfer.receiverNationalIdVerified).toBe(true);
+    expect(created.transfer.transferId).toMatch(/^tr_/);
   });
 
   it('rejects expired quote on transfer creation', async () => {
@@ -252,8 +225,6 @@ describe('transfer creation integration', () => {
           senderId: 'sender_1',
           receiverId: 'receiver_1',
           senderKycStatus: 'approved',
-          receiverKycStatus: 'approved',
-          receiverNationalIdVerified: true,
           idempotencyKey: 'idem-transfer-006'
         },
         new Date('2026-02-12T00:00:01.000Z')
@@ -261,32 +232,7 @@ describe('transfer creation integration', () => {
     ).rejects.toBeInstanceOf(QuoteExpiredError);
   });
 
-  it('does not block when receiver kyc profile is pending', async () => {
-    const quoteId = await seedQuote({ quoteId: 'q_profile_override' });
-
-    await query(
-      `
-      insert into receiver_kyc_profile (receiver_id, kyc_status, national_id_verified)
-      values ('receiver_profile_1', 'pending', false)
-      `
-    );
-
-    const created = await service.createTransfer({
-      quoteId,
-      senderId: 'sender_1',
-      receiverId: 'receiver_profile_1',
-      senderKycStatus: 'approved',
-      receiverKycStatus: 'approved',
-      receiverNationalIdVerified: true,
-      idempotencyKey: 'idem-transfer-007'
-    });
-
-    expect(created.transfer.transferId).toMatch(/^tr_/);
-    expect(created.transfer.receiverKycStatus).toBe('pending');
-    expect(created.transfer.receiverNationalIdVerified).toBe(false);
-  });
-
-  it('rejects non-approved sender KYC even when receiver fields are present', async () => {
+  it('rejects non-approved sender KYC', async () => {
     const quoteId = await seedQuote({ quoteId: 'q_sender_rejected' });
 
     await expect(
@@ -295,8 +241,6 @@ describe('transfer creation integration', () => {
         senderId: 'sender_1',
         receiverId: 'receiver_1',
         senderKycStatus: 'pending',
-        receiverKycStatus: 'approved',
-        receiverNationalIdVerified: true,
         idempotencyKey: 'idem-transfer-008'
       })
     ).rejects.toBeInstanceOf(TransferValidationError);
