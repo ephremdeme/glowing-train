@@ -92,6 +92,25 @@ services:
       redis:
         condition: service_healthy
 
+  base-sweeper-worker:
+    image: node:22-alpine
+    container_name: cryptopay-base-sweeper-worker
+    working_dir: /workspace
+    env_file:
+      - .env
+    environment:
+      APP_REGION: offshore
+    command: ["sh", "-lc", "corepack pnpm --filter @cryptopay/base-sweeper-worker dev"]
+    volumes:
+      - ./:/workspace
+    ports:
+      - '3006:3006'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   payout-orchestrator:
     image: node:22-alpine
     container_name: cryptopay-payout-orchestrator

@@ -115,6 +115,22 @@ services:
       redis:
         condition: service_healthy
 
+  base-sweeper-worker:
+    <<: *node-service
+    image: ${BASE_SWEEPER_WORKER_IMAGE:-ghcr.io/ephrem/cryptopay-base-sweeper-worker:latest}
+    container_name: cryptopay-base-sweeper-worker
+    environment:
+      APP_REGION: offshore
+      PORT: 3006
+      BASE_SWEEPER_WORKER_PORT: 3006
+    ports:
+      - '127.0.0.1:3006:3006'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   payout-orchestrator:
     <<: *node-service
     image: ${PAYOUT_ORCHESTRATOR_IMAGE:-ghcr.io/ephrem/cryptopay-payout-orchestrator:latest}

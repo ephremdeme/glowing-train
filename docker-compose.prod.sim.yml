@@ -80,6 +80,21 @@ services:
     ports: !override
       - '127.0.0.1:13002:3002'
 
+  base-sweeper-worker:
+    image: cryptopay/base-sweeper-worker:prod-sim
+    build:
+      <<: *local-node-build
+      args:
+        <<: *local-build-args
+        SERVICE_NAME: base-sweeper-worker
+        SERVICE_PORT: 3006
+      cache_from:
+        - cryptopay/base-sweeper-worker:prod-sim
+    env_file:
+      - .env.prod.local
+    ports: !override
+      - '127.0.0.1:13006:3006'
+
   payout-orchestrator:
     image: cryptopay/payout-orchestrator:prod-sim
     build:
