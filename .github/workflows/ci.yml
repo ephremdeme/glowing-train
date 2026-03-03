@@ -118,6 +118,12 @@ jobs:
             build_args: |
               SERVICE_NAME=offshore-collector
               SERVICE_PORT=3002
+          - name: base-sweeper-worker
+            dockerfile: docker/node.Dockerfile
+            filter: base_sweeper_worker
+            build_args: |
+              SERVICE_NAME=base-sweeper-worker
+              SERVICE_PORT=3006
           - name: payout-orchestrator
             dockerfile: docker/node.Dockerfile
             filter: payout_orchestrator
@@ -186,6 +192,15 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'packages/**'
               - 'services/offshore-collector/**'
+            base_sweeper_worker:
+              - '.dockerignore'
+              - '.npmrc'
+              - 'docker/node.Dockerfile'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'packages/**'
+              - 'services/base-sweeper-worker/**'
             payout_orchestrator:
               - '.dockerignore'
               - '.npmrc'

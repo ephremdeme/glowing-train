@@ -18,7 +18,9 @@
     "dev:offshore-collector": "pnpm --filter @cryptopay/offshore-collector dev",
     "dev:payout-orchestrator": "pnpm --filter @cryptopay/payout-orchestrator dev",
     "dev:reconciliation-worker": "pnpm --filter @cryptopay/reconciliation-worker dev",
+    "dev:base-sweeper-worker": "pnpm --filter @cryptopay/base-sweeper-worker dev",
     "dev:admin-api": "pnpm --filter @cryptopay/admin-api dev",
+    "backfill:solana-reference-hash": "tsx scripts/backfill-solana-reference-hash.ts",
     "check:ethiopia-boundary": "node scripts/check-ethiopia-boundary.mjs",
     "go:test": "mkdir -p .cache/go-build-base .cache/go-build-solana && GOCACHE=$(pwd)/.cache/go-build-base go -C workers/base-watcher test ./... && GOCACHE=$(pwd)/.cache/go-build-solana go -C workers/solana-watcher test ./..."
   },
