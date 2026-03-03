@@ -1,0 +1,25 @@
+{
+  "name": "@cryptopay/base-sweeper-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@cryptopay/config": "workspace:*",
+    "@cryptopay/db": "workspace:*",
+    "@cryptopay/http": "workspace:*",
+    "@cryptopay/observability": "workspace:*",
+    "@noble/hashes": "^2.0.1",
+    "fastify": "^5.2.1",
+    "tsx": "^4.21.0",
+    "viem": "^2.45.3"
+  }
+}
