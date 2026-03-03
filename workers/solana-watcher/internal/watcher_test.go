@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 type resolverStub struct {
@@ -50,7 +51,10 @@ func TestWatcher_PublishesWhenFinalizedAndRouteFound(t *testing.T) {
 	pub := &publisherStub{}
 	w := Watcher{Chain: "solana", Resolver: resolverStub{found: true, match: RouteMatch{TransferID: "tr_123"}}, Publisher: pub}
 
-	result, err := w.ProcessCandidate(context.Background(), FundingCandidate{Chain: "solana", Token: "USDT", TxHash: "sig_abc", LogIndex: 2, DepositAddress: "dep_1", AmountUSD: 80, Finalized: true})
+	result, err := w.ProcessCandidate(context.Background(), FundingCandidate{
+		Chain: "solana", Token: "USDT", TxHash: "sig_abc", LogIndex: 2,
+		DepositAddress: "dep_1", AmountUSD: 80, Finalized: true, ConfirmedAt: time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC),
+	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -69,7 +73,9 @@ func TestWatcher_ReturnsRouteNotFound(t *testing.T) {
 	pub := &publisherStub{}
 	w := Watcher{Chain: "solana", Resolver: resolverStub{found: false}, Publisher: pub}
 
-	result, err := w.ProcessCandidate(context.Background(), FundingCandidate{Chain: "solana", Token: "USDC", TxHash: "sig_none", Finalized: true})
+	result, err := w.ProcessCandidate(context.Background(), FundingCandidate{
+		Chain: "solana", Token: "USDC", TxHash: "sig_none", Finalized: true, ConfirmedAt: time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC),
+	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -82,7 +88,9 @@ func TestWatcher_PropagatesPublisherError(t *testing.T) {
 	pub := &publisherStub{err: errors.New("publish failed")}
 	w := Watcher{Chain: "solana", Resolver: resolverStub{found: true, match: RouteMatch{TransferID: "tr_1"}}, Publisher: pub}
 
-	_, err := w.ProcessCandidate(context.Background(), FundingCandidate{Chain: "solana", Token: "USDC", TxHash: "sig_fail", Finalized: true})
+	_, err := w.ProcessCandidate(context.Background(), FundingCandidate{
+		Chain: "solana", Token: "USDC", TxHash: "sig_fail", Finalized: true, ConfirmedAt: time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC),
+	})
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -107,6 +115,7 @@ func TestWatcher_ResolvesSolanaPaymentByReferenceHash(t *testing.T) {
 		ReferenceHash: "abc123",
 		AmountUSD:     25,
 		Finalized:     true,
+		ConfirmedAt:   time.Date(2026, 2, 13, 12, 0, 0, 0, time.UTC),
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)

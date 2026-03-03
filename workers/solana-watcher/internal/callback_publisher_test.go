@@ -56,6 +56,7 @@ func TestCallbackPublisherPublishesSignedPayload(t *testing.T) {
 		LogIndex:       1,
 		DepositAddress: "0xdep",
 		AmountUSD:      100,
+		ConfirmedAt:    time.Date(2026, 2, 13, 11, 59, 0, 0, time.UTC),
 	}
 
 	if err := pub.PublishFundingConfirmed(context.Background(), event); err != nil {
@@ -95,7 +96,10 @@ func TestCallbackPublisherFailsOnNonSuccess(t *testing.T) {
 		Now:      time.Now,
 	}
 
-	err := pub.PublishFundingConfirmed(context.Background(), FundingConfirmedEvent{EventID: "evt_1"})
+	err := pub.PublishFundingConfirmed(context.Background(), FundingConfirmedEvent{
+		EventID:     "evt_1",
+		ConfirmedAt: time.Date(2026, 2, 13, 11, 59, 0, 0, time.UTC),
+	})
 	if err == nil {
 		t.Fatalf("expected error for non-2xx response")
 	}
