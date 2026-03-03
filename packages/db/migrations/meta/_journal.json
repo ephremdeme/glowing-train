@@ -99,6 +99,27 @@
       "when": 1700000000014,
       "tag": "0014_add_funding_submission_and_outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1700000000015,
+      "tag": "0015_fix_payout_status_constraint",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1700000000016,
+      "tag": "0016_add_settlement_record_and_base_sweep_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1700000000017,
+      "tag": "0017_remove_receiver_kyc_and_transfer_receiver_kyc_columns",
+      "breakpoints": true
     }
   ]
 }
