@@ -99,6 +99,43 @@ export class FundingConfirmationRepository {
 
       await tx.query("update transfers set status = 'FUNDING_CONFIRMED' where transfer_id = $1", [params.match.transferId]);
 
+      if (params.event.chain === 'base') {
+        try {
+          await tx.query(
+            `
+            insert into settlement_record (
+              transfer_id,
+              chain,
+              token,
+              deposit_address,
+              status,
+              attempt_count,
+              next_attempt_at
+            ) values ($1, 'base', $2, $3, 'pending_sweep', 0, now())
+            on conflict (transfer_id)
+            do update set
+              token = excluded.token,
+              deposit_address = excluded.deposit_address,
+              status = case
+                when settlement_record.status in ('pending_sweep', 'sweeping', 'review_required') then 'pending_sweep'
+                else settlement_record.status
+              end,
+              next_attempt_at = case
+                when settlement_record.status in ('pending_sweep', 'sweeping', 'review_required') then now()
+                else settlement_record.next_attempt_at
+              end,
+              updated_at = now()
+            `,
+            [params.match.transferId, params.event.token, params.event.depositAddress]
+          );
+        } catch (error) {
+          const code = (error as { code?: string }).code;
+          if (code !== '42P01') {
+            throw error;
+          }
+        }
+      }
+
       await tx.query(
         `
         update funding_submission_attempt

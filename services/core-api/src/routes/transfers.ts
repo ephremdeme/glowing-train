@@ -44,6 +44,53 @@ function isCollectorVerifySolanaPaymentPayload(value: unknown): value is Collect
   );
 }
 
+
+type CollectorVerifyBasePaymentPayload = {
+  verified: true;
+  transferId: string;
+  chain: 'base';
+  token: 'USDC' | 'USDT';
+  txHash: string;
+  amountUsd: number;
+  depositAddress: string;
+  confirmedAt: string;
+  referenceHash?: string;
+  payerAddress?: string;
+  paymentId?: string;
+};
+
+const PENDING_BASE_VERIFY_ERROR_CODES = new Set(['TX_NOT_FOUND', 'BASE_RPC_READ_FAILED']);
+
+function isCollectorVerifyBasePaymentPayload(value: unknown): value is CollectorVerifyBasePaymentPayload {
+  if (!value || typeof value !== 'object') return false;
+  const payload = value as Partial<CollectorVerifyBasePaymentPayload>;
+  return Boolean(
+    payload.verified === true &&
+      payload.chain === 'base' &&
+      typeof payload.transferId === 'string' &&
+      typeof payload.token === 'string' &&
+      (payload.token === 'USDC' || payload.token === 'USDT') &&
+      typeof payload.txHash === 'string' &&
+      typeof payload.depositAddress === 'string' &&
+      typeof payload.confirmedAt === 'string' &&
+      typeof payload.amountUsd === 'number'
+  );
+}
+
+type SupportedPaymentChain = 'solana' | 'base';
+type CollectorVerifyPaymentPayload = CollectorVerifySolanaPaymentPayload | CollectorVerifyBasePaymentPayload;
+
+function parseCollectorVerifyPaymentPayload(
+  chain: SupportedPaymentChain,
+  value: unknown
+): CollectorVerifyPaymentPayload | null {
+  if (chain === 'solana') {
+    return isCollectorVerifySolanaPaymentPayload(value) ? value : null;
+  }
+
+  return isCollectorVerifyBasePaymentPayload(value) ? value : null;
+}
+
 export function registerTransferRoutes(
   app: FastifyInstance,
   deps: {
@@ -52,6 +99,7 @@ export function registerTransferRoutes(
     transferListQuerySchema: any;
     transferCreateSchema: any;
     transferSolanaPaymentSchema: any;
+    transferBasePaymentSchema: any;
     buildInternalServiceToken: (scope: string) => string;
     fundingService: FundingConfirmationService;
   }
@@ -62,6 +110,7 @@ export function registerTransferRoutes(
     transferListQuerySchema,
     transferCreateSchema,
     transferSolanaPaymentSchema,
+    transferBasePaymentSchema,
     buildInternalServiceToken,
     fundingService
   } = deps;
@@ -303,190 +352,250 @@ export function registerTransferRoutes(
     return reply.status(collectorResponse.status).send(payload);
   });
 
-  app.post('/v1/transfers/:transferId/solana-payment', async (request, reply) => {
-    let claims: AuthClaims;
-    try {
-      claims = toCustomerClaims(request);
-    } catch (error) {
-      return deny({
-        request,
-        reply,
-        code: 'UNAUTHORIZED',
-        message: (error as Error).message,
-        status: 401
-      });
-    }
+  const acceptedSubmissionStates = new Set(['AWAITING_FUNDING', 'FUNDING_CONFIRMED', 'PAYOUT_INITIATED', 'PAYOUT_COMPLETED']);
 
-    const transferId = (request.params as { transferId: string }).transferId;
-    const parsed = transferSolanaPaymentSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_PAYLOAD',
-        message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
-        status: 400,
-        details: parsed.error.issues
-      });
-    }
+  const registerChainPaymentRoute = (params: {
+    chain: SupportedPaymentChain;
+    paymentSchema: any;
+    pendingVerifyErrorCodes: Set<string>;
+    collectorScope: string;
+    collectorVerifyPath: string;
+    collectorIdempotencyPrefix: string;
+    idempotencyScope: string;
+    verificationSource: string;
+  }) => {
+    app.post(`/v1/transfers/:transferId/${params.chain}-payment`, async (request, reply) => {
+      let claims: AuthClaims;
+      try {
+        claims = toCustomerClaims(request);
+      } catch (error) {
+        return deny({
+          request,
+          reply,
+          code: 'UNAUTHORIZED',
+          message: (error as Error).message,
+          status: 401
+        });
+      }
 
-    let key: string;
-    try {
-      key = requiredIdempotencyKey(request);
-    } catch (error) {
-      return deny({
-        request,
-        reply,
-        code: 'MISSING_IDEMPOTENCY_KEY',
-        message: (error as Error).message,
-        status: 400
-      });
-    }
+      const transferId = (request.params as { transferId: string }).transferId;
+      const parsed = params.paymentSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return deny({
+          request,
+          reply,
+          code: 'INVALID_PAYLOAD',
+          message: parsed.error.issues[0]?.message ?? 'Invalid payload.',
+          status: 400,
+          details: parsed.error.issues
+        });
+      }
 
-    const transfer = await repository.findDetailForSender({ transferId, senderId: claims.sub });
-    if (!transfer) {
-      return deny({
-        request,
-        reply,
-        code: 'TRANSFER_NOT_FOUND',
-        message: 'Transfer not found.',
-        status: 404
-      });
-    }
-    if (transfer.chain !== 'solana') {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_TRANSFER_CHAIN',
-        message: 'This endpoint only supports Solana transfers.',
-        status: 400
-      });
-    }
-    if (transfer.status !== 'AWAITING_FUNDING' && transfer.status !== 'FUNDING_CONFIRMED' && transfer.status !== 'PAYOUT_INITIATED' && transfer.status !== 'PAYOUT_COMPLETED') {
-      return deny({
-        request,
-        reply,
-        code: 'INVALID_TRANSFER_STATE',
-        message: 'Transfer is not in a state that accepts Solana payment confirmation.',
-        status: 409
-      });
-    }
+      let key: string;
+      try {
+        key = requiredIdempotencyKey(request);
+      } catch (error) {
+        return deny({
+          request,
+          reply,
+          code: 'MISSING_IDEMPOTENCY_KEY',
+          message: (error as Error).message,
+          status: 400
+        });
+      }
 
-    const response = await withIdempotency({
-      db: { query },
-      scope: 'core-api:transfers:solana-payment',
-      idempotencyKey: key,
-      requestId: request.id,
-      requestPayload: { transferId, txHash: parsed.data.txHash, customerId: claims.sub },
-      execute: async () => {
-        if (transfer.status === 'AWAITING_FUNDING') {
-          await repository.recordFundingSubmissionAttempt({
-            transferId,
-            chain: 'solana',
-            txHash: parsed.data.txHash,
-            metadata: {
-              source: 'customer_submit'
-            }
-          });
-        }
+      const transfer = await repository.findDetailForSender({ transferId, senderId: claims.sub });
+      if (!transfer) {
+        return deny({
+          request,
+          reply,
+          code: 'TRANSFER_NOT_FOUND',
+          message: 'Transfer not found.',
+          status: 404
+        });
+      }
+      if (transfer.chain !== params.chain) {
+        return deny({
+          request,
+          reply,
+          code: 'INVALID_TRANSFER_CHAIN',
+          message: `This endpoint only supports ${params.chain === 'base' ? 'Base' : 'Solana'} transfers.`,
+          status: 400
+        });
+      }
+      if (!acceptedSubmissionStates.has(transfer.status)) {
+        return deny({
+          request,
+          reply,
+          code: 'INVALID_TRANSFER_STATE',
+          message: `Transfer is not in a state that accepts ${params.chain === 'base' ? 'Base' : 'Solana'} payment confirmation.`,
+          status: 409
+        });
+      }
 
-        const collectorToken = buildInternalServiceToken('collector:solana-payments:verify');
-        const collectorResponse = await fetch(
-          `${process.env.OFFSHORE_COLLECTOR_URL ?? 'http://localhost:3002'}/internal/v1/transfers/solana-payment/verify`,
-          {
-            method: 'POST',
-            headers: {
-              authorization: `Bearer ${collectorToken}`,
-              'content-type': 'application/json',
-              'idempotency-key': `core-solana-verify:${key}`
-            },
-            body: JSON.stringify({
-              transferId,
-              txHash: parsed.data.txHash
-            })
-          }
-        );
-
-        const collectorPayload = (await collectorResponse.json().catch(() => ({}))) as unknown;
-
-        if (!collectorResponse.ok || !isCollectorVerifySolanaPaymentPayload(collectorPayload)) {
-          const errorPayload = collectorPayload as CollectorErrorPayload;
-          const collectorCode = errorPayload?.error?.code ?? null;
-
-          if (
-            transfer.status === 'AWAITING_FUNDING' &&
-            collectorResponse.status === 409 &&
-            collectorCode &&
-            PENDING_SOLANA_VERIFY_ERROR_CODES.has(collectorCode)
-          ) {
-            return {
-              status: 202,
-              body: {
-                result: 'pending_verification',
-                transferId,
-                txHash: parsed.data.txHash,
-                backendStatus: transfer.status
-              }
-            };
-          }
-
+      const response = await withIdempotency({
+        db: { query },
+        scope: params.idempotencyScope,
+        idempotencyKey: key,
+        requestId: request.id,
+        requestPayload: { transferId, txHash: parsed.data.txHash, customerId: claims.sub },
+        execute: async () => {
           if (transfer.status === 'AWAITING_FUNDING') {
-            await repository.markFundingSubmissionAttemptFailed({
+            await repository.recordFundingSubmissionAttempt({
               transferId,
+              chain: params.chain,
               txHash: parsed.data.txHash,
               metadata: {
-                source: 'customer_submit',
-                collectorStatus: collectorResponse.status,
-                collectorCode
+                source: 'customer_submit'
               }
             });
           }
 
+          const collectorToken = buildInternalServiceToken(params.collectorScope);
+          const collectorResponse = await fetch(
+            `${process.env.OFFSHORE_COLLECTOR_URL ?? 'http://localhost:3002'}${params.collectorVerifyPath}`,
+            {
+              method: 'POST',
+              headers: {
+                authorization: `Bearer ${collectorToken}`,
+                'content-type': 'application/json',
+                'idempotency-key': `${params.collectorIdempotencyPrefix}:${key}`
+              },
+              body: JSON.stringify({
+                transferId,
+                txHash: parsed.data.txHash
+              })
+            }
+          );
+
+          const collectorPayload = (await collectorResponse.json().catch(() => ({}))) as unknown;
+          const verifiedCollectorPayload = parseCollectorVerifyPaymentPayload(params.chain, collectorPayload);
+          if (!collectorResponse.ok || !verifiedCollectorPayload) {
+            const errorPayload = collectorPayload as CollectorErrorPayload;
+            const collectorCode = errorPayload?.error?.code ?? null;
+
+            if (
+              transfer.status === 'AWAITING_FUNDING' &&
+              collectorResponse.status === 409 &&
+              collectorCode &&
+              params.pendingVerifyErrorCodes.has(collectorCode)
+            ) {
+              return {
+                status: 202,
+                body: {
+                  result: 'pending_verification',
+                  transferId,
+                  txHash: parsed.data.txHash,
+                  backendStatus: transfer.status
+                }
+              };
+            }
+
+            if (transfer.status === 'AWAITING_FUNDING') {
+              await repository.markFundingSubmissionAttemptFailed({
+                transferId,
+                txHash: parsed.data.txHash,
+                metadata: {
+                  source: 'customer_submit',
+                  collectorStatus: collectorResponse.status,
+                  collectorCode
+                }
+              });
+            }
+
+            return {
+              status: collectorResponse.status,
+              body: collectorPayload
+            };
+          }
+
+          const confirmedAt = new Date(verifiedCollectorPayload.confirmedAt);
+          if (Number.isNaN(confirmedAt.getTime())) {
+            if (transfer.status === 'AWAITING_FUNDING') {
+              await repository.markFundingSubmissionAttemptFailed({
+                transferId,
+                txHash: parsed.data.txHash,
+                metadata: {
+                  source: 'customer_submit',
+                  collectorStatus: collectorResponse.status,
+                  collectorCode: 'INVALID_CONFIRMED_AT'
+                }
+              });
+            }
+
+            return {
+              status: 502,
+              body: {
+                error: {
+                  code: 'COLLECTOR_INVALID_RESPONSE',
+                  message: 'Collector returned an invalid confirmation timestamp.'
+                }
+              }
+            };
+          }
+
+          const fundingResult = await fundingService.processFundingConfirmed({
+            eventId: `${params.chain}:${verifiedCollectorPayload.transferId}:${verifiedCollectorPayload.txHash}`,
+            chain: params.chain,
+            token: verifiedCollectorPayload.token,
+            txHash: verifiedCollectorPayload.txHash,
+            logIndex: 0,
+            transferId: verifiedCollectorPayload.transferId,
+            depositAddress: verifiedCollectorPayload.depositAddress,
+            amountUsd: verifiedCollectorPayload.amountUsd,
+            confirmedAt,
+            metadata: {
+              payerAddress: verifiedCollectorPayload.payerAddress ?? null,
+              paymentId: verifiedCollectorPayload.paymentId ?? null,
+              referenceHash: verifiedCollectorPayload.referenceHash ?? null,
+              verificationSource: params.verificationSource
+            }
+          });
+
+          const latest = await repository.findDetailForSender({ transferId, senderId: claims.sub });
+          const backendStatus = latest?.status ?? transfer.status;
+          const resultLabel =
+            fundingResult.status === 'confirmed'
+              ? 'confirmed'
+              : fundingResult.status === 'duplicate' || fundingResult.status === 'invalid_state'
+                ? 'duplicate'
+                : 'pending_verification';
+
           return {
-            status: collectorResponse.status,
-            body: collectorPayload
+            status: fundingResult.status === 'confirmed' ? 202 : 200,
+            body: {
+              result: resultLabel,
+              transferId,
+              txHash: verifiedCollectorPayload.txHash,
+              backendStatus
+            }
           };
         }
+      });
 
-        const fundingResult = await fundingService.processFundingConfirmed({
-          eventId: `solana:${collectorPayload.transferId}:${collectorPayload.txHash}`,
-          chain: 'solana',
-          token: collectorPayload.token,
-          txHash: collectorPayload.txHash,
-          logIndex: 0,
-          transferId: collectorPayload.transferId,
-          depositAddress: collectorPayload.depositAddress,
-          amountUsd: collectorPayload.amountUsd,
-          confirmedAt: new Date(collectorPayload.confirmedAt),
-          metadata: {
-            payerAddress: collectorPayload.payerAddress ?? null,
-            paymentId: collectorPayload.paymentId ?? null,
-            referenceHash: collectorPayload.referenceHash ?? null,
-            verificationSource: 'solana_wallet_pay_client_submit'
-          }
-        });
-
-        const latest = await repository.findDetailForSender({ transferId, senderId: claims.sub });
-        const backendStatus = latest?.status ?? transfer.status;
-        const resultLabel =
-          fundingResult.status === 'confirmed'
-            ? 'confirmed'
-            : fundingResult.status === 'duplicate' || fundingResult.status === 'invalid_state'
-              ? 'duplicate'
-              : 'pending_verification';
-
-        return {
-          status: fundingResult.status === 'confirmed' ? 202 : 200,
-          body: {
-            result: resultLabel,
-            transferId,
-            txHash: collectorPayload.txHash,
-            backendStatus
-          }
-        };
-      }
+      return reply.status(response.status).send(response.body);
     });
+  };
 
-    return reply.status(response.status).send(response.body);
+  registerChainPaymentRoute({
+    chain: 'solana',
+    paymentSchema: transferSolanaPaymentSchema,
+    pendingVerifyErrorCodes: PENDING_SOLANA_VERIFY_ERROR_CODES,
+    collectorScope: 'collector:solana-payments:verify',
+    collectorVerifyPath: '/internal/v1/transfers/solana-payment/verify',
+    collectorIdempotencyPrefix: 'core-solana-verify',
+    idempotencyScope: 'core-api:transfers:solana-payment',
+    verificationSource: 'solana_wallet_pay_client_submit'
+  });
+
+  registerChainPaymentRoute({
+    chain: 'base',
+    paymentSchema: transferBasePaymentSchema,
+    pendingVerifyErrorCodes: PENDING_BASE_VERIFY_ERROR_CODES,
+    collectorScope: 'collector:base-payments:verify',
+    collectorVerifyPath: '/internal/v1/transfers/base-payment/verify',
+    collectorIdempotencyPrefix: 'core-base-verify',
+    idempotencyScope: 'core-api:transfers:base-payment',
+    verificationSource: 'base_wallet_pay_client_submit'
   });
 }
