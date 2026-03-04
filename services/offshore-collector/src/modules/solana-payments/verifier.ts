@@ -105,10 +105,8 @@ function readU64Le(bytes: Uint8Array): bigint {
   return view.getBigUint64(0, true);
 }
 
-function decimalUsdToBaseUnits(amountUsd: number): bigint {
-  // send_amount_usd is constrained to <= 2 decimals in current schema.
-  const cents = Math.round(amountUsd * 100);
-  return BigInt(cents) * 10_000n;
+function baseUnitsToUsd(amountBaseUnits: bigint): number {
+  return Number(amountBaseUnits) / 1_000_000;
 }
 
 function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
@@ -210,12 +208,6 @@ export class SolanaPaymentVerificationService {
         status: 400
       });
     }
-    if (depositRoute.routeKind !== 'solana_program_pay') {
-      throw new SolanaPaymentVerificationError('Transfer is not configured for Solana wallet-pay verification.', {
-        code: 'INVALID_ROUTE_KIND',
-        status: 409
-      });
-    }
 
     const config = this.configReader();
     const connection = this.connectionFactory(config.rpcUrl);
@@ -259,13 +251,18 @@ export class SolanaPaymentVerificationService {
 
     const expectedMint = config.mintByToken[transfer.token];
     const expectedTreasuryAta = config.treasuryAtaByToken[transfer.token];
-    const expectedAmountBaseUnits = decimalUsdToBaseUnits(transfer.sendAmountUsd);
+    const expectedDestination = depositRoute.routeKind === 'solana_program_pay'
+      ? expectedTreasuryAta
+      : depositRoute.depositAddress;
     const accountKeys = this.readAccountKeys(parsedTx);
-    const decoded = this.findDecodedPayInstruction(parsedTx, config.programId);
+    const decoded = depositRoute.routeKind === 'solana_program_pay'
+      ? this.findDecodedPayInstruction(parsedTx, config.programId)
+      : null;
 
     let referenceHash: string | undefined;
     let paymentId: string | undefined;
     let payerAddress: string | undefined;
+    let fundedAmountBaseUnits: bigint;
 
     if (decoded) {
       if (decoded.externalRefHashHex !== expectedReferenceHash) {
@@ -292,13 +289,6 @@ export class SolanaPaymentVerificationService {
           status: 400
         });
       }
-      if (decoded.amountBaseUnits !== expectedAmountBaseUnits) {
-        throw new SolanaPaymentVerificationError('Payment amount does not match the transfer funding amount.', {
-          code: 'AMOUNT_MISMATCH',
-          status: 400
-        });
-      }
-
       const signerAddress = this.resolveSignerAddress(accountKeys);
       if (!signerAddress || signerAddress !== decoded.payerAddress) {
         throw new SolanaPaymentVerificationError('Payer wallet signature is missing from transaction.', {
@@ -310,15 +300,16 @@ export class SolanaPaymentVerificationService {
       referenceHash = expectedReferenceHash;
       paymentId = decoded.paymentId;
       payerAddress = decoded.payerAddress;
+      fundedAmountBaseUnits = decoded.amountBaseUnits;
     } else {
-      const fallbackPayerAddress = this.verifyDirectSplTransfer(parsedTx, {
+      const directTransfer = this.verifyDirectSplTransfer(parsedTx, {
         expectedMint,
-        expectedTreasuryAta,
-        expectedAmountBaseUnits
+        expectedDestination
       });
-      if (fallbackPayerAddress) {
-        payerAddress = fallbackPayerAddress;
+      if (directTransfer.payerAddress) {
+        payerAddress = directTransfer.payerAddress;
       }
+      fundedAmountBaseUnits = directTransfer.creditedAmountBaseUnits;
     }
 
     let confirmedAtSeconds: number;
@@ -343,8 +334,8 @@ export class SolanaPaymentVerificationService {
       chain: 'solana',
       token: transfer.token,
       txHash: input.txHash,
-      amountUsd: transfer.sendAmountUsd,
-      depositAddress: expectedTreasuryAta,
+      amountUsd: Number(baseUnitsToUsd(fundedAmountBaseUnits).toFixed(2)),
+      depositAddress: expectedDestination,
       confirmedAt
     };
     if (referenceHash) {
@@ -435,12 +426,11 @@ export class SolanaPaymentVerificationService {
     tx: SolanaParsedTransaction,
     params: {
       expectedMint: string;
-      expectedTreasuryAta: string;
-      expectedAmountBaseUnits: bigint;
+      expectedDestination: string;
     }
-  ): string | null {
+  ): { payerAddress: string | null; creditedAmountBaseUnits: bigint } {
     const accountKeys = this.readAccountKeys(tx);
-    const treasuryAccountIndex = this.findAccountIndex(accountKeys, params.expectedTreasuryAta);
+    const treasuryAccountIndex = this.findAccountIndex(accountKeys, params.expectedDestination);
     if (treasuryAccountIndex < 0) {
       throw new SolanaPaymentVerificationError(
         'Transaction does not fund the configured treasury account for this transfer.',
@@ -460,21 +450,24 @@ export class SolanaPaymentVerificationService {
     );
 
     if (postAmount === null) {
-      throw new SolanaPaymentVerificationError('Transaction does not contain the expected token transfer.', {
+      throw new SolanaPaymentVerificationError('Solana transaction does not contain the expected token transfer for this transfer route.', {
         code: 'PAY_INSTRUCTION_NOT_FOUND',
         status: 400
       });
     }
 
     const creditedAmount = postAmount - preAmount;
-    if (creditedAmount !== params.expectedAmountBaseUnits) {
-      throw new SolanaPaymentVerificationError('Payment amount does not match the transfer funding amount.', {
-        code: 'AMOUNT_MISMATCH',
+    if (creditedAmount <= 0n) {
+      throw new SolanaPaymentVerificationError('Solana transaction does not credit the expected destination account.', {
+        code: 'PAY_INSTRUCTION_NOT_FOUND',
         status: 400
       });
     }
 
-    return this.resolveSignerAddress(accountKeys);
+    return {
+      payerAddress: this.resolveSignerAddress(accountKeys),
+      creditedAmountBaseUnits: creditedAmount
+    };
   }
 
   private async resolveConfirmedAtSeconds(

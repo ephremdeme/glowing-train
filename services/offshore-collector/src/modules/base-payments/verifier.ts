@@ -139,6 +139,10 @@ function parseHexAmount(hexData: string): bigint {
     return BigInt('0x' + trimmed);
 }
 
+function baseUnitsToUsd(amountBaseUnits: bigint): number {
+    return Number(amountBaseUnits) / 1_000_000;
+}
+
 function addressFromTopic(topic: string): string {
     return '0x' + topic.slice(26).toLowerCase();
 }
@@ -201,6 +205,9 @@ export class BasePaymentVerificationService {
         try {
             receipt = await this.getTransactionReceipt(config.rpcUrl, input.txHash);
         } catch (error) {
+            if (error instanceof BasePaymentVerificationError) {
+                throw error;
+            }
             log('error', 'base-verifier: RPC failure', { transferId: input.transferId, error: (error as Error).message });
             throw new BasePaymentVerificationError('Failed to read Base transaction from RPC.', {
                 code: 'BASE_RPC_READ_FAILED',
@@ -250,7 +257,7 @@ export class BasePaymentVerificationService {
         });
 
         if (!transferLog) {
-            throw new BasePaymentVerificationError('Transaction does not contain an ERC-20 transfer to the deposit address.', {
+            throw new BasePaymentVerificationError('Base transaction does not contain an ERC-20 transfer to this transfer deposit address.', {
                 code: 'TRANSFER_LOG_NOT_FOUND',
                 status: 400
             });
@@ -258,16 +265,8 @@ export class BasePaymentVerificationService {
 
         // Parse amount
         const amountBaseUnits = parseHexAmount(transferLog.data);
-        const expectedAmountBaseUnits = BigInt(Math.round(transfer.sendAmountUsd * 100)) * 10_000n;
-
-        if (amountBaseUnits !== expectedAmountBaseUnits) {
-            throw new BasePaymentVerificationError('Payment amount does not match the transfer funding amount.', {
-                code: 'AMOUNT_MISMATCH',
-                status: 400
-            });
-        }
-
         const payerAddress = addressFromTopic(transferLog.topics[1]!);
+        const amountUsd = Number(baseUnitsToUsd(amountBaseUnits).toFixed(2));
 
         return {
             verified: true,
@@ -275,7 +274,7 @@ export class BasePaymentVerificationService {
             chain: 'base',
             token: transfer.token,
             txHash: input.txHash,
-            amountUsd: transfer.sendAmountUsd,
+            amountUsd,
             depositAddress: depositRoute.depositAddress,
             confirmedAt,
             payerAddress
