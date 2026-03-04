@@ -39,7 +39,10 @@ const coreApiSchema = jwtSchema.extend({
   PAYOUT_SLA_MINUTES: z.coerce.number().int().positive().default(10),
   DATA_KEY_B64: optionalNonEmptyString,
   DATA_KEY_ID: z.string().min(1).default('dev-key'),
-  DATA_KEY_VERSION: z.string().min(1).default('v1')
+  DATA_KEY_VERSION: z.string().min(1).default('v1'),
+  FUNDING_AMOUNT_TOLERANCE_USD: z.coerce.number().min(0).max(10).default(0.01),
+  FUNDING_OVERPAY_AUTO_ADJUST_ENABLED: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
+  FUNDING_OVERPAY_MAX_AUTO_USD: z.coerce.number().positive().max(2000).default(2000)
 });
 
 const customerAuthSchema = jwtSchema.extend({
@@ -57,7 +60,12 @@ const customerAuthSchema = jwtSchema.extend({
 });
 
 const offshoreCollectorSchema = jwtSchema.extend({
-  DEPOSIT_MASTER_SEED: z.string().min(1).default('dev-master-seed')
+  DEPOSIT_MASTER_SEED: z.string().min(1).default('dev-master-seed'),
+  SOLANA_UNIQUE_ADDRESS_ROUTES_ENABLED: boolFromString,
+  SOLANA_TREASURY_OWNER_PRIVATE_KEY: optionalNonEmptyString,
+  SOLANA_RPC_URL: optionalNonEmptyString,
+  SOLANA_USDC_MINT: optionalNonEmptyString,
+  SOLANA_USDT_MINT: optionalNonEmptyString
 });
 
 const payoutOrchestratorSchema = jwtSchema
