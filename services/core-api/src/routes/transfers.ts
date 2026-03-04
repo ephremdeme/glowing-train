@@ -185,6 +185,8 @@ export function registerTransferRoutes(
         chain: row.chain,
         token: row.token,
         sendAmountUsd: Number(row.sendAmountUsd),
+        recipientAmountEtb: Number(row.recipientAmountEtb),
+        fundedAmountUsd: row.fundedAmountUsd == null ? null : Number(row.fundedAmountUsd),
         status: row.status,
         depositAddress: row.depositAddress,
         createdAt: row.createdAt.toISOString()

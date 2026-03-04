@@ -20,6 +20,8 @@ export class TransferRepository {
       chain: string;
       token: string;
       sendAmountUsd: string;
+      recipientAmountEtb: string;
+      fundedAmountUsd: string | null;
       status: string;
       depositAddress: string | null;
       createdAt: Date;
@@ -34,16 +36,22 @@ export class TransferRepository {
         chain: schema.transfers.chain,
         token: schema.transfers.token,
         sendAmountUsd: schema.transfers.sendAmountUsd,
+        recipientAmountEtb: sql<string>`round(greatest(${schema.transfers.sendAmountUsd} - ${schema.quotes.feeUsd}, 0) * ${schema.quotes.fxRateUsdToEtb}, 2)::numeric`.as(
+          'recipient_amount_etb'
+        ),
+        fundedAmountUsd: schema.onchainFundingEvents.amountUsd,
         status: schema.transfers.status,
         depositAddress: schema.depositRoutes.depositAddress,
         createdAt: schema.transfers.createdAt
       })
       .from(schema.transfers)
+      .innerJoin(schema.quotes, eq(schema.quotes.quoteId, schema.transfers.quoteId))
       .leftJoin(schema.recipients, eq(schema.recipients.recipientId, schema.transfers.receiverId))
       .leftJoin(
         schema.depositRoutes,
         and(eq(schema.depositRoutes.transferId, schema.transfers.transferId), eq(schema.depositRoutes.status, 'active'))
       )
+      .leftJoin(schema.onchainFundingEvents, eq(schema.onchainFundingEvents.transferId, schema.transfers.transferId))
       .where(and(eq(schema.transfers.senderId, params.senderId), params.status ? eq(schema.transfers.status, params.status) : undefined))
       .orderBy(desc(schema.transfers.createdAt))
       .limit(params.limit);

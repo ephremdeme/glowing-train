@@ -33,6 +33,13 @@ interface HttpError {
 
 type HttpResponse<T> = HttpSuccess<T> | HttpError;
 
+function toFundingMode(chain: 'base' | 'solana', routeKind: 'address_route' | 'solana_program_pay'): 'copy_address_auto' | 'program_pay_legacy' {
+  if (chain === 'solana' && routeKind === 'solana_program_pay') {
+    return 'program_pay_legacy';
+  }
+  return 'copy_address_auto';
+}
+
 function mapError(error: unknown): HttpError {
   if (error instanceof QuoteNotFoundError) {
     return { status: 404, body: { error: { code: error.code, message: error.message } } };
@@ -97,7 +104,13 @@ function mapError(error: unknown): HttpError {
 
 export function buildTransferRoutes(service: TransferService) {
   return {
-    create: async (payload: unknown): Promise<HttpResponse<{ transferId: string; depositAddress: string; status: string }>> => {
+    create: async (payload: unknown): Promise<HttpResponse<{
+      transferId: string;
+      depositAddress: string;
+      status: string;
+      routeKind: 'address_route' | 'solana_program_pay';
+      fundingMode: 'copy_address_auto' | 'program_pay_legacy';
+    }>> => {
       try {
         const input = createTransferPayloadSchema.parse(payload);
         const result = await service.createTransfer(input);
@@ -107,7 +120,9 @@ export function buildTransferRoutes(service: TransferService) {
           body: {
             transferId: result.transfer.transferId,
             depositAddress: result.depositRoute.depositAddress,
-            status: result.transfer.status
+            status: result.transfer.status,
+            routeKind: result.depositRoute.routeKind,
+            fundingMode: toFundingMode(result.transfer.chain, result.depositRoute.routeKind)
           }
         };
       } catch (error) {
