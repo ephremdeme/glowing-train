@@ -5,11 +5,13 @@ import { mapToUiStatus } from '@/lib/status';
 import { forwardCoreApi, parseUpstreamPayload } from '@/lib/server-api';
 
 const requestSchema = z.object({
-  signature: z.string().min(1)
+  signature: z.string().min(1),
+  submissionSource: z.enum(['manual_copy_address', 'wallet_pay']).optional()
 });
 
 interface CorePayload {
   result?: 'confirmed' | 'duplicate' | 'pending_verification';
+  code?: 'FUNDING_AMOUNT_ADJUSTED';
   transferId?: string;
   txHash?: string;
   backendStatus?: string;
@@ -43,7 +45,10 @@ export async function POST(
     method: 'POST',
     authorization,
     idempotencyKey: makeIdempotencyKey('web-solana-payment'),
-    body: { txHash: parsed.data.signature }
+    body: {
+      txHash: parsed.data.signature,
+      submissionSource: parsed.data.submissionSource ?? 'manual_copy_address'
+    }
   });
 
   console.info(`[solana-payment] transferId=${transferId} upstream.status=${upstream.status}`);

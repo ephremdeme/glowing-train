@@ -15,6 +15,14 @@ interface TransferDetailResponse {
     txHash: string;
     submittedAt: string;
   } | null;
+  latestFundingSubmission?: {
+    txHash: string;
+    chain: 'base' | 'solana';
+    status: 'submitted' | 'confirmed' | 'failed';
+    source: 'manual_copy_address' | 'wallet_pay' | 'unknown';
+    submittedAt: string;
+    updatedAt: string;
+  } | null;
 }
 
 export async function GET(

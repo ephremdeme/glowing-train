@@ -5,11 +5,13 @@ import { mapToUiStatus } from '@/lib/status';
 import { forwardCoreApi, parseUpstreamPayload } from '@/lib/server-api';
 
 const requestSchema = z.object({
-    txHash: z.string().min(1)
+    txHash: z.string().min(1),
+    submissionSource: z.enum(['manual_copy_address', 'wallet_pay']).optional()
 });
 
 interface CorePayload {
     result?: 'confirmed' | 'duplicate' | 'pending_verification';
+    code?: 'FUNDING_AMOUNT_ADJUSTED';
     transferId?: string;
     txHash?: string;
     backendStatus?: string;
@@ -43,7 +45,10 @@ export async function POST(
         method: 'POST',
         authorization,
         idempotencyKey: makeIdempotencyKey('web-base-payment'),
-        body: { txHash: parsed.data.txHash }
+        body: {
+            txHash: parsed.data.txHash,
+            submissionSource: parsed.data.submissionSource ?? 'manual_copy_address'
+        }
     });
 
     console.info(`[base-payment] transferId=${transferId} upstream.status=${upstream.status}`);
