@@ -47,7 +47,7 @@ export async function POST(
         idempotencyKey: makeIdempotencyKey('web-base-payment'),
         body: {
             txHash: parsed.data.txHash,
-            submissionSource: parsed.data.submissionSource ?? 'manual_copy_address'
+            submissionSource: parsed.data.submissionSource ?? 'wallet_pay'
         }
     });
 

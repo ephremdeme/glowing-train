@@ -180,7 +180,7 @@ export async function confirmSolanaWalletPayment(
       },
       body: JSON.stringify({
         signature,
-        submissionSource: submissionSource ?? 'manual_copy_address'
+        submissionSource: submissionSource ?? 'wallet_pay'
       })
     },
     'Could not verify Solana payment.',
@@ -223,7 +223,7 @@ export async function confirmBaseWalletPayment(
       },
       body: JSON.stringify({
         txHash,
-        submissionSource: submissionSource ?? 'manual_copy_address'
+        submissionSource: submissionSource ?? 'wallet_pay'
       })
     },
     'Could not verify Base payment.',

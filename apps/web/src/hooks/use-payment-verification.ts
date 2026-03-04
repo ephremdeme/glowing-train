@@ -89,7 +89,7 @@ export function usePaymentVerification(options: UsePaymentVerificationOptions): 
     const autoVerifyTimerRef = useRef<number | null>(null);
     const autoVerifyStartedAtRef = useRef<number | null>(null);
     const autoVerifyTxRef = useRef<string | null>(null);
-    const autoVerifySourceRef = useRef<PaymentSubmissionSource>('manual_copy_address');
+    const autoVerifySourceRef = useRef<PaymentSubmissionSource>('wallet_pay');
 
     /* ── Timer management ── */
 
@@ -187,7 +187,7 @@ export function usePaymentVerification(options: UsePaymentVerificationOptions): 
         setVerifyState('idle');
         setVerifyMessage(null);
         setLastTxIdentifier(readStored(storageKey));
-        autoVerifySourceRef.current = 'manual_copy_address';
+        autoVerifySourceRef.current = 'wallet_pay';
     }, [transferId, storageKey, stopAutoVerify]);
 
     /* ── Cleanup on unmount ── */
@@ -197,7 +197,7 @@ export function usePaymentVerification(options: UsePaymentVerificationOptions): 
 
     const submitAndVerify = useCallback(async (
         txIdentifier: string,
-        submissionSource: PaymentSubmissionSource = 'manual_copy_address'
+        submissionSource: PaymentSubmissionSource = 'wallet_pay'
     ) => {
         writeStored(storageKey, txIdentifier);
         setLastTxIdentifier(txIdentifier);
