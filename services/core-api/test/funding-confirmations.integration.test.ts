@@ -156,6 +156,9 @@ describe('funding confirmation integration', () => {
     process.env.DATABASE_URL ??= 'postgres://cryptopay:cryptopay@localhost:55432/cryptopay';
     process.env.REDIS_URL ??= 'redis://localhost:6379';
     process.env.ETHIOPIA_SERVICES_CRYPTO_DISABLED = 'true';
+    process.env.FUNDING_AMOUNT_TOLERANCE_USD = '0.01';
+    process.env.FUNDING_OVERPAY_AUTO_ADJUST_ENABLED = 'true';
+    process.env.FUNDING_OVERPAY_MAX_AUTO_USD = '2000';
 
     await ensureTables();
 
@@ -261,5 +264,177 @@ describe('funding confirmation integration', () => {
     });
 
     expect(result.status).toBe('route_not_found');
+  });
+
+  it('rejects underpaid watcher/manual events without confirming transfer', async () => {
+    const transferId = await seedTransfer('dep_underpaid');
+
+    const result = await service.processFundingConfirmed({
+      eventId: 'evt_underpaid',
+      chain: 'base',
+      token: 'USDC',
+      txHash: '0xunderpaid',
+      logIndex: 8,
+      depositAddress: 'dep_underpaid',
+      amountUsd: 99.5,
+      confirmedAt: new Date('2026-02-12T00:00:00.000Z')
+    });
+
+    expect(result.status).toBe('amount_underpaid');
+    expect(result.amountDecision).toBe('underpay_rejected');
+
+    const transfer = await query('select status from transfers where transfer_id = $1', [transferId]);
+    expect(transfer.rows[0]?.status).toBe('AWAITING_FUNDING');
+
+    const fundingEvents = await query('select count(*)::int as count from onchain_funding_event where transfer_id = $1', [transferId]);
+    expect(fundingEvents.rows[0]?.count).toBe(0);
+  });
+
+  it('auto-adjusts overpay amount and confirms transfer', async () => {
+    const transferId = await seedTransfer('dep_overpay');
+
+    const result = await service.processFundingConfirmed({
+      eventId: 'evt_overpay',
+      chain: 'base',
+      token: 'USDC',
+      txHash: '0xoverpay',
+      logIndex: 9,
+      depositAddress: 'dep_overpay',
+      amountUsd: 120,
+      confirmedAt: new Date('2026-02-12T00:00:00.000Z')
+    });
+
+    expect(result.status).toBe('confirmed');
+    expect(result.amountDecision).toBe('overpay_adjusted');
+    expect(result.adjustedSendAmountUsd).toBe(120);
+
+    const transfer = await query('select status, send_amount_usd::text as amount from transfers where transfer_id = $1', [transferId]);
+    expect(transfer.rows[0]?.status).toBe('FUNDING_CONFIRMED');
+    expect(Number(transfer.rows[0]?.amount)).toBe(120);
+
+    const fundingEvent = await query('select amount_usd::text as amount from onchain_funding_event where transfer_id = $1', [transferId]);
+    expect(Number(fundingEvent.rows[0]?.amount)).toBe(120);
+  });
+
+  it('rejects payments above automatic overpay limit', async () => {
+    const transferId = await seedTransfer('dep_over_limit');
+
+    const result = await service.processFundingConfirmed({
+      eventId: 'evt_over_limit',
+      chain: 'base',
+      token: 'USDC',
+      txHash: '0xoverlimit',
+      logIndex: 10,
+      depositAddress: 'dep_over_limit',
+      amountUsd: 2100,
+      confirmedAt: new Date('2026-02-12T00:00:00.000Z')
+    });
+
+    expect(result.status).toBe('amount_over_limit');
+    expect(result.amountDecision).toBe('over_limit_rejected');
+
+    const transfer = await query('select status from transfers where transfer_id = $1', [transferId]);
+    expect(transfer.rows[0]?.status).toBe('AWAITING_FUNDING');
+  });
+
+  it('accepts later exact payment after an underpay rejection', async () => {
+    const transferId = await seedTransfer('dep_underpay_then_exact');
+
+    const underpay = await service.processFundingConfirmed({
+      eventId: 'evt_underpay_first',
+      chain: 'base',
+      token: 'USDC',
+      txHash: '0xunderpay-first',
+      logIndex: 11,
+      depositAddress: 'dep_underpay_then_exact',
+      amountUsd: 90,
+      confirmedAt: new Date('2026-02-12T00:00:00.000Z')
+    });
+
+    expect(underpay.status).toBe('amount_underpaid');
+
+    const secondAttempt = await service.processFundingConfirmed({
+      eventId: 'evt_underpay_second',
+      chain: 'base',
+      token: 'USDC',
+      txHash: '0xunderpay-second',
+      logIndex: 12,
+      depositAddress: 'dep_underpay_then_exact',
+      amountUsd: 100,
+      confirmedAt: new Date('2026-02-12T00:01:00.000Z')
+    });
+
+    expect(secondAttempt.status).toBe('confirmed');
+    expect(secondAttempt.amountDecision).toBe('exact');
+
+    const transfer = await query('select status from transfers where transfer_id = $1', [transferId]);
+    expect(transfer.rows[0]?.status).toBe('FUNDING_CONFIRMED');
+
+    const fundingEvents = await query('select count(*)::int as count from onchain_funding_event where transfer_id = $1', [transferId]);
+    expect(fundingEvents.rows[0]?.count).toBe(1);
+  });
+
+  it('treats small shortfall within tolerance as confirmed', async () => {
+    const transferId = await seedTransfer('dep_tolerance');
+    const originalTolerance = process.env.FUNDING_AMOUNT_TOLERANCE_USD;
+    process.env.FUNDING_AMOUNT_TOLERANCE_USD = '0.02';
+
+    try {
+      const result = await service.processFundingConfirmed({
+        eventId: 'evt_tolerance',
+        chain: 'base',
+        token: 'USDC',
+        txHash: '0xtolerance',
+        logIndex: 13,
+        depositAddress: 'dep_tolerance',
+        amountUsd: 99.99,
+        confirmedAt: new Date('2026-02-12T00:00:00.000Z')
+      });
+
+      expect(result.status).toBe('confirmed');
+      expect(result.amountDecision).toBe('tolerance');
+
+      const transfer = await query('select status, send_amount_usd::text as amount from transfers where transfer_id = $1', [transferId]);
+      expect(transfer.rows[0]?.status).toBe('FUNDING_CONFIRMED');
+      expect(Number(transfer.rows[0]?.amount)).toBe(100);
+    } finally {
+      if (originalTolerance === undefined) {
+        delete process.env.FUNDING_AMOUNT_TOLERANCE_USD;
+      } else {
+        process.env.FUNDING_AMOUNT_TOLERANCE_USD = originalTolerance;
+      }
+    }
+  });
+
+  it('rejects overpay when auto-adjust is disabled', async () => {
+    const transferId = await seedTransfer('dep_overpay_disabled');
+    const originalAutoAdjust = process.env.FUNDING_OVERPAY_AUTO_ADJUST_ENABLED;
+    process.env.FUNDING_OVERPAY_AUTO_ADJUST_ENABLED = 'false';
+
+    try {
+      const result = await service.processFundingConfirmed({
+        eventId: 'evt_overpay_disabled',
+        chain: 'base',
+        token: 'USDC',
+        txHash: '0xoverpay-disabled',
+        logIndex: 14,
+        depositAddress: 'dep_overpay_disabled',
+        amountUsd: 120,
+        confirmedAt: new Date('2026-02-12T00:00:00.000Z')
+      });
+
+      expect(result.status).toBe('amount_over_limit');
+      expect(result.amountDecision).toBe('over_limit_rejected');
+
+      const transfer = await query('select status, send_amount_usd::text as amount from transfers where transfer_id = $1', [transferId]);
+      expect(transfer.rows[0]?.status).toBe('AWAITING_FUNDING');
+      expect(Number(transfer.rows[0]?.amount)).toBe(100);
+    } finally {
+      if (originalAutoAdjust === undefined) {
+        delete process.env.FUNDING_OVERPAY_AUTO_ADJUST_ENABLED;
+      } else {
+        process.env.FUNDING_OVERPAY_AUTO_ADJUST_ENABLED = originalAutoAdjust;
+      }
+    }
   });
 });

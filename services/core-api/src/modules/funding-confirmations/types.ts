@@ -1,5 +1,12 @@
 import type { SupportedChain, SupportedToken } from '@cryptopay/domain';
 
+export type FundingAmountDecision =
+  | 'exact'
+  | 'tolerance'
+  | 'overpay_adjusted'
+  | 'underpay_rejected'
+  | 'over_limit_rejected';
+
 export interface FundingConfirmedInput {
   eventId: string;
   chain: SupportedChain;
@@ -19,6 +26,16 @@ export interface RouteMatch {
 }
 
 export interface FundingResult {
-  status: 'confirmed' | 'duplicate' | 'route_not_found' | 'invalid_state';
+  status:
+    | 'confirmed'
+    | 'duplicate'
+    | 'route_not_found'
+    | 'invalid_state'
+    | 'amount_underpaid'
+    | 'amount_over_limit';
   transferId?: string;
+  amountDecision?: FundingAmountDecision;
+  expectedAmountUsd?: number;
+  receivedAmountUsd?: number;
+  adjustedSendAmountUsd?: number;
 }

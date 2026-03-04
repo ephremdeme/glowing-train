@@ -3,6 +3,46 @@ import type { FundingConfirmedInput, FundingResult, RouteMatch } from './types.j
 
 type Row = Record<string, unknown>;
 
+interface FundingAmountPolicy {
+  toleranceUsd: number;
+  overpayAutoAdjustEnabled: boolean;
+  overpayMaxAutoUsd: number;
+}
+
+function parsePositiveNumber(input: string | undefined, fallback: number): number {
+  const parsed = Number(input ?? fallback);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function parseBoolean(input: string | undefined, fallback: boolean): boolean {
+  const value = (input ?? '').trim().toLowerCase();
+  if (!value) {
+    return fallback;
+  }
+  if (['1', 'true', 'yes', 'on'].includes(value)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'off'].includes(value)) {
+    return false;
+  }
+  return fallback;
+}
+
+function readFundingAmountPolicy(): FundingAmountPolicy {
+  return {
+    toleranceUsd: parsePositiveNumber(process.env.FUNDING_AMOUNT_TOLERANCE_USD, 0.01),
+    overpayAutoAdjustEnabled: parseBoolean(process.env.FUNDING_OVERPAY_AUTO_ADJUST_ENABLED, true),
+    overpayMaxAutoUsd: parsePositiveNumber(process.env.FUNDING_OVERPAY_MAX_AUTO_USD, 2000)
+  };
+}
+
+function roundUsd(value: number): number {
+  return Number(value.toFixed(2));
+}
+
 export class FundingConfirmationRepository {
   async findTransferMatchById(transferId: string): Promise<RouteMatch | null> {
     const result = await query('select transfer_id, status from transfers where transfer_id = $1 limit 1', [transferId]);
@@ -49,8 +89,10 @@ export class FundingConfirmationRepository {
     return withTransaction(async (tx) => {
       const transferState = await tx.query<{
         status: string;
-      }>('select status from transfers where transfer_id = $1 for update', [params.match.transferId]);
+        send_amount_usd: string;
+      }>('select status, send_amount_usd::text from transfers where transfer_id = $1 for update', [params.match.transferId]);
       const status = transferState.rows[0]?.status as string | undefined;
+      const expectedAmountUsd = Number(transferState.rows[0]?.send_amount_usd ?? 0);
 
       if (!status) {
         return { status: 'route_not_found' };
@@ -62,6 +104,152 @@ export class FundingConfirmationRepository {
 
       if (status !== 'AWAITING_FUNDING') {
         return { status: 'invalid_state', transferId: params.match.transferId };
+      }
+
+      const policy = readFundingAmountPolicy();
+      const receivedAmountUsdRaw = roundUsd(params.event.amountUsd);
+      const tolerance = policy.toleranceUsd;
+
+      if (receivedAmountUsdRaw > policy.overpayMaxAutoUsd + tolerance) {
+        await tx.query(
+          `
+          update funding_submission_attempt
+          set status = 'failed',
+              updated_at = now()
+          where transfer_id = $1
+            and status = 'submitted'
+          `,
+          [params.match.transferId]
+        );
+
+        await tx.query(
+          `
+          insert into transfer_transition (transfer_id, from_state, to_state, metadata)
+          values ($1, $2, $3, $4)
+          `,
+          [
+            params.match.transferId,
+            'AWAITING_FUNDING',
+            'AWAITING_FUNDING',
+            {
+              chain: params.event.chain,
+              token: params.event.token,
+              txHash: params.event.txHash,
+              eventId: params.event.eventId,
+              amountDecision: 'over_limit_rejected',
+              expectedAmountUsd,
+              receivedAmountUsd: receivedAmountUsdRaw
+            }
+          ]
+        );
+
+        return {
+          status: 'amount_over_limit',
+          transferId: params.match.transferId,
+          amountDecision: 'over_limit_rejected',
+          expectedAmountUsd,
+          receivedAmountUsd: receivedAmountUsdRaw
+        };
+      }
+
+      if (receivedAmountUsdRaw+tolerance < expectedAmountUsd) {
+        await tx.query(
+          `
+          update funding_submission_attempt
+          set status = 'failed',
+              updated_at = now()
+          where transfer_id = $1
+            and status = 'submitted'
+          `,
+          [params.match.transferId]
+        );
+
+        await tx.query(
+          `
+          insert into transfer_transition (transfer_id, from_state, to_state, metadata)
+          values ($1, $2, $3, $4)
+          `,
+          [
+            params.match.transferId,
+            'AWAITING_FUNDING',
+            'AWAITING_FUNDING',
+            {
+              chain: params.event.chain,
+              token: params.event.token,
+              txHash: params.event.txHash,
+              eventId: params.event.eventId,
+              amountDecision: 'underpay_rejected',
+              expectedAmountUsd,
+              receivedAmountUsd: receivedAmountUsdRaw
+            }
+          ]
+        );
+
+        return {
+          status: 'amount_underpaid',
+          transferId: params.match.transferId,
+          amountDecision: 'underpay_rejected',
+          expectedAmountUsd,
+          receivedAmountUsd: receivedAmountUsdRaw
+        };
+      }
+
+      let adjustedSendAmountUsd: number | undefined;
+      let amountDecision: FundingResult['amountDecision'] = 'exact';
+      const delta = receivedAmountUsdRaw - expectedAmountUsd;
+      if (Math.abs(delta) <= tolerance && Math.abs(delta) > 0) {
+        amountDecision = 'tolerance';
+      }
+
+      if (receivedAmountUsdRaw > expectedAmountUsd + tolerance) {
+        if (!policy.overpayAutoAdjustEnabled) {
+          await tx.query(
+            `
+            update funding_submission_attempt
+            set status = 'failed',
+                updated_at = now()
+            where transfer_id = $1
+              and status = 'submitted'
+            `,
+            [params.match.transferId]
+          );
+
+          await tx.query(
+            `
+            insert into transfer_transition (transfer_id, from_state, to_state, metadata)
+            values ($1, $2, $3, $4)
+            `,
+            [
+              params.match.transferId,
+              'AWAITING_FUNDING',
+              'AWAITING_FUNDING',
+              {
+                chain: params.event.chain,
+                token: params.event.token,
+                txHash: params.event.txHash,
+                eventId: params.event.eventId,
+                amountDecision: 'over_limit_rejected',
+                expectedAmountUsd,
+                receivedAmountUsd: receivedAmountUsdRaw
+              }
+            ]
+          );
+
+          return {
+            status: 'amount_over_limit',
+            transferId: params.match.transferId,
+            amountDecision: 'over_limit_rejected',
+            expectedAmountUsd,
+            receivedAmountUsd: receivedAmountUsdRaw
+          };
+        }
+
+        adjustedSendAmountUsd = receivedAmountUsdRaw;
+        amountDecision = 'overpay_adjusted';
+        await tx.query('update transfers set send_amount_usd = $2 where transfer_id = $1', [
+          params.match.transferId,
+          adjustedSendAmountUsd
+        ]);
       }
 
       const insertEvent = await tx.query(
@@ -88,7 +276,7 @@ export class FundingConfirmationRepository {
           params.event.logIndex,
           params.match.transferId,
           params.event.depositAddress,
-          params.event.amountUsd,
+          receivedAmountUsdRaw,
           params.event.confirmedAt
         ]
       );
@@ -161,6 +349,10 @@ export class FundingConfirmationRepository {
             txHash: params.event.txHash,
             logIndex: params.event.logIndex,
             eventId: params.event.eventId,
+            amountDecision,
+            expectedAmountUsd,
+            receivedAmountUsd: receivedAmountUsdRaw,
+            adjustedSendAmountUsd: amountDecision === 'overpay_adjusted' ? adjustedSendAmountUsd : undefined,
             ...(params.event.metadata ?? {})
           }
         ]
@@ -173,7 +365,7 @@ export class FundingConfirmationRepository {
       }>(
         `
         select
-          q.recipient_amount_etb::text as amount_etb,
+          round(greatest(t.send_amount_usd - q.fee_usd, 0) * q.fx_rate_usd_to_etb, 2)::text as amount_etb,
           r.bank_code,
           r.bank_account_number
         from transfers t
@@ -220,7 +412,8 @@ export class FundingConfirmationRepository {
             idempotencyKey: `auto-payout:${params.match.transferId}`,
             fundedEventId: params.event.eventId,
             chain: params.event.chain,
-            token: params.event.token
+            token: params.event.token,
+            amountDecision
           },
           'pending',
           0,
@@ -244,13 +437,23 @@ export class FundingConfirmationRepository {
             chain: params.event.chain,
             token: params.event.token,
             txHash: params.event.txHash,
-            amountUsd: params.event.amountUsd,
+            amountUsd: receivedAmountUsdRaw,
+            amountDecision,
+            expectedAmountUsd,
+            adjustedSendAmountUsd: amountDecision === 'overpay_adjusted' ? adjustedSendAmountUsd : undefined,
             ...(params.event.metadata ?? {})
           }
         ]
       );
 
-      return { status: 'confirmed', transferId: params.match.transferId };
+      return {
+        status: 'confirmed',
+        transferId: params.match.transferId,
+        amountDecision,
+        expectedAmountUsd,
+        receivedAmountUsd: receivedAmountUsdRaw,
+        ...(adjustedSendAmountUsd !== undefined ? { adjustedSendAmountUsd } : {})
+      };
     });
   }
 }
