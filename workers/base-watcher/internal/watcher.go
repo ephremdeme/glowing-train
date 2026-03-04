@@ -66,16 +66,21 @@ type Watcher struct {
 }
 
 func (w Watcher) ProcessCandidate(ctx context.Context, c FundingCandidate) (ProcessResult, error) {
+	result, _, _, err := w.ProcessCandidateWithMatch(ctx, c)
+	return result, err
+}
+
+func (w Watcher) ProcessCandidateWithMatch(ctx context.Context, c FundingCandidate) (ProcessResult, string, string, error) {
 	if c.Chain != w.Chain {
-		return ProcessIgnored, ErrInvalidChain
+		return ProcessIgnored, "", "", ErrInvalidChain
 	}
 
 	// Use Finalized flag if available, otherwise fall back to confirmation count
 	if !c.Finalized && c.Confirmations < w.MinConfirmations {
-		return ProcessIgnored, nil
+		return ProcessIgnored, "", "", nil
 	}
 	if c.ConfirmedAt.IsZero() {
-		return ProcessIgnored, nil
+		return ProcessIgnored, "", "", nil
 	}
 
 	match := RouteMatch{TransferID: c.TransferID, DepositAddress: c.DepositAddress}
@@ -85,12 +90,12 @@ func (w Watcher) ProcessCandidate(ctx context.Context, c FundingCandidate) (Proc
 		var err error
 		match, found, err = w.Resolver.FindTransferByRoute(ctx, c.Chain, c.Token, c.DepositAddress)
 		if err != nil {
-			return ProcessIgnored, err
+			return ProcessIgnored, "", "", err
 		}
 	}
 
 	if !found {
-		return ProcessRouteNotFound, nil
+		return ProcessRouteNotFound, "", c.DepositAddress, nil
 	}
 
 	depositAddress := c.DepositAddress
@@ -125,8 +130,8 @@ func (w Watcher) ProcessCandidate(ctx context.Context, c FundingCandidate) (Proc
 	}
 
 	if err := w.Publisher.PublishFundingConfirmed(ctx, event); err != nil {
-		return ProcessIgnored, err
+		return ProcessIgnored, "", "", err
 	}
 
-	return ProcessConfirmed, nil
+	return ProcessConfirmed, match.TransferID, depositAddress, nil
 }

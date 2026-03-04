@@ -24,6 +24,7 @@ type EvmRpcSource struct {
 	Chain                  string
 	FinalizedConfirmations int  // number of confirmations to consider finalized (default: 12)
 	FactoryLevelScan       bool // if true, also scan token contracts globally for QR/manual deposits
+	MaxBlockSpan           int64
 }
 
 type rpcRequest struct {
@@ -53,6 +54,13 @@ type evmBlock struct {
 	Timestamp string `json:"timestamp"`
 }
 
+func (s EvmRpcSource) effectiveMaxBlockSpan() int64 {
+	if s.MaxBlockSpan > 0 {
+		return s.MaxBlockSpan
+	}
+	return 250
+}
+
 func (s EvmRpcSource) Poll(ctx context.Context, cursor string) ([]FundingCandidate, string, error) {
 	if s.RPCURL == "" {
 		return nil, cursor, fmt.Errorf("base rpc url is required")
@@ -72,19 +80,39 @@ func (s EvmRpcSource) Poll(ctx context.Context, cursor string) ([]FundingCandida
 		return nil, strconv.FormatInt(current, 10), nil
 	}
 
+	finalizedThreshold := s.FinalizedConfirmations
+	if finalizedThreshold <= 0 {
+		finalizedThreshold = 1
+	}
+
+	// Only scan blocks that already meet confirmation threshold; otherwise
+	// events seen with low confirmations are missed forever once cursor advances.
+	safeLatestBlock := latestBlock - int64(finalizedThreshold-1)
+	if safeLatestBlock <= current {
+		return nil, strconv.FormatInt(current, 10), nil
+	}
+
 	routes, err := s.RouteStore.ListActiveRoutes(ctx, s.Chain)
 	if err != nil {
 		return nil, cursor, err
 	}
 
 	fromBlock := current + 1
-	toBlock := latestBlock
+	toBlock := safeLatestBlock
+	maxBlockSpan := s.effectiveMaxBlockSpan()
+	if toBlock-fromBlock+1 > maxBlockSpan {
+		toBlock = fromBlock + maxBlockSpan - 1
+	}
 	candidates := make([]FundingCandidate, 0)
 	blockTimestampCache := make(map[int64]time.Time)
 
 	slog.Info("base-rpc: polling",
 		"fromBlock", fromBlock,
 		"toBlock", toBlock,
+		"latestBlock", latestBlock,
+		"safeLatestBlock", safeLatestBlock,
+		"finalizedConfirmations", finalizedThreshold,
+		"maxBlockSpan", maxBlockSpan,
 		"routeCount", len(routes),
 		"factoryLevelScan", s.FactoryLevelScan,
 	)
@@ -106,7 +134,7 @@ func (s EvmRpcSource) Poll(ctx context.Context, cursor string) ([]FundingCandida
 			return nil, cursor, err
 		}
 
-		candidates = append(candidates, s.logsToFundingCandidates(ctx, logs, route.Token, route.DepositAddress, latestBlock, blockTimestampCache)...)
+		candidates = append(candidates, s.logsToFundingCandidates(ctx, logs, route.Token, route.DepositAddress, route.TransferID, latestBlock, finalizedThreshold, blockTimestampCache)...)
 	}
 
 	// —— Factory-level scanning: broad scan for QR/manual deposits ——
@@ -146,7 +174,9 @@ func (s EvmRpcSource) Poll(ctx context.Context, cursor string) ([]FundingCandida
 					[]evmLog{eventLog},
 					strings.ToUpper(tokenName),
 					toAddr,
+					"",
 					latestBlock,
+					finalizedThreshold,
 					blockTimestampCache,
 				)...)
 			}
@@ -172,7 +202,9 @@ func (s EvmRpcSource) logsToFundingCandidates(
 	logs []evmLog,
 	token string,
 	depositAddress string,
+	transferID string,
 	latestBlock int64,
+	finalizedThreshold int,
 	blockTimestampCache map[int64]time.Time,
 ) []FundingCandidate {
 	candidates := make([]FundingCandidate, 0, len(logs))
@@ -205,10 +237,6 @@ func (s EvmRpcSource) logsToFundingCandidates(
 
 		confirmations := int(latestBlock-blockNumber) + 1
 
-		finalizedThreshold := s.FinalizedConfirmations
-		if finalizedThreshold <= 0 {
-			finalizedThreshold = 12
-		}
 		finalized := confirmations >= finalizedThreshold
 
 		var payerAddress string
@@ -229,6 +257,7 @@ func (s EvmRpcSource) logsToFundingCandidates(
 			Token:          strings.ToUpper(token),
 			TxHash:         eventLog.TxHash,
 			LogIndex:       int(logIndexInt64),
+			TransferID:     transferID,
 			DepositAddress: depositAddress,
 			AmountUSD:      amountUSD,
 			ConfirmedAt:    confirmedAt,
@@ -272,15 +301,37 @@ func (s EvmRpcSource) ethGetLogs(ctx context.Context, contract string, depositAd
 		return nil, err
 	}
 
+	return s.ethGetLogsAdaptive(ctx, contract, []interface{}{transferTopic, nil, toTopic}, fromBlock, toBlock)
+}
+
+func (s EvmRpcSource) ethGetLogsAdaptive(
+	ctx context.Context,
+	contract string,
+	topics []interface{},
+	fromBlock int64,
+	toBlock int64,
+) ([]evmLog, error) {
 	params := map[string]interface{}{
 		"fromBlock": fmt.Sprintf("0x%x", fromBlock),
 		"toBlock":   fmt.Sprintf("0x%x", toBlock),
 		"address":   contract,
-		"topics":    []interface{}{transferTopic, nil, toTopic},
+		"topics":    topics,
 	}
 
 	var logs []evmLog
 	if err := s.rpcCall(ctx, "eth_getLogs", []interface{}{params}, &logs); err != nil {
+		if isPayloadTooLargeError(err) && fromBlock < toBlock {
+			mid := fromBlock + ((toBlock - fromBlock) / 2)
+			left, leftErr := s.ethGetLogsAdaptive(ctx, contract, topics, fromBlock, mid)
+			if leftErr != nil {
+				return nil, leftErr
+			}
+			right, rightErr := s.ethGetLogsAdaptive(ctx, contract, topics, mid+1, toBlock)
+			if rightErr != nil {
+				return nil, rightErr
+			}
+			return append(left, right...), nil
+		}
 		return nil, fmt.Errorf("eth_getLogs: %w", err)
 	}
 
@@ -291,15 +342,8 @@ func (s EvmRpcSource) ethGetLogs(ctx context.Context, contract string, depositAd
 // Used by factory-level scanning to catch QR/manual deposits to CREATE2 addresses
 // that are not yet registered as active routes.
 func (s EvmRpcSource) ethGetLogsBroad(ctx context.Context, contract string, fromBlock int64, toBlock int64) ([]evmLog, error) {
-	params := map[string]interface{}{
-		"fromBlock": fmt.Sprintf("0x%x", fromBlock),
-		"toBlock":   fmt.Sprintf("0x%x", toBlock),
-		"address":   contract,
-		"topics":    []interface{}{transferTopic},
-	}
-
-	var logs []evmLog
-	if err := s.rpcCall(ctx, "eth_getLogs", []interface{}{params}, &logs); err != nil {
+	logs, err := s.ethGetLogsAdaptive(ctx, contract, []interface{}{transferTopic}, fromBlock, toBlock)
+	if err != nil {
 		return nil, fmt.Errorf("eth_getLogs (broad): %w", err)
 	}
 
@@ -312,6 +356,13 @@ func addressFromTopic(topic string) string {
 		return topic
 	}
 	return "0x" + strings.ToLower(topic[len(topic)-40:])
+}
+
+func isPayloadTooLargeError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "status 413")
 }
 
 func (s EvmRpcSource) rpcCall(ctx context.Context, method string, params interface{}, out interface{}) error {
