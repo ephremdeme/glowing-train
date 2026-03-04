@@ -9,11 +9,15 @@ type TransferSnapshot = {
   status: string;
   chain: string;
   token: string;
+  created_at: Date;
   expected_etb: number | null;
   funded_amount_usd: number | null;
   payout_status: string | null;
   debit_total: number;
   credit_total: number;
+  latest_submission_status: 'submitted' | 'confirmed' | 'failed' | null;
+  latest_submission_source: string | null;
+  latest_submission_at: Date | null;
 };
 
 const OPEN_TRANSFER_STATUSES = ['AWAITING_FUNDING', 'FUNDING_CONFIRMED', 'PAYOUT_INITIATED', 'PAYOUT_REVIEW_REQUIRED'] as const;
@@ -30,7 +34,19 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 }
 
 export class ReconciliationService {
-  constructor(private readonly repository: ReconciliationRepository = new ReconciliationRepository()) {}
+  private readonly solanaManualSubmissionThresholdMinutes: number;
+  private readonly now: () => Date;
+
+  constructor(
+    private readonly repository: ReconciliationRepository = new ReconciliationRepository(),
+    options?: { solanaManualSubmissionThresholdMinutes?: number; now?: () => Date }
+  ) {
+    this.solanaManualSubmissionThresholdMinutes = options?.solanaManualSubmissionThresholdMinutes ?? parsePositiveInt(
+      process.env.RECONCILIATION_SOLANA_MANUAL_SUBMISSION_THRESHOLD_MINUTES,
+      15
+    );
+    this.now = options?.now ?? (() => new Date());
+  }
 
   async runOnce(outputCsvPath?: string): Promise<{ runId: string; issueCount: number; csv: string }> {
     const runId = `recon_${randomUUID()}`;
@@ -83,6 +99,27 @@ export class ReconciliationService {
           issueCode: 'MISSING_PAYOUT_RECORD',
           details: { transferStatus: row.status }
         });
+      }
+
+      if (
+        row.chain === 'solana' &&
+        row.status === 'AWAITING_FUNDING' &&
+        row.funded_amount_usd === null &&
+        row.latest_submission_status === null
+      ) {
+        const ageMinutes = Math.floor((this.now().getTime() - row.created_at.getTime()) / 60_000);
+        if (ageMinutes >= this.solanaManualSubmissionThresholdMinutes) {
+          issues.push({
+            transferId: row.transfer_id,
+            issueCode: 'SOLANA_MANUAL_SUBMISSION_MISSING',
+            details: {
+              transferStatus: row.status,
+              chain: row.chain,
+              transferAgeMinutes: ageMinutes,
+              thresholdMinutes: this.solanaManualSubmissionThresholdMinutes
+            }
+          });
+        }
       }
     }
 
@@ -183,11 +220,15 @@ export class ReconciliationService {
         status: target.status,
         chain: target.chain,
         token: target.token,
+        created_at: target.createdAt,
         expected_etb: quote ? Number(quote.expectedEtb) : null,
         funded_amount_usd: funding ? Number(funding.fundedAmountUsd) : null,
         payout_status: payout?.payoutStatus ?? null,
         debit_total: ledger?.debitTotal ?? 0,
-        credit_total: ledger?.creditTotal ?? 0
+        credit_total: ledger?.creditTotal ?? 0,
+        latest_submission_status: supplements.latestSubmissionByTransferId.get(target.transferId)?.status ?? null,
+        latest_submission_source: supplements.latestSubmissionByTransferId.get(target.transferId)?.source ?? null,
+        latest_submission_at: supplements.latestSubmissionByTransferId.get(target.transferId)?.submittedAt ?? null
       };
     });
   }

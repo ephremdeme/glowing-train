@@ -9,6 +9,7 @@ export type TargetTransferRow = {
   status: string;
   chain: string;
   token: string;
+  createdAt: Date;
 };
 
 export type SnapshotSupplement = {
@@ -16,6 +17,7 @@ export type SnapshotSupplement = {
   fundingByTransferId: Map<string, { fundedAmountUsd: string }>;
   payoutByTransferId: Map<string, { payoutStatus: string }>;
   ledgerByTransferId: Map<string, { debitTotal: number; creditTotal: number }>;
+  latestSubmissionByTransferId: Map<string, { status: 'submitted' | 'confirmed' | 'failed'; source: string | null; submittedAt: Date }>;
 };
 
 export class ReconciliationRepository {
@@ -76,7 +78,8 @@ export class ReconciliationRepository {
         quoteId: schema.transfers.quoteId,
         status: schema.transfers.status,
         chain: schema.transfers.chain,
-        token: schema.transfers.token
+        token: schema.transfers.token,
+        createdAt: schema.transfers.createdAt
       })
       .from(schema.transfers)
       .where(
@@ -99,11 +102,12 @@ export class ReconciliationRepository {
         quoteById: new Map(),
         fundingByTransferId: new Map(),
         payoutByTransferId: new Map(),
-        ledgerByTransferId: new Map()
+        ledgerByTransferId: new Map(),
+        latestSubmissionByTransferId: new Map()
       };
     }
 
-    const [quoteRows, fundingRows, payoutRows, ledgerRows] = await Promise.all([
+    const [quoteRows, fundingRows, payoutRows, ledgerRows, submissionRows] = await Promise.all([
       params.quoteIds.length === 0
         ? Promise.resolve([])
         : this.db
@@ -141,7 +145,17 @@ export class ReconciliationRepository {
         })
         .from(schema.ledgerEntries)
         .where(inArray(schema.ledgerEntries.transferId, params.transferIds))
-        .groupBy(schema.ledgerEntries.transferId)
+        .groupBy(schema.ledgerEntries.transferId),
+      this.db
+        .select({
+          transferId: schema.fundingSubmissionAttempts.transferId,
+          status: schema.fundingSubmissionAttempts.status,
+          metadata: schema.fundingSubmissionAttempts.metadata,
+          submittedAt: schema.fundingSubmissionAttempts.submittedAt
+        })
+        .from(schema.fundingSubmissionAttempts)
+        .where(inArray(schema.fundingSubmissionAttempts.transferId, params.transferIds))
+        .orderBy(desc(schema.fundingSubmissionAttempts.updatedAt))
     ]);
 
     const quoteById = new Map(quoteRows.map((row) => [row.quoteId, { expectedEtb: row.expectedEtb }]));
@@ -160,12 +174,26 @@ export class ReconciliationRepository {
         }
       ])
     );
+    const latestSubmissionByTransferId = new Map<string, { status: 'submitted' | 'confirmed' | 'failed'; source: string | null; submittedAt: Date }>();
+    for (const row of submissionRows) {
+      if (latestSubmissionByTransferId.has(row.transferId)) {
+        continue;
+      }
+      const sourceRaw = (row.metadata as { source?: unknown } | null | undefined)?.source;
+      const source = typeof sourceRaw === 'string' ? sourceRaw : null;
+      latestSubmissionByTransferId.set(row.transferId, {
+        status: row.status,
+        source,
+        submittedAt: row.submittedAt
+      });
+    }
 
     return {
       quoteById,
       fundingByTransferId,
       payoutByTransferId,
-      ledgerByTransferId
+      ledgerByTransferId,
+      latestSubmissionByTransferId
     };
   }
 
