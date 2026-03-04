@@ -119,7 +119,7 @@ func (r Runner) runOnce(ctx context.Context, currentCursor string) error {
 			continue
 		}
 
-		result, err := r.Watcher.ProcessCandidate(ctx, candidate)
+		result, resolvedTransferID, resolvedDepositAddress, err := r.Watcher.ProcessCandidateWithMatch(ctx, candidate)
 		if err != nil {
 			r.Logger.Error("process candidate failed",
 				"watcher", r.Name,
@@ -133,12 +133,39 @@ func (r Runner) runOnce(ctx context.Context, currentCursor string) error {
 
 		r.Logger.Info("candidate processed",
 			"watcher", r.Name,
+			"chain", candidate.Chain,
+			"transferId", resolvedTransferID,
 			"eventKey", eventKey,
 			"txHash", candidate.TxHash,
 			"depositAddress", candidate.DepositAddress,
+			"resolvedDepositAddress", resolvedDepositAddress,
 			"amountUSD", candidate.AmountUSD,
 			"result", string(result),
 		)
+
+		if result == ProcessRouteNotFound {
+			r.Logger.Warn("route resolution outcome",
+				"watcher", r.Name,
+				"chain", candidate.Chain,
+				"transferId", resolvedTransferID,
+				"txHash", candidate.TxHash,
+				"depositAddress", candidate.DepositAddress,
+				"resolvedDepositAddress", resolvedDepositAddress,
+				"outcome", "route_not_found",
+			)
+		}
+
+		if result == ProcessConfirmed {
+			r.Logger.Info("route resolution outcome",
+				"watcher", r.Name,
+				"chain", candidate.Chain,
+				"transferId", resolvedTransferID,
+				"txHash", candidate.TxHash,
+				"depositAddress", candidate.DepositAddress,
+				"resolvedDepositAddress", resolvedDepositAddress,
+				"outcome", "confirmed",
+			)
+		}
 
 		if result == ProcessConfirmed {
 			confirmedCount++

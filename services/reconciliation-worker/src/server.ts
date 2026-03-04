@@ -23,7 +23,13 @@ runServiceAndExit({
   hostEnv: 'RECONCILIATION_WORKER_HOST',
   onReady: async () => {
     const env = loadReconciliationWorkerServiceEnv();
-    const reconciliationService = new ReconciliationService();
+    const solanaManualSubmissionThresholdMinutes = safeIntervalMs(
+      process.env.RECONCILIATION_SOLANA_MANUAL_SUBMISSION_THRESHOLD_MINUTES,
+      15
+    );
+    const reconciliationService = new ReconciliationService(undefined, {
+      solanaManualSubmissionThresholdMinutes
+    });
     const reconciliationIntervalMs = safeIntervalMs(String(env.RECONCILIATION_INTERVAL_MS), 5 * 60 * 1000);
     const retentionIntervalMs = safeIntervalMs(String(env.RETENTION_JOB_INTERVAL_MS), 60 * 60 * 1000);
     const keyVerificationIntervalMs = safeIntervalMs(String(env.KEY_VERIFICATION_INTERVAL_MS), 15 * 60 * 1000);

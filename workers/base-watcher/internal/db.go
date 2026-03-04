@@ -6,6 +6,7 @@ import (
 )
 
 type ActiveRoute struct {
+	TransferID     string `json:"transferId"`
 	Token          string `json:"token"`
 	DepositAddress string `json:"depositAddress"`
 }
