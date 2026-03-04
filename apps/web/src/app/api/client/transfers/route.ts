@@ -46,18 +46,29 @@ export async function POST(request: Request) {
   });
 
   const payload = (await parseUpstreamPayload(upstream)) as
-    | { transferId?: string; depositAddress?: string; status?: string }
+    | {
+        transferId?: string;
+        depositAddress?: string;
+        status?: string;
+        routeKind?: 'address_route' | 'solana_program_pay';
+        fundingMode?: 'copy_address_auto' | 'program_pay_legacy';
+      }
     | { error?: { message?: string } };
 
   if (!upstream.ok || !('transferId' in payload) || !payload.transferId || !payload.depositAddress || !payload.status) {
     return NextResponse.json(payload, { status: upstream.status });
   }
 
+  const routeKind = payload.routeKind === 'solana_program_pay' ? 'solana_program_pay' : 'address_route';
+  const fundingMode = payload.fundingMode === 'program_pay_legacy' ? 'program_pay_legacy' : 'copy_address_auto';
+
   return NextResponse.json(
     {
       transferId: payload.transferId,
       depositAddress: payload.depositAddress,
       status: payload.status,
+      routeKind,
+      fundingMode,
       quote: parsed.data.quote
     },
     { status: upstream.status }

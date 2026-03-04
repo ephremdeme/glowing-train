@@ -32,6 +32,8 @@ function hasValidTransferSummary(value: unknown): value is TransferSummary {
     transfer.transferId.trim() &&
     typeof transfer.depositAddress === 'string' &&
     transfer.depositAddress.trim() &&
+    (transfer.routeKind === 'address_route' || transfer.routeKind === 'solana_program_pay') &&
+    (transfer.fundingMode === 'copy_address_auto' || transfer.fundingMode === 'program_pay_legacy') &&
     transfer.quote
   );
 }

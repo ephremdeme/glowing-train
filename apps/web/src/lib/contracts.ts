@@ -115,6 +115,8 @@ export interface TransferSummary {
   transferId: string;
   status: string;
   depositAddress: string;
+  routeKind: 'address_route' | 'solana_program_pay';
+  fundingMode: 'copy_address_auto' | 'program_pay_legacy';
   quote: QuoteSummary;
 }
 
@@ -144,6 +146,8 @@ export interface TransferHistoryItem {
   chain: 'base' | 'solana';
   token: 'USDC' | 'USDT';
   sendAmountUsd: number;
+  recipientAmountEtb: number;
+  fundedAmountUsd: number | null;
   status: string;
   depositAddress: string | null;
   createdAt: string;

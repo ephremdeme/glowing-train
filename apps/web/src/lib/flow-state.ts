@@ -19,6 +19,8 @@ function isValidDraftTransfer(value: unknown): boolean {
   const transfer = value as {
     transferId?: unknown;
     depositAddress?: unknown;
+    routeKind?: unknown;
+    fundingMode?: unknown;
     quote?: unknown;
   };
 
@@ -27,6 +29,8 @@ function isValidDraftTransfer(value: unknown): boolean {
       transfer.transferId.trim() &&
       typeof transfer.depositAddress === 'string' &&
       transfer.depositAddress.trim() &&
+      (transfer.routeKind === 'address_route' || transfer.routeKind === 'solana_program_pay') &&
+      (transfer.fundingMode === 'copy_address_auto' || transfer.fundingMode === 'program_pay_legacy') &&
       transfer.quote &&
       typeof transfer.quote === 'object'
   );
