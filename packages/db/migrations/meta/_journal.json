@@ -120,6 +120,13 @@
       "when": 1700000000017,
       "tag": "0017_remove_receiver_kyc_and_transfer_receiver_kyc_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1700000000018,
+      "tag": "0018_drop_legacy_deposit_route_address_unique_index",
+      "breakpoints": true
     }
   ]
 }
