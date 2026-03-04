@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { Route } from 'next';
-import { ArrowRight, ExternalLink, Hexagon, ShieldAlert } from 'lucide-react';
+import { ArrowRight, ExternalLink, ShieldAlert } from 'lucide-react';
 import { BasePayPanel } from '@/components/transfer/base-pay-panel';
 import { PaymentMethodTabs } from '@/components/transfer/payment-method-tabs';
 import { QrDeposit } from '@/components/transfer/qr-deposit';
@@ -65,6 +65,8 @@ interface DepositInstructionsProps {
 
 export function DepositInstructions({ transfer, onConfirmed }: DepositInstructionsProps) {
   const { quote } = transfer;
+  const isSolanaLegacyRoute = quote.chain === 'solana' && transfer.routeKind === 'solana_program_pay';
+  const depositLabel = quote.chain === 'solana' && isSolanaLegacyRoute ? 'Treasury token account' : 'Deposit address';
   const walletPresets =
     quote.chain === 'base'
       ? getWalletDeepLinkPresets({
@@ -90,7 +92,9 @@ export function DepositInstructions({ transfer, onConfirmed }: DepositInstructio
         <CardDescription>
           {quote.chain === 'base'
             ? 'Send the exact amount to the deposit address below, or pay directly from your connected wallet.'
-            : 'Copy the Solana deposit address, send the exact amount, then paste the signature to confirm quickly.'}
+            : isSolanaLegacyRoute
+              ? 'Pay from your connected Solana wallet (legacy program-pay) or copy the token account and fund from any wallet.'
+              : 'Pay from your Solana wallet directly to this unique transfer address, or copy the address and fund from any wallet.'}
         </CardDescription>
       </CardHeader>
 
@@ -107,11 +111,13 @@ export function DepositInstructions({ transfer, onConfirmed }: DepositInstructio
         </div>
 
         {/* Deposit address */}
-        <CopyRow label={quote.chain === 'base' ? 'Deposit address' : 'Treasury token account'} value={transfer.depositAddress} />
+        <CopyRow label={depositLabel} value={transfer.depositAddress} />
         <p className="text-xs text-muted-foreground">
           {quote.chain === 'base'
             ? 'This unique deposit address was generated for this transfer.'
-            : 'This Solana token account is tied to this transfer route.'}
+            : isSolanaLegacyRoute
+              ? 'This is the Solana treasury token account for legacy program-pay routes.'
+              : 'This Solana token account is unique to this transfer route.'}
         </p>
 
         {/* Network + token */}
@@ -134,7 +140,7 @@ export function DepositInstructions({ transfer, onConfirmed }: DepositInstructio
         </Alert>
 
         {/* Payment methods — tabbed for mobile */}
-        <PaymentMethodTabs defaultTab="manual">
+        <PaymentMethodTabs defaultTab={isSolanaLegacyRoute ? 'wallet' : 'address'}>
           {{
             qr: (
               <QrDeposit
@@ -151,21 +157,23 @@ export function DepositInstructions({ transfer, onConfirmed }: DepositInstructio
                 {isMock ? <p className="text-sm text-muted-foreground">Wallet payments disabled in mock mode.</p> : null}
               </div>
             ),
-            manual: (
+            address: (
               <div className="grid gap-3">
-                <CopyRow label={quote.chain === 'base' ? 'Deposit address' : 'Treasury token account'} value={transfer.depositAddress} />
+                <CopyRow label={depositLabel} value={transfer.depositAddress} />
                 <Alert className="border-primary/20 bg-primary/5">
-                  <AlertTitle className="text-primary">After sending, submit proof</AlertTitle>
+                  <AlertTitle className="text-primary">Address funding enabled</AlertTitle>
                   <AlertDescription className="text-xs text-muted-foreground">
-                    {quote.chain === 'solana'
-                      ? 'Paste the Solana transaction signature in the Solana payment panel to link this address payment to your transfer.'
-                      : 'Paste the Base transaction hash in the Base payment panel to speed up confirmation if watcher detection is delayed.'}
+                    {isSolanaLegacyRoute
+                      ? 'For this legacy Solana route, use Wallet pay for deterministic confirmation.'
+                      : 'Send the exact amount and keep this page open. Status updates automatically after chain confirmation.'}
                   </AlertDescription>
                 </Alert>
                 <p className="text-xs text-muted-foreground">
                   {quote.chain === 'solana'
-                    ? `Copy the token account above and send the exact ${quote.sendAmountUsd} ${quote.token}. Use transfer reference ${transfer.transferId} in your wallet note/memo when possible, then submit the signature.`
-                    : `Copy the address above and paste it in your wallet app to send ${quote.token} on ${quote.chain.toUpperCase()}.`}
+                    ? isSolanaLegacyRoute
+                      ? `Legacy Solana route: wallet pay uses on-chain reference ${transfer.transferId}. Address-only funding may not auto-link on legacy routes.`
+                      : `Unique Solana route: copy the address above and send exactly ${quote.sendAmountUsd} ${quote.token}.`
+                    : `Copy the address above and send ${quote.sendAmountUsd} ${quote.token} on ${quote.chain.toUpperCase()}.`}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {walletPresets.map((preset) => (

@@ -3,21 +3,21 @@
 import { useState } from 'react';
 import { QrCode, Wallet, Copy } from 'lucide-react';
 
-type Tab = 'qr' | 'wallet' | 'manual';
+type Tab = 'qr' | 'wallet' | 'address';
 
 interface PaymentMethodTabsProps {
     defaultTab?: Tab;
     children: {
         qr: React.ReactNode;
         wallet: React.ReactNode;
-        manual: React.ReactNode;
+        address: React.ReactNode;
     };
 }
 
 const TAB_META: Array<{ id: Tab; label: string; icon: React.ElementType }> = [
     { id: 'qr', label: 'Scan QR', icon: QrCode },
     { id: 'wallet', label: 'Wallet', icon: Wallet },
-    { id: 'manual', label: 'Copy', icon: Copy },
+    { id: 'address', label: 'Address', icon: Copy },
 ];
 
 /**
@@ -25,7 +25,7 @@ const TAB_META: Array<{ id: Tab; label: string; icon: React.ElementType }> = [
  * paying via a connected wallet, or copying the deposit address manually.
  * On desktop, these are stacked vertically; on mobile, tabs save space.
  */
-export function PaymentMethodTabs({ children, defaultTab = 'manual' }: PaymentMethodTabsProps) {
+export function PaymentMethodTabs({ children, defaultTab = 'address' }: PaymentMethodTabsProps) {
     const [active, setActive] = useState<Tab>(defaultTab);
 
     return (
@@ -53,7 +53,7 @@ export function PaymentMethodTabs({ children, defaultTab = 'manual' }: PaymentMe
             <div role="tabpanel" className="min-h-[120px]">
                 {active === 'qr' && children.qr}
                 {active === 'wallet' && children.wallet}
-                {active === 'manual' && children.manual}
+                {active === 'address' && children.address}
             </div>
         </div>
     );
