@@ -17,7 +17,7 @@ function computeRequestHash(input: Omit<CreateTransferInput, 'idempotencyKey'>):
 
 /** Simple fallback deposit address strategy. */
 const defaultStrategy: DepositAddressStrategy = {
-  generateAddress: () => ({
+  generateAddress: async () => ({
     depositAddress: `dep_${randomUUID().replaceAll('-', '')}`,
     depositMemo: null,
     routeKind: 'address_route',
@@ -69,6 +69,11 @@ export class TransferService {
 
     const transferId = `tr_${randomUUID()}`;
     const routeId = `route_${randomUUID()}`;
+    const addr = await this.depositAddressStrategy.generateAddress({
+      chain: quote.chain,
+      token: quote.token,
+      transferId
+    });
 
     const created = await this.repository.persistTransferWithRoute({
       transfer: {
@@ -82,24 +87,17 @@ export class TransferService {
         sendAmountUsd: quote.sendAmountUsd,
         status: 'AWAITING_FUNDING'
       },
-      route: (() => {
-        const addr = this.depositAddressStrategy.generateAddress({
-          chain: quote.chain,
-          token: quote.token,
-          transferId
-        });
-        return {
-          routeId,
-          transferId,
-          chain: quote.chain,
-          token: quote.token,
-          depositAddress: addr.depositAddress,
-          depositMemo: addr.depositMemo,
-          routeKind: addr.routeKind,
-          referenceHash: addr.referenceHash,
-          status: 'active' as const
-        };
-      })()
+      route: {
+        routeId,
+        transferId,
+        chain: quote.chain,
+        token: quote.token,
+        depositAddress: addr.depositAddress,
+        depositMemo: addr.depositMemo,
+        routeKind: addr.routeKind,
+        referenceHash: addr.referenceHash,
+        status: 'active' as const
+      }
     });
 
     await this.repository.saveIdempotencyRecord({

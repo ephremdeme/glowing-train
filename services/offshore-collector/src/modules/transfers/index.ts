@@ -1,4 +1,9 @@
-export { Create2DepositStrategy, type DepositAddressResult, type DepositAddressStrategy } from './deposit-address.js';
+export {
+  Create2DepositStrategy,
+  SolanaRouteProvisioningError,
+  type DepositAddressResult,
+  type DepositAddressStrategy
+} from './deposit-address.js';
 export {
   IdempotencyConflictError,
   QuoteExpiredError,

@@ -3,6 +3,7 @@ import {
   IdempotencyConflictError,
   QuoteExpiredError,
   QuoteNotFoundError,
+  SolanaRouteProvisioningError,
   TransferValidationError,
   type TransferService
 } from '../modules/transfers/index.js';
@@ -52,6 +53,32 @@ function mapError(error: unknown): HttpError {
         error: {
           code: 'TRANSFER_VALIDATION_ERROR',
           message: error instanceof z.ZodError ? error.issues[0]?.message ?? 'Invalid payload' : error.message
+        }
+      }
+    };
+  }
+
+  if (error instanceof SolanaRouteProvisioningError) {
+    return {
+      status: 503,
+      body: {
+        error: {
+          code: error.code,
+          message: error.message
+        }
+      }
+    };
+  }
+
+  const dbError = error as { code?: string; constraint?: string; message?: string } | undefined;
+  if (dbError?.code === '23505' && dbError.constraint === 'idx_deposit_routes_chain_token_address') {
+    return {
+      status: 409,
+      body: {
+        error: {
+          code: 'DEPOSIT_ROUTE_CONFLICT',
+          message:
+            'Legacy deposit route uniqueness rule is blocking shared Solana treasury routes. Apply the latest DB migrations and retry.'
         }
       }
     };
