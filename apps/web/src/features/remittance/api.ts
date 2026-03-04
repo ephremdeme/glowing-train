@@ -11,6 +11,7 @@ import type {
   UiTransferStatus
 } from '@/lib/contracts';
 import { exchangeAccessToken } from '@/lib/session';
+type PaymentSubmissionSource = 'manual_copy_address' | 'wallet_pay';
 
 type ApiErrorPayload = {
   error?: {
@@ -167,7 +168,8 @@ export async function fetchTransferStatusDetail(token: string, transferId: strin
 export async function confirmSolanaWalletPayment(
   token: string,
   transferId: string,
-  signature: string
+  signature: string,
+  submissionSource?: PaymentSubmissionSource
 ): Promise<SolanaPaymentConfirmationPayload> {
   return requestJson<SolanaPaymentConfirmationPayload>(
     `/api/client/transfers/${transferId}/solana-payment`,
@@ -176,7 +178,10 @@ export async function confirmSolanaWalletPayment(
       headers: {
         'content-type': 'application/json'
       },
-      body: JSON.stringify({ signature })
+      body: JSON.stringify({
+        signature,
+        submissionSource: submissionSource ?? 'manual_copy_address'
+      })
     },
     'Could not verify Solana payment.',
     { token }
@@ -206,7 +211,8 @@ export async function startSenderKycSession(token: string): Promise<{ token?: st
 export async function confirmBaseWalletPayment(
   token: string,
   transferId: string,
-  txHash: string
+  txHash: string,
+  submissionSource?: PaymentSubmissionSource
 ): Promise<BasePaymentConfirmationPayload> {
   return requestJson<BasePaymentConfirmationPayload>(
     `/api/client/transfers/${transferId}/base-payment`,
@@ -215,7 +221,10 @@ export async function confirmBaseWalletPayment(
       headers: {
         'content-type': 'application/json'
       },
-      body: JSON.stringify({ txHash })
+      body: JSON.stringify({
+        txHash,
+        submissionSource: submissionSource ?? 'manual_copy_address'
+      })
     },
     'Could not verify Base payment.',
     { token }

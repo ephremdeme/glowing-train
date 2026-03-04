@@ -82,15 +82,15 @@ export function useCreateTransfer(token: string) {
 
 export function useConfirmSolanaWalletPayment() {
   return useMutation({
-    mutationFn: (input: { transferId: string; signature: string }) =>
-      confirmSolanaWalletPayment(readAccessToken() ?? '', input.transferId, input.signature)
+    mutationFn: (input: { transferId: string; signature: string; submissionSource?: 'manual_copy_address' | 'wallet_pay' }) =>
+      confirmSolanaWalletPayment(readAccessToken() ?? '', input.transferId, input.signature, input.submissionSource)
   });
 }
 
 export function useConfirmBaseWalletPayment() {
   return useMutation({
-    mutationFn: (input: { transferId: string; txHash: string }) =>
-      confirmBaseWalletPayment(readAccessToken() ?? '', input.transferId, input.txHash)
+    mutationFn: (input: { transferId: string; txHash: string; submissionSource?: 'manual_copy_address' | 'wallet_pay' }) =>
+      confirmBaseWalletPayment(readAccessToken() ?? '', input.transferId, input.txHash, input.submissionSource)
   });
 }
 

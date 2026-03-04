@@ -120,6 +120,7 @@ export interface TransferSummary {
 
 export interface SolanaPaymentConfirmationPayload {
   result: 'confirmed' | 'duplicate' | 'pending_verification';
+  code?: 'FUNDING_AMOUNT_ADJUSTED';
   transferId: string;
   txHash: string;
   backendStatus: string;
@@ -128,6 +129,7 @@ export interface SolanaPaymentConfirmationPayload {
 
 export interface BasePaymentConfirmationPayload {
   result: 'confirmed' | 'duplicate' | 'pending_verification';
+  code?: 'FUNDING_AMOUNT_ADJUSTED';
   transferId: string;
   txHash: string;
   backendStatus: string;
@@ -160,6 +162,8 @@ export interface TransferDetailPayload {
     createdAt: string;
     depositAddress: string | null;
     depositMemo: string | null;
+    routeKind: 'address_route' | 'solana_program_pay';
+    fundingMode: 'copy_address_auto' | 'program_pay_legacy';
   };
   quote: {
     quoteId: string;
@@ -181,6 +185,7 @@ export interface TransferDetailPayload {
     txHash: string;
     amountUsd: number;
     confirmedAt: string;
+    amountDecision: string | null;
   } | null;
   payout: {
     payoutId: string;
@@ -193,6 +198,14 @@ export interface TransferDetailPayload {
   pendingFundingSubmission?: {
     txHash: string;
     submittedAt: string;
+  } | null;
+  latestFundingSubmission?: {
+    txHash: string;
+    chain: 'base' | 'solana';
+    status: 'submitted' | 'confirmed' | 'failed';
+    source: 'manual_copy_address' | 'wallet_pay' | 'unknown';
+    submittedAt: string;
+    updatedAt: string;
   } | null;
   transitions: Array<{
     fromState: string | null;

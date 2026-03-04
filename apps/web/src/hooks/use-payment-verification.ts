@@ -7,15 +7,20 @@ import { toast } from 'sonner';
 /* ───── Types ───── */
 
 export type VerifyState = 'idle' | 'verifying' | 'confirmed' | 'duplicate' | 'pending' | 'failed';
+export type PaymentSubmissionSource = 'manual_copy_address' | 'wallet_pay';
 
 export interface PaymentVerificationResult {
     result: 'confirmed' | 'duplicate' | 'pending_verification';
+    code?: 'FUNDING_AMOUNT_ADJUSTED';
 }
 
 export interface UsePaymentVerificationOptions {
     transferId: string;
     storageKeyPrefix: string;
-    confirmFn: (txIdentifier: string) => Promise<PaymentVerificationResult>;
+    confirmFn: (
+        txIdentifier: string,
+        submissionSource: PaymentSubmissionSource
+    ) => Promise<PaymentVerificationResult>;
     autoVerifyMaxMs?: number | undefined;
     onConfirmed?: (() => void) | undefined;
 }
@@ -25,7 +30,10 @@ export interface UsePaymentVerificationReturn {
     verifyMessage: string | null;
     lastTxIdentifier: string | null;
     canRetry: boolean;
-    submitAndVerify: (txIdentifier: string) => Promise<void>;
+    submitAndVerify: (
+        txIdentifier: string,
+        submissionSource?: PaymentSubmissionSource
+    ) => Promise<void>;
     retryVerification: () => void;
     stopAutoVerify: () => void;
 }
@@ -81,6 +89,7 @@ export function usePaymentVerification(options: UsePaymentVerificationOptions): 
     const autoVerifyTimerRef = useRef<number | null>(null);
     const autoVerifyStartedAtRef = useRef<number | null>(null);
     const autoVerifyTxRef = useRef<string | null>(null);
+    const autoVerifySourceRef = useRef<PaymentSubmissionSource>('manual_copy_address');
 
     /* ── Timer management ── */
 
@@ -99,17 +108,21 @@ export function usePaymentVerification(options: UsePaymentVerificationOptions): 
 
     /* ── Verification logic ── */
 
-    const verifyBackend = useCallback(async (txIdentifier: string): Promise<void> => {
+    const verifyBackend = useCallback(async (txIdentifier: string, submissionSource: PaymentSubmissionSource): Promise<void> => {
         setVerifyState('verifying');
         setVerifyMessage('Verifying on backend...');
 
         try {
-            const confirmation = await confirmFn(txIdentifier);
+            const confirmation = await confirmFn(txIdentifier, submissionSource);
 
             if (confirmation.result === 'confirmed') {
                 stopAutoVerify();
                 setVerifyState('confirmed');
-                setVerifyMessage('Your payment was confirmed successfully.');
+                setVerifyMessage(
+                    confirmation.code === 'FUNDING_AMOUNT_ADJUSTED'
+                        ? 'Your payment was confirmed. The funded amount was adjusted to match the on-chain transfer.'
+                        : 'Your payment was confirmed successfully.'
+                );
                 toast.success('Payment confirmed!', {
                     description: 'Transfer is now funded successfully.',
                 });
@@ -132,7 +145,7 @@ export function usePaymentVerification(options: UsePaymentVerificationOptions): 
             setVerifyMessage(
                 'Your payment was submitted. We are waiting for network confirmation and will keep checking automatically.'
             );
-            scheduleAutoVerify(txIdentifier);
+            scheduleAutoVerify(txIdentifier, submissionSource);
         } catch (error) {
             stopAutoVerify();
             setVerifyState('failed');
@@ -140,7 +153,7 @@ export function usePaymentVerification(options: UsePaymentVerificationOptions): 
         }
     }, [confirmFn, stopAutoVerify, onConfirmed, router, transferId]);
 
-    const scheduleAutoVerify = useCallback((txIdentifier: string) => {
+    const scheduleAutoVerify = useCallback((txIdentifier: string, submissionSource: PaymentSubmissionSource) => {
         if (typeof window === 'undefined') return;
 
         const now = Date.now();
@@ -148,6 +161,7 @@ export function usePaymentVerification(options: UsePaymentVerificationOptions): 
             autoVerifyTxRef.current = txIdentifier;
             autoVerifyStartedAtRef.current = now;
         }
+        autoVerifySourceRef.current = submissionSource;
 
         const elapsedMs = now - (autoVerifyStartedAtRef.current ?? now);
         if (elapsedMs >= autoVerifyMaxMs) {
@@ -162,7 +176,7 @@ export function usePaymentVerification(options: UsePaymentVerificationOptions): 
         clearTimer();
         autoVerifyTimerRef.current = window.setTimeout(() => {
             const tx = autoVerifyTxRef.current;
-            if (tx) void verifyBackend(tx);
+            if (tx) void verifyBackend(tx, autoVerifySourceRef.current);
         }, autoVerifyDelayMs(elapsedMs));
     }, [autoVerifyMaxMs, clearTimer, stopAutoVerify, verifyBackend]);
 
@@ -173,6 +187,7 @@ export function usePaymentVerification(options: UsePaymentVerificationOptions): 
         setVerifyState('idle');
         setVerifyMessage(null);
         setLastTxIdentifier(readStored(storageKey));
+        autoVerifySourceRef.current = 'manual_copy_address';
     }, [transferId, storageKey, stopAutoVerify]);
 
     /* ── Cleanup on unmount ── */
@@ -180,16 +195,20 @@ export function usePaymentVerification(options: UsePaymentVerificationOptions): 
 
     /* ── Public API ── */
 
-    const submitAndVerify = useCallback(async (txIdentifier: string) => {
+    const submitAndVerify = useCallback(async (
+        txIdentifier: string,
+        submissionSource: PaymentSubmissionSource = 'manual_copy_address'
+    ) => {
         writeStored(storageKey, txIdentifier);
         setLastTxIdentifier(txIdentifier);
-        await verifyBackend(txIdentifier);
+        autoVerifySourceRef.current = submissionSource;
+        await verifyBackend(txIdentifier, submissionSource);
     }, [storageKey, verifyBackend]);
 
     const retryVerification = useCallback(() => {
         if (lastTxIdentifier) {
             stopAutoVerify();
-            void verifyBackend(lastTxIdentifier);
+            void verifyBackend(lastTxIdentifier, autoVerifySourceRef.current);
         }
     }, [lastTxIdentifier, stopAutoVerify, verifyBackend]);
 
