@@ -11,13 +11,13 @@ import {
 } from '@/hooks/use-payment-verification';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useConfirmSolanaWalletPayment } from '@/features/remittance/hooks';
 import { getMintConfig } from '@/lib/solana/remittance-config';
 import {
     submitPayTransaction,
     type SubmitPayTransactionResult
 } from '@/lib/solana/remittance-acceptor';
+import { submitDirectTokenTransfer, type SubmitDirectTransferResult } from '@/lib/solana/direct-transfer';
 import type { TransferSummary } from '@/lib/contracts';
 
 export function SolanaPayPanel({ transfer, onConfirmed }: { transfer: TransferSummary; onConfirmed?: () => void }) {
@@ -26,8 +26,7 @@ export function SolanaPayPanel({ transfer, onConfirmed }: { transfer: TransferSu
     const wallet = useWallet();
     const [submitting, setSubmitting] = useState(false);
     const [solanaError, setSolanaError] = useState<string | null>(null);
-    const [solanaResult, setSolanaResult] = useState<SubmitPayTransactionResult | null>(null);
-    const [manualSignature, setManualSignature] = useState('');
+    const [solanaResult, setSolanaResult] = useState<(SubmitPayTransactionResult | SubmitDirectTransferResult) | null>(null);
     const confirmMutation = useConfirmSolanaWalletPayment();
 
     const verification = usePaymentVerification({
@@ -42,6 +41,8 @@ export function SolanaPayPanel({ transfer, onConfirmed }: { transfer: TransferSu
         onConfirmed,
     });
 
+    const isLegacyProgramPayRoute = transfer.routeKind === 'solana_program_pay';
+
     const mintConfigValidation = useMemo(() => {
         if (quote.chain !== 'solana') return { valid: true, message: null as string | null };
         try {
@@ -52,35 +53,27 @@ export function SolanaPayPanel({ transfer, onConfirmed }: { transfer: TransferSu
         }
     }, [quote.chain, quote.token]);
 
-    const isLegacyProgramPayRoute = useMemo(() => {
-        if (quote.chain !== 'solana') {
-            return false;
-        }
-        try {
-            const mintConfig = getMintConfig(quote.token);
-            return transfer.depositAddress === mintConfig.treasuryAta.toBase58();
-        } catch {
-            return false;
-        }
-    }, [quote.chain, quote.token, transfer.depositAddress]);
-
     async function submitSolanaPayment(): Promise<void> {
-        if (!isLegacyProgramPayRoute) {
-            setSolanaError('Wallet-pay is not enabled for this transfer route. Send to the deposit address and paste the transaction signature below.');
-            return;
-        }
         setSubmitting(true);
         setSolanaError(null);
 
         try {
-            const result = await submitPayTransaction({
-                connection,
-                wallet,
-                token: quote.token,
-                amountDecimal: String(quote.sendAmountUsd),
-                transferId: transfer.transferId,
-                externalReference: transfer.transferId
-            });
+            const result = isLegacyProgramPayRoute
+                ? await submitPayTransaction({
+                    connection,
+                    wallet,
+                    token: quote.token,
+                    amountDecimal: String(quote.sendAmountUsd),
+                    transferId: transfer.transferId,
+                    externalReference: transfer.transferId
+                })
+                : await submitDirectTokenTransfer({
+                    connection,
+                    wallet,
+                    token: quote.token,
+                    amountDecimal: String(quote.sendAmountUsd),
+                    destinationTokenAccount: transfer.depositAddress
+                });
             setSolanaResult(result);
             await verification.submitAndVerify(result.signature, 'wallet_pay');
         } catch (error) {
@@ -90,25 +83,14 @@ export function SolanaPayPanel({ transfer, onConfirmed }: { transfer: TransferSu
         }
     }
 
-    async function submitManualSignature(): Promise<void> {
-        const signature = manualSignature.trim();
-        if (!signature) return;
-        setSolanaError(null);
-        try {
-            await verification.submitAndVerify(signature, 'manual_copy_address');
-        } catch (error) {
-            setSolanaError(error instanceof Error ? error.message : 'Could not verify the provided signature.');
-        }
-    }
-
     return (
         <div className="grid gap-4 rounded-2xl border border-border/70 bg-muted/20 p-4">
             <div className="grid gap-1.5">
                 <p className="text-sm font-semibold">Pay on Solana</p>
                 <p className="text-xs text-muted-foreground">
                     {isLegacyProgramPayRoute
-                        ? 'Approve the payment in your wallet to fund this transfer.'
-                        : 'Send to the deposit address, then paste the transaction signature to confirm quickly.'}
+                        ? 'Use remittance wallet-pay for this legacy transfer route.'
+                        : 'Send directly from your wallet to this transfer’s unique Solana address.'}
                 </p>
             </div>
 
@@ -154,40 +136,19 @@ export function SolanaPayPanel({ transfer, onConfirmed }: { transfer: TransferSu
                 </Alert>
             ) : null}
 
-            {isLegacyProgramPayRoute ? (
-                <Button
-                    onClick={submitSolanaPayment}
-                    disabled={submitting || Boolean(solanaResult) || !wallet.connected || !wallet.publicKey || !mintConfigValidation.valid}
-                >
-                    {submitting ? (
-                        <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Submitting on-chain payment...
-                        </>
-                    ) : (
-                        'Pay with Solana wallet'
-                    )}
-                </Button>
-            ) : null}
-
-            <div className="grid gap-2 rounded-xl border border-border/60 bg-background/40 p-3">
-                <p className="text-xs font-medium text-muted-foreground">Already paid from another wallet?</p>
-                <p className="text-[11px] text-muted-foreground">
-                    Paste the signature after sending to this transfer address so we can link the payment deterministically.
-                </p>
-                <Input
-                    value={manualSignature}
-                    onChange={(event) => setManualSignature(event.target.value)}
-                    placeholder="Paste Solana transaction signature"
-                />
-                <Button
-                    variant="outline"
-                    onClick={submitManualSignature}
-                    disabled={!manualSignature.trim() || verification.verifyState === 'verifying'}
-                >
-                    {verification.verifyState === 'verifying' ? 'Verifying...' : 'Verify existing transaction'}
-                </Button>
-            </div>
+            <Button
+                onClick={submitSolanaPayment}
+                disabled={submitting || Boolean(solanaResult) || !wallet.connected || !wallet.publicKey || !mintConfigValidation.valid}
+            >
+                {submitting ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending {quote.token} on Solana...
+                    </>
+                ) : (
+                    isLegacyProgramPayRoute ? 'Pay with Solana wallet' : 'Send direct transfer from wallet'
+                )}
+            </Button>
 
             {verification.canRetry ? (
                 <Button variant="outline" onClick={verification.retryVerification} disabled={verification.verifyState === 'verifying'}>
