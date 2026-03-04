@@ -62,6 +62,8 @@ describe('BFF -> core-api contracts', () => {
       transferId: 'tr_1',
       depositAddress: '0xabc123',
       status: 'AWAITING_FUNDING',
+      routeKind: 'address_route',
+      fundingMode: 'copy_address_auto',
       quote: {
         quoteId: 'q_1',
         chain: 'base',
