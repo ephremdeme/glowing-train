@@ -6,6 +6,7 @@ import { QrCode, Wallet, Copy } from 'lucide-react';
 type Tab = 'qr' | 'wallet' | 'manual';
 
 interface PaymentMethodTabsProps {
+    defaultTab?: Tab;
     children: {
         qr: React.ReactNode;
         wallet: React.ReactNode;
@@ -24,8 +25,8 @@ const TAB_META: Array<{ id: Tab; label: string; icon: React.ElementType }> = [
  * paying via a connected wallet, or copying the deposit address manually.
  * On desktop, these are stacked vertically; on mobile, tabs save space.
  */
-export function PaymentMethodTabs({ children }: PaymentMethodTabsProps) {
-    const [active, setActive] = useState<Tab>('qr');
+export function PaymentMethodTabs({ children, defaultTab = 'manual' }: PaymentMethodTabsProps) {
+    const [active, setActive] = useState<Tab>(defaultTab);
 
     return (
         <div className="grid gap-4">

@@ -90,7 +90,7 @@ export function DepositInstructions({ transfer, onConfirmed }: DepositInstructio
         <CardDescription>
           {quote.chain === 'base'
             ? 'Send the exact amount to the deposit address below, or pay directly from your connected wallet.'
-            : 'Use your Solana wallet to pay for this transfer. We will confirm the payment automatically.'}
+            : 'Copy the Solana deposit address, send the exact amount, then paste the signature to confirm quickly.'}
         </CardDescription>
       </CardHeader>
 
@@ -111,7 +111,7 @@ export function DepositInstructions({ transfer, onConfirmed }: DepositInstructio
         <p className="text-xs text-muted-foreground">
           {quote.chain === 'base'
             ? 'This unique deposit address was generated for this transfer.'
-            : 'This is the collector treasury account used by the Solana payment flow for this transfer.'}
+            : 'This Solana token account is tied to this transfer route.'}
         </p>
 
         {/* Network + token */}
@@ -134,7 +134,7 @@ export function DepositInstructions({ transfer, onConfirmed }: DepositInstructio
         </Alert>
 
         {/* Payment methods — tabbed for mobile */}
-        <PaymentMethodTabs>
+        <PaymentMethodTabs defaultTab="manual">
           {{
             qr: (
               <QrDeposit
@@ -154,9 +154,17 @@ export function DepositInstructions({ transfer, onConfirmed }: DepositInstructio
             manual: (
               <div className="grid gap-3">
                 <CopyRow label={quote.chain === 'base' ? 'Deposit address' : 'Treasury token account'} value={transfer.depositAddress} />
+                <Alert className="border-primary/20 bg-primary/5">
+                  <AlertTitle className="text-primary">After sending, submit proof</AlertTitle>
+                  <AlertDescription className="text-xs text-muted-foreground">
+                    {quote.chain === 'solana'
+                      ? 'Paste the Solana transaction signature in the Solana payment panel to link this address payment to your transfer.'
+                      : 'Paste the Base transaction hash in the Base payment panel to speed up confirmation if watcher detection is delayed.'}
+                  </AlertDescription>
+                </Alert>
                 <p className="text-xs text-muted-foreground">
                   {quote.chain === 'solana'
-                    ? `Copy the token account above and send the exact ${quote.sendAmountUsd} ${quote.token}. Then paste the transaction signature in the Solana payment panel so we can link it to this transfer.`
+                    ? `Copy the token account above and send the exact ${quote.sendAmountUsd} ${quote.token}. Use transfer reference ${transfer.transferId} in your wallet note/memo when possible, then submit the signature.`
                     : `Copy the address above and paste it in your wallet app to send ${quote.token} on ${quote.chain.toUpperCase()}.`}
                 </p>
                 <div className="flex flex-wrap gap-2">

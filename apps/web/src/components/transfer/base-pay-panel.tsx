@@ -10,6 +10,7 @@ import {
 } from '@/hooks/use-payment-verification';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useConfirmBaseWalletPayment } from '@/features/remittance/hooks';
 import { submitBasePayment, type BasePaymentResult } from '@/lib/evm/base-payment';
 import { walletMode } from '@/lib/wallet/evm';
@@ -21,13 +22,19 @@ export function BasePayPanel({ transfer, onConfirmed }: { transfer: TransferSumm
     const [submitting, setSubmitting] = useState(false);
     const [payError, setPayError] = useState<string | null>(null);
     const [payResult, setPayResult] = useState<BasePaymentResult | null>(null);
+    const [manualTxHash, setManualTxHash] = useState('');
     const confirmMutation = useConfirmBaseWalletPayment();
     const isMock = walletMode() === 'mock';
 
     const verification = usePaymentVerification({
         transferId: transfer.transferId,
         storageKeyPrefix: 'cryptopay:web:base-last-txhash:',
-        confirmFn: (txHash) => confirmMutation.mutateAsync({ transferId: transfer.transferId, txHash }),
+        confirmFn: (txHash, submissionSource) =>
+            confirmMutation.mutateAsync({
+                transferId: transfer.transferId,
+                txHash,
+                submissionSource
+            }),
         onConfirmed,
     });
 
@@ -48,11 +55,23 @@ export function BasePayPanel({ transfer, onConfirmed }: { transfer: TransferSumm
                 amountUsd: quote.sendAmountUsd,
             });
             setPayResult(result);
-            await verification.submitAndVerify(result.txHash);
+            await verification.submitAndVerify(result.txHash, 'wallet_pay');
         } catch (error) {
             setPayError(error instanceof Error ? error.message : 'Base payment failed.');
         } finally {
             setSubmitting(false);
+        }
+    }
+
+    async function submitManualTxHash(): Promise<void> {
+        const txHash = manualTxHash.trim();
+        if (!txHash) return;
+
+        setPayError(null);
+        try {
+            await verification.submitAndVerify(txHash, 'manual_copy_address');
+        } catch (error) {
+            setPayError(error instanceof Error ? error.message : 'Could not verify the provided transaction hash.');
         }
     }
 
@@ -112,6 +131,22 @@ export function BasePayPanel({ transfer, onConfirmed }: { transfer: TransferSumm
                     `Pay ${quote.sendAmountUsd} ${quote.token} with wallet`
                 )}
             </Button>
+
+            <div className="grid gap-2 rounded-xl border border-border/60 bg-background/40 p-3">
+                <p className="text-xs font-medium text-muted-foreground">Already paid from another wallet app?</p>
+                <Input
+                    value={manualTxHash}
+                    onChange={(event) => setManualTxHash(event.target.value)}
+                    placeholder="Paste Base transaction hash"
+                />
+                <Button
+                    variant="outline"
+                    onClick={submitManualTxHash}
+                    disabled={!manualTxHash.trim() || verification.verifyState === 'verifying'}
+                >
+                    {verification.verifyState === 'verifying' ? 'Verifying...' : 'Verify existing transaction'}
+                </Button>
+            </div>
 
             {verification.canRetry ? (
                 <Button variant="outline" onClick={verification.retryVerification} disabled={verification.verifyState === 'verifying'}>
