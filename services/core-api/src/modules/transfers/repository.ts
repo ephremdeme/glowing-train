@@ -1,5 +1,5 @@
 import { getDb, schema } from '@cryptopay/db';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 
 type TransferStatus = typeof schema.transfers.$inferSelect.status;
@@ -71,6 +71,7 @@ export class TransferRepository {
         phoneE164: string | null;
         depositAddress: string | null;
         depositMemo: string | null;
+        routeKind: 'address_route' | 'solana_program_pay' | null;
       }
     | null
   > {
@@ -87,7 +88,9 @@ export class TransferRepository {
         createdAt: schema.transfers.createdAt,
         fxRateUsdToEtb: schema.quotes.fxRateUsdToEtb,
         feeUsd: schema.quotes.feeUsd,
-        recipientAmountEtb: schema.quotes.recipientAmountEtb,
+        recipientAmountEtb: sql<string>`round(greatest(${schema.transfers.sendAmountUsd} - ${schema.quotes.feeUsd}, 0) * ${schema.quotes.fxRateUsdToEtb}, 2)::numeric`.as(
+          'recipient_amount_etb'
+        ),
         expiresAt: schema.quotes.expiresAt,
         recipientName: schema.recipients.fullName,
         bankAccountName: schema.recipients.bankAccountName,
@@ -95,7 +98,8 @@ export class TransferRepository {
         bankCode: schema.recipients.bankCode,
         phoneE164: schema.recipients.phoneE164,
         depositAddress: schema.depositRoutes.depositAddress,
-        depositMemo: schema.depositRoutes.depositMemo
+        depositMemo: schema.depositRoutes.depositMemo,
+        routeKind: schema.depositRoutes.routeKind
       })
       .from(schema.transfers)
       .innerJoin(schema.quotes, eq(schema.quotes.quoteId, schema.transfers.quoteId))
@@ -156,23 +160,47 @@ export class TransferRepository {
       );
   }
 
-  async findLatestPendingFundingSubmission(transferId: string): Promise<{ txHash: string; submittedAt: Date } | null> {
+  async findLatestFundingSubmissionAttempt(transferId: string): Promise<{
+    txHash: string;
+    chain: 'base' | 'solana';
+    status: 'submitted' | 'confirmed' | 'failed';
+    source: 'manual_copy_address' | 'wallet_pay' | 'unknown';
+    submittedAt: Date;
+    updatedAt: Date;
+  } | null> {
     const rows = await this.db
       .select({
         txHash: schema.fundingSubmissionAttempts.txHash,
-        submittedAt: schema.fundingSubmissionAttempts.submittedAt
+        chain: schema.fundingSubmissionAttempts.chain,
+        status: schema.fundingSubmissionAttempts.status,
+        metadata: schema.fundingSubmissionAttempts.metadata,
+        submittedAt: schema.fundingSubmissionAttempts.submittedAt,
+        updatedAt: schema.fundingSubmissionAttempts.updatedAt
       })
       .from(schema.fundingSubmissionAttempts)
-      .where(
-        and(
-          eq(schema.fundingSubmissionAttempts.transferId, transferId),
-          eq(schema.fundingSubmissionAttempts.status, 'submitted')
-        )
-      )
-      .orderBy(desc(schema.fundingSubmissionAttempts.submittedAt))
+      .where(eq(schema.fundingSubmissionAttempts.transferId, transferId))
+      .orderBy(desc(schema.fundingSubmissionAttempts.updatedAt))
       .limit(1);
 
-    return rows[0] ?? null;
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+
+    const sourceRaw = (row.metadata as { source?: unknown } | null | undefined)?.source;
+    const source =
+      sourceRaw === 'manual_copy_address' || sourceRaw === 'wallet_pay'
+        ? sourceRaw
+        : 'unknown';
+
+    return {
+      txHash: row.txHash,
+      chain: row.chain,
+      status: row.status,
+      source,
+      submittedAt: row.submittedAt,
+      updatedAt: row.updatedAt
+    };
   }
 
   async listTransitions(transferId: string): Promise<Array<{ fromState: string | null; toState: string; occurredAt: Date }>> {
@@ -187,8 +215,15 @@ export class TransferRepository {
       .orderBy(asc(schema.transferTransitions.occurredAt));
   }
 
-  async findFunding(transferId: string): Promise<{ eventId: string; txHash: string; amountUsd: string; confirmedAt: Date } | null> {
-    const rows = await this.db
+  async findFunding(transferId: string): Promise<{
+    eventId: string;
+    txHash: string;
+    amountUsd: string;
+    confirmedAt: Date;
+    amountDecision: string | null;
+  } | null> {
+    const [rows, transitionRows] = await Promise.all([
+      this.db
       .select({
         eventId: schema.onchainFundingEvents.eventId,
         txHash: schema.onchainFundingEvents.txHash,
@@ -197,9 +232,35 @@ export class TransferRepository {
       })
       .from(schema.onchainFundingEvents)
       .where(eq(schema.onchainFundingEvents.transferId, transferId))
-      .limit(1);
+      .limit(1),
+      this.db
+        .select({
+          metadata: schema.transferTransitions.metadata
+        })
+        .from(schema.transferTransitions)
+        .where(
+          and(
+            eq(schema.transferTransitions.transferId, transferId),
+            eq(schema.transferTransitions.toState, 'FUNDING_CONFIRMED')
+          )
+        )
+        .orderBy(desc(schema.transferTransitions.occurredAt))
+        .limit(1)
+    ]);
 
-    return rows[0] ?? null;
+    const fundingRow = rows[0];
+    if (!fundingRow) {
+      return null;
+    }
+
+    const amountDecisionRaw = (transitionRows[0]?.metadata as { amountDecision?: unknown } | null | undefined)
+      ?.amountDecision;
+    const amountDecision = typeof amountDecisionRaw === 'string' ? amountDecisionRaw : null;
+
+    return {
+      ...fundingRow,
+      amountDecision
+    };
   }
 
   async findPayout(transferId: string): Promise<

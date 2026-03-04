@@ -114,11 +114,13 @@ const transferCreateSchema = z.object({
 });
 
 const transferSolanaPaymentSchema = z.object({
-  txHash: z.string().min(1)
+  txHash: z.string().min(1),
+  submissionSource: z.enum(['manual_copy_address', 'wallet_pay']).optional()
 });
 
 const transferBasePaymentSchema = z.object({
-  txHash: z.string().min(1)
+  txHash: z.string().min(1),
+  submissionSource: z.enum(['manual_copy_address', 'wallet_pay']).optional()
 });
 
 const transferListQuerySchema = z.object({

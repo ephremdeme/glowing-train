@@ -1,6 +1,7 @@
 import type { AuthClaims } from '@cryptopay/auth';
 import { query } from '@cryptopay/db';
 import { deny, withIdempotency } from '@cryptopay/http';
+import { createServiceLogger } from '@cryptopay/observability';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { FundingConfirmationService } from '../modules/funding-confirmations/index.js';
 import { TransferRepository } from '../modules/transfers/repository.js';
@@ -78,7 +79,20 @@ function isCollectorVerifyBasePaymentPayload(value: unknown): value is Collector
 }
 
 type SupportedPaymentChain = 'solana' | 'base';
+type PaymentSubmissionSource = 'manual_copy_address' | 'wallet_pay';
 type CollectorVerifyPaymentPayload = CollectorVerifySolanaPaymentPayload | CollectorVerifyBasePaymentPayload;
+
+const logger = createServiceLogger({ service: 'core-api' });
+
+const COLLECTOR_MANUAL_ERROR_MESSAGES: Record<string, string> = {
+  TX_NOT_FOUND: 'Transaction not found yet on-chain. Wait a moment and retry verification.',
+  TX_FAILED: 'Transaction failed on-chain and cannot fund this transfer.',
+  INVALID_TRANSFER_CHAIN: 'Transaction was submitted to a mismatched chain endpoint.',
+  DEPOSIT_ADDRESS_MISMATCH: 'Transaction does not fund this transfer address.',
+  MINT_MISMATCH: 'Transaction token does not match this transfer token.',
+  TREASURY_ATA_MISMATCH: 'Transaction destination account does not match this transfer route.',
+  AMOUNT_MISMATCH: 'Transaction amount does not match the expected transfer funding amount.'
+};
 
 function parseCollectorVerifyPaymentPayload(
   chain: SupportedPaymentChain,
@@ -89,6 +103,10 @@ function parseCollectorVerifyPaymentPayload(
   }
 
   return isCollectorVerifyBasePaymentPayload(value) ? value : null;
+}
+
+function resolveSubmissionSource(value: unknown): PaymentSubmissionSource {
+  return value === 'wallet_pay' ? 'wallet_pay' : 'manual_copy_address';
 }
 
 export function registerTransferRoutes(
@@ -115,6 +133,13 @@ export function registerTransferRoutes(
     fundingService
   } = deps;
   const repository = new TransferRepository();
+
+  const toFundingMode = (chain: string, routeKind: string | null): 'copy_address_auto' | 'program_pay_legacy' => {
+    if (chain === 'solana' && routeKind === 'solana_program_pay') {
+      return 'program_pay_legacy';
+    }
+    return 'copy_address_auto';
+  };
 
   app.get('/v1/transfers', async (request, reply) => {
     let claims: AuthClaims;
@@ -198,11 +223,11 @@ export function registerTransferRoutes(
       });
     }
 
-    const [transitions, funding, payout, pendingFundingSubmission] = await Promise.all([
+    const [transitions, funding, payout, latestFundingSubmission] = await Promise.all([
       repository.listTransitions(transferId),
       repository.findFunding(transferId),
       repository.findPayout(transferId),
-      repository.findLatestPendingFundingSubmission(transferId)
+      repository.findLatestFundingSubmissionAttempt(transferId)
     ]);
 
     return reply.send({
@@ -217,7 +242,9 @@ export function registerTransferRoutes(
         status: transfer.status,
         createdAt: transfer.createdAt.toISOString(),
         depositAddress: transfer.depositAddress,
-        depositMemo: transfer.depositMemo
+        depositMemo: transfer.depositMemo,
+        routeKind: transfer.routeKind ?? 'address_route',
+        fundingMode: toFundingMode(transfer.chain, transfer.routeKind ?? null)
       },
       quote: {
         quoteId: transfer.quoteId,
@@ -239,7 +266,8 @@ export function registerTransferRoutes(
             eventId: funding.eventId,
             txHash: funding.txHash,
             amountUsd: Number(funding.amountUsd),
-            confirmedAt: funding.confirmedAt.toISOString()
+            confirmedAt: funding.confirmedAt.toISOString(),
+            amountDecision: funding.amountDecision
           }
         : null,
       payout: payout
@@ -252,10 +280,20 @@ export function registerTransferRoutes(
             updatedAt: payout.updatedAt.toISOString()
           }
         : null,
-      pendingFundingSubmission: pendingFundingSubmission
+      pendingFundingSubmission: latestFundingSubmission?.status === 'submitted'
         ? {
-            txHash: pendingFundingSubmission.txHash,
-            submittedAt: pendingFundingSubmission.submittedAt.toISOString()
+            txHash: latestFundingSubmission.txHash,
+            submittedAt: latestFundingSubmission.submittedAt.toISOString()
+          }
+        : null,
+      latestFundingSubmission: latestFundingSubmission
+        ? {
+            txHash: latestFundingSubmission.txHash,
+            chain: latestFundingSubmission.chain,
+            status: latestFundingSubmission.status,
+            source: latestFundingSubmission.source,
+            submittedAt: latestFundingSubmission.submittedAt.toISOString(),
+            updatedAt: latestFundingSubmission.updatedAt.toISOString()
           }
         : null,
       transitions: transitions.map((row) => ({
@@ -390,6 +428,7 @@ export function registerTransferRoutes(
           details: parsed.error.issues
         });
       }
+      const submissionSource = resolveSubmissionSource(parsed.data.submissionSource);
 
       let key: string;
       try {
@@ -438,7 +477,12 @@ export function registerTransferRoutes(
         scope: params.idempotencyScope,
         idempotencyKey: key,
         requestId: request.id,
-        requestPayload: { transferId, txHash: parsed.data.txHash, customerId: claims.sub },
+        requestPayload: {
+          transferId,
+          txHash: parsed.data.txHash,
+          customerId: claims.sub,
+          submissionSource
+        },
         execute: async () => {
           if (transfer.status === 'AWAITING_FUNDING') {
             await repository.recordFundingSubmissionAttempt({
@@ -446,7 +490,7 @@ export function registerTransferRoutes(
               chain: params.chain,
               txHash: parsed.data.txHash,
               metadata: {
-                source: 'customer_submit'
+                source: submissionSource
               }
             });
           }
@@ -480,6 +524,14 @@ export function registerTransferRoutes(
               collectorCode &&
               params.pendingVerifyErrorCodes.has(collectorCode)
             ) {
+              logger.info('transfer.payment.pending_verification', {
+                transferId,
+                chain: params.chain,
+                txHash: parsed.data.txHash,
+                submissionSource,
+                collectorStatus: collectorResponse.status,
+                collectorCode
+              });
               return {
                 status: 202,
                 body: {
@@ -496,12 +548,25 @@ export function registerTransferRoutes(
                 transferId,
                 txHash: parsed.data.txHash,
                 metadata: {
-                  source: 'customer_submit',
+                  source: submissionSource,
                   collectorStatus: collectorResponse.status,
                   collectorCode
                 }
               });
             }
+
+            if (collectorCode && COLLECTOR_MANUAL_ERROR_MESSAGES[collectorCode] && errorPayload.error) {
+              errorPayload.error.message = COLLECTOR_MANUAL_ERROR_MESSAGES[collectorCode];
+            }
+
+            logger.warn('transfer.payment.verification_failed', {
+              transferId,
+              chain: params.chain,
+              txHash: parsed.data.txHash,
+              submissionSource,
+              collectorStatus: collectorResponse.status,
+              collectorCode
+            });
 
             return {
               status: collectorResponse.status,
@@ -516,7 +581,7 @@ export function registerTransferRoutes(
                 transferId,
                 txHash: parsed.data.txHash,
                 metadata: {
-                  source: 'customer_submit',
+                  source: submissionSource,
                   collectorStatus: collectorResponse.status,
                   collectorCode: 'INVALID_CONFIRMED_AT'
                 }
@@ -548,12 +613,44 @@ export function registerTransferRoutes(
               payerAddress: verifiedCollectorPayload.payerAddress ?? null,
               paymentId: verifiedCollectorPayload.paymentId ?? null,
               referenceHash: verifiedCollectorPayload.referenceHash ?? null,
-              verificationSource: params.verificationSource
+              verificationSource: params.verificationSource,
+              submissionSource
             }
           });
 
           const latest = await repository.findDetailForSender({ transferId, senderId: claims.sub });
           const backendStatus = latest?.status ?? transfer.status;
+
+          if (fundingResult.status === 'amount_underpaid') {
+            return {
+              status: 409,
+              body: {
+                error: {
+                  code: 'AMOUNT_UNDERPAID',
+                  message: 'Payment was detected but the funded amount is lower than the transfer amount.'
+                },
+                transferId,
+                txHash: verifiedCollectorPayload.txHash,
+                backendStatus
+              }
+            };
+          }
+
+          if (fundingResult.status === 'amount_over_limit') {
+            return {
+              status: 409,
+              body: {
+                error: {
+                  code: 'AMOUNT_OVER_LIMIT',
+                  message: 'Payment was detected but exceeds the automatic funding limit for this transfer.'
+                },
+                transferId,
+                txHash: verifiedCollectorPayload.txHash,
+                backendStatus
+              }
+            };
+          }
+
           const resultLabel =
             fundingResult.status === 'confirmed'
               ? 'confirmed'
@@ -561,12 +658,26 @@ export function registerTransferRoutes(
                 ? 'duplicate'
                 : 'pending_verification';
 
+          logger.info('transfer.payment.verification_result', {
+            transferId,
+            chain: params.chain,
+            txHash: verifiedCollectorPayload.txHash,
+            depositAddress: verifiedCollectorPayload.depositAddress,
+            submissionSource,
+            fundingResult: fundingResult.status,
+            amountDecision: fundingResult.amountDecision ?? null,
+            backendStatus
+          });
+
+          const code = fundingResult.amountDecision === 'overpay_adjusted' ? 'FUNDING_AMOUNT_ADJUSTED' : undefined;
+
           return {
             status: fundingResult.status === 'confirmed' ? 202 : 200,
             body: {
               result: resultLabel,
               transferId,
               txHash: verifiedCollectorPayload.txHash,
+              ...(code ? { code } : {}),
               backendStatus
             }
           };

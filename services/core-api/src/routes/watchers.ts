@@ -50,7 +50,7 @@ app.get('/internal/v1/watchers/routes', async (request, reply) => {
 
   const rows = await query(
     `
-    select token, deposit_address as "depositAddress"
+    select transfer_id as "transferId", token, deposit_address as "depositAddress"
     from deposit_routes
     where chain = $1
       and status = 'active'
