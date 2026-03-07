@@ -80,6 +80,8 @@ const config: Config = {
         'glow-sm': '0 0 12px hsl(42 92% 56% / 0.1)',
         'glow-blue': '0 0 20px hsl(220 70% 55% / 0.15), 0 0 60px hsl(220 70% 55% / 0.08)',
         'inner-glass': 'inset 0 1px 0 0 rgba(255,255,255,0.06), inset 0 -1px 0 0 rgba(0,0,0,0.1)',
+        'apple': '0 0 0 0.5px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px -4px rgba(0,0,0,0.07)',
+        'apple-hover': '0 0 0 0.5px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.05), 0 8px 24px -6px rgba(0,0,0,0.09)',
       },
       keyframes: {
         'fade-up': {

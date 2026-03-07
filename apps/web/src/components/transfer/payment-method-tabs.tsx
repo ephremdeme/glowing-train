@@ -31,7 +31,7 @@ export function PaymentMethodTabs({ children, defaultTab = 'address' }: PaymentM
     return (
         <div className="grid gap-4">
             {/* Tab bar */}
-            <div className="flex rounded-xl border border-border/60 bg-muted/30 p-1" role="tablist">
+            <div className="flex rounded-xl border border-border/80 bg-muted/50 p-1 dark:border-border/60 dark:bg-muted/30" role="tablist">
                 {TAB_META.map(({ id, label, icon: Icon }) => (
                     <button
                         key={id}
@@ -39,8 +39,8 @@ export function PaymentMethodTabs({ children, defaultTab = 'address' }: PaymentM
                         aria-selected={active === id}
                         onClick={() => setActive(id)}
                         className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all ${active === id
-                                ? 'bg-background text-primary shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
+                            ? 'bg-white text-primary shadow-sm dark:bg-background'
+                            : 'text-muted-foreground hover:text-foreground'
                             }`}
                     >
                         <Icon className="h-3.5 w-3.5" />

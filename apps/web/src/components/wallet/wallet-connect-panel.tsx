@@ -185,10 +185,10 @@ function RealSolanaWalletPanel({ onStateChange }: Pick<WalletConnectPanelProps, 
   }, [connected, onStateChange, publicKey, wallet?.adapter?.name]);
 
   return (
-    <Card className="border-secondary/30">
+    <Card className="border-violet-500/30">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <Wallet className="h-4 w-4 text-secondary" />
+          <Wallet className="h-4 w-4 text-violet-600 dark:text-violet-400" />
           Solana Wallet
         </CardTitle>
       </CardHeader>

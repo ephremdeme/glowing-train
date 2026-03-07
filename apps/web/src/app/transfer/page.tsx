@@ -236,7 +236,7 @@ function TransferPageContent() {
 
         {transfer && quote && !paymentConfirmed ? (
           <div className="grid gap-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-green-700">
+            <div className="flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
               <CheckCircle className="h-4 w-4" />
               Transfer created successfully
             </div>
@@ -255,8 +255,8 @@ function TransferPageContent() {
         {paymentConfirmed && transfer ? (
           <div className="grid gap-4">
             <div className="rounded-2xl border border-green-600/30 bg-green-500/10 p-6 text-center">
-              <CheckCircle className="mx-auto mb-3 h-10 w-10 text-green-500" />
-              <h2 className="text-xl font-semibold">Payment received!</h2>
+              <CheckCircle className="mx-auto mb-3 h-10 w-10 text-green-600 dark:text-green-500" />
+              <h2 className="text-xl font-semibold text-foreground">Payment received!</h2>
               <p className="mt-1 text-sm text-muted-foreground">Your deposit is confirmed. Redirecting to transfer status...</p>
             </div>
             <Button onClick={() => router.push(`/transfers/${transfer.transferId}` as Route)}>

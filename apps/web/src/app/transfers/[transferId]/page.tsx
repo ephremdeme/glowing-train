@@ -100,10 +100,10 @@ export default function TransferStatusPage() {
     <RouteGuard requireAuth>
       <div className="grid gap-6">
         <section>
-          <Card className="overflow-hidden border-border/70 bg-gradient-to-br from-background via-background to-primary/5">
+          <Card className="overflow-hidden border-border/50 shadow-apple dark:border-border/70 dark:bg-gradient-to-br dark:from-background dark:via-background dark:to-primary/5 dark:shadow-none">
             <CardContent className="relative p-6 md:p-7">
-              <div className="pointer-events-none absolute -left-20 -top-20 h-52 w-52 rounded-full bg-primary/10 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-16 right-0 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl" />
+              <div className="pointer-events-none absolute -left-20 -top-20 h-52 w-52 rounded-full bg-primary/[0.12] blur-3xl dark:bg-primary/10" />
+              <div className="pointer-events-none absolute -bottom-16 right-0 h-48 w-48 rounded-full bg-emerald-500/[0.08] blur-3xl dark:bg-emerald-500/10" />
               <div className="relative grid gap-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="grid gap-1.5">
@@ -154,7 +154,7 @@ export default function TransferStatusPage() {
 
         {data ? (
           <>
-            <Card className="border-border/70 bg-gradient-to-br from-card via-card to-muted/10">
+            <Card className="border-border/50 bg-background shadow-apple dark:border-border/70 dark:bg-card dark:shadow-none">
               <CardHeader>
                 <CardTitle className="text-lg">Amount summary</CardTitle>
                 <CardDescription>
@@ -162,7 +162,7 @@ export default function TransferStatusPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-xl border border-border/60 bg-background/80 p-4">
+                <div className="rounded-xl border border-border/50 bg-muted/30 p-4 dark:border-border/60 dark:bg-background/80">
                   <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-600 dark:text-zinc-400">
                     Expected funding
                   </p>
@@ -170,7 +170,7 @@ export default function TransferStatusPage() {
                     {formatStableAmount(data.transfer.sendAmountUsd, data.transfer.token)}
                   </p>
                 </div>
-                <div className="rounded-xl border border-border/60 bg-background/80 p-4">
+                <div className="rounded-xl border border-border/50 bg-muted/30 p-4 dark:border-border/60 dark:bg-background/80">
                   <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-600 dark:text-zinc-400">
                     Funded on-chain
                   </p>
@@ -188,7 +188,7 @@ export default function TransferStatusPage() {
                     </p>
                   ) : null}
                 </div>
-                <div className="rounded-xl border border-border/60 bg-background/80 p-4">
+                <div className="rounded-xl border border-border/50 bg-muted/30 p-4 dark:border-border/60 dark:bg-background/80">
                   <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-600 dark:text-zinc-400">
                     Recipient payout
                   </p>
@@ -202,7 +202,7 @@ export default function TransferStatusPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-border/50 bg-white shadow-apple dark:border-border/70 dark:bg-card dark:shadow-none">
               <CardHeader>
                 <CardTitle className="text-lg">Progress timeline</CardTitle>
               </CardHeader>
@@ -211,18 +211,18 @@ export default function TransferStatusPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-border/50 bg-white shadow-apple dark:border-border/70 dark:bg-card dark:shadow-none">
               <CardHeader>
                 <CardTitle className="text-lg">Transfer details</CardTitle>
                 <CardDescription>Route, funding mode, and latest status signals for support and tracking.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 text-sm">
                 <div className="grid gap-2 md:grid-cols-2">
-                  <div className="grid gap-1 rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
+                  <div className="grid gap-1 rounded-xl border border-border/50 bg-muted/30 px-4 py-3 dark:border-border/60 dark:bg-muted/20">
                     <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Backend status</p>
                     <p className="font-semibold text-zinc-900 dark:text-zinc-100">{data.backendStatus}</p>
                   </div>
-                  <div className="grid gap-1 rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
+                  <div className="grid gap-1 rounded-xl border border-border/50 bg-muted/30 px-4 py-3 dark:border-border/60 dark:bg-muted/20">
                     <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Deposit route</p>
                     <p className="font-semibold text-zinc-900 dark:text-zinc-100">
                       {data.transfer.routeKind.replaceAll('_', ' ')}
@@ -230,13 +230,13 @@ export default function TransferStatusPage() {
                   </div>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
-                  <div className="grid gap-1 rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
+                  <div className="grid gap-1 rounded-xl border border-border/50 bg-muted/30 px-4 py-3 dark:border-border/60 dark:bg-muted/20">
                     <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Funding mode</p>
                     <p className="font-semibold text-zinc-900 dark:text-zinc-100">
                       {data.transfer.fundingMode.replaceAll('_', ' ')}
                     </p>
                   </div>
-                  <div className="grid gap-1 rounded-xl border border-border/60 bg-muted/20 px-4 py-3">
+                  <div className="grid gap-1 rounded-xl border border-border/50 bg-muted/30 px-4 py-3 dark:border-border/60 dark:bg-muted/20">
                     <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Last update</p>
                     <p className="font-semibold text-zinc-900 dark:text-zinc-100">
                       {new Date(data.transitions[data.transitions.length - 1]?.occurredAt ?? data.transfer.createdAt).toLocaleString()}
@@ -278,7 +278,7 @@ export default function TransferStatusPage() {
                   data.transitions.map((item, index) => (
                     <div
                       key={`${item.toState}-${index}`}
-                      className="grid gap-1 rounded-xl border border-border/60 bg-muted/10 px-4 py-3 text-sm md:grid-cols-[1fr,24px,1fr,auto] md:items-center"
+                      className="grid gap-1 rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-sm dark:border-border/60 dark:bg-muted/10 md:grid-cols-[1fr,24px,1fr,auto] md:items-center"
                     >
                       <span className="text-zinc-700 dark:text-zinc-300">{item.fromState ?? '—'}</span>
                       <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />

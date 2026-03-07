@@ -44,7 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex min-h-screen flex-col bg-background">
       {/* ── Header ── */}
-      <header className="sticky top-0 z-40 border-b border-border/30 bg-background/60 backdrop-blur-2xl">
+      <header className="sticky top-0 z-40 border-b border-border/40 bg-white/80 backdrop-blur-2xl dark:border-border/30 dark:bg-background/60">
         <div className="container flex h-16 items-center justify-between gap-4">
           {/* Logo */}
           <Link href={'/' as Route} className="flex items-center gap-2.5 group">
@@ -93,7 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <span className="hidden text-sm font-medium text-foreground sm:inline">{session.fullName ?? shortId ?? 'Account'}</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-card border-border/50 backdrop-blur-xl">
+                <DropdownMenuContent align="end" className="bg-white border-border/40 shadow-apple-lg dark:bg-card dark:border-border/50 dark:backdrop-blur-xl">
                   <DropdownMenuItem disabled className="flex flex-col items-start gap-0.5 py-2">
                     <span className="text-xs font-medium text-foreground">{identityPrimary}</span>
                     {identitySecondary ? <span className="text-[11px] text-muted-foreground">{identitySecondary}</span> : null}
@@ -151,7 +151,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="overflow-hidden border-t border-border/20 bg-card/95 backdrop-blur-xl md:hidden"
+              className="overflow-hidden border-t border-border/30 bg-white/95 backdrop-blur-xl md:hidden dark:border-border/20 dark:bg-card/95"
             >
               <div className="px-4 pb-4 pt-2">
                 {navLinks.map((link, i) => (
@@ -186,7 +186,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-border/20 bg-card/30">
+      <footer className="border-t border-border/30 bg-muted/30 dark:border-border/20 dark:bg-card/30">
         <div className="container py-12">
           <div className="grid gap-10 md:grid-cols-4">
             {/* Brand */}
@@ -205,7 +205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             {/* Product */}
             <div>
-              <h4 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground/60">
+              <h4 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
                 Product
               </h4>
               <ul className="grid gap-2.5">
@@ -224,7 +224,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             {/* Legal */}
             <div>
-              <h4 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground/60">
+              <h4 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
                 Legal
               </h4>
               <ul className="grid gap-2.5">
@@ -245,10 +245,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mt-10 h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
 
           <div className="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <p className="text-xs text-muted-foreground/50">
+            <p className="text-xs text-muted-foreground/70">
               © {new Date().getFullYear()} CryptoPay. All rights reserved.
             </p>
-            <p className="text-xs text-muted-foreground/40">
+            <p className="text-xs text-muted-foreground/60">
               CryptoPay is not a bank and does not hold customer funds.
             </p>
           </div>

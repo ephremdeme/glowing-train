@@ -143,7 +143,7 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
   }
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-card p-6 shadow-lg sm:p-8">
+    <div className="rounded-2xl border border-border/50 bg-white p-6 shadow-apple-lg sm:p-8 dark:bg-card dark:shadow-lg">
       <div className="grid gap-5">
         {/* ── Top network toggle ── */}
         <div className="flex items-center justify-between">
@@ -161,7 +161,7 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
           <span className="mb-2.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
             You pay
           </span>
-          <div className="rounded-xl bg-muted/50 p-4 transition-colors focus-within:bg-muted focus-within:ring-0 focus-within:outline-none focus-within:border-transparent focus-within:shadow-none">
+          <div className="rounded-xl bg-muted/40 p-4 transition-colors focus-within:bg-muted/60 focus-within:ring-0 focus-within:outline-none focus-within:border-transparent focus-within:shadow-none dark:bg-muted/50 dark:focus-within:bg-muted">
             <div className="flex items-center justify-between gap-3">
               <input
                 id="landingSendUsd"
@@ -227,7 +227,7 @@ export function HeroConverter({ hasSession, onMessage }: HeroConverterProps) {
           <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/60">
             They receive
           </span>
-          <div className="group rounded-3xl bg-muted/80 p-5 transition-colors focus-within:bg-muted focus-within:ring-0 focus-within:outline-none focus-within:border-transparent focus-within:shadow-none">
+          <div className="group rounded-3xl bg-muted/40 p-5 transition-colors focus-within:bg-muted/60 focus-within:ring-0 focus-within:outline-none focus-within:border-transparent focus-within:shadow-none dark:bg-muted/80 dark:focus-within:bg-muted">
             <div className="flex items-center justify-between gap-3">
               <input
                 aria-label="They receive (ETB)"

@@ -24,7 +24,7 @@ const DEVNET_DEFAULTS = {
 
 interface SolanaVerificationConfig {
   rpcUrl: string;
-  programId: string;
+  programId: string | null;
   mintByToken: Record<SupportedToken, string>;
   treasuryAtaByToken: Record<SupportedToken, string>;
 }
@@ -78,7 +78,7 @@ function readVerificationConfig(): SolanaVerificationConfig {
   const usdtTreasuryAta =
     firstEnv(['SOLANA_USDT_TREASURY_ATA', 'NEXT_PUBLIC_SOLANA_USDT_TREASURY_ATA']) ?? (useDevnetDefaults ? DEVNET_DEFAULTS.usdtTreasuryAta : null);
 
-  if (!programId || !usdcMint || !usdtMint || !usdcTreasuryAta || !usdtTreasuryAta) {
+  if (!usdcMint || !usdtMint || !usdcTreasuryAta || !usdtTreasuryAta) {
     throw new SolanaPaymentVerificationError('Solana payment verification config is incomplete.', {
       code: 'SOLANA_VERIFY_CONFIG_MISSING',
       status: 503
@@ -255,9 +255,16 @@ export class SolanaPaymentVerificationService {
       ? expectedTreasuryAta
       : depositRoute.depositAddress;
     const accountKeys = this.readAccountKeys(parsedTx);
-    const decoded = depositRoute.routeKind === 'solana_program_pay'
-      ? this.findDecodedPayInstruction(parsedTx, config.programId)
-      : null;
+    let decoded: DecodedPayInstruction | null = null;
+    if (depositRoute.routeKind === 'solana_program_pay') {
+      if (!config.programId) {
+        throw new SolanaPaymentVerificationError('Program ID is required to verify legacy routes but is not configured.', {
+          code: 'SOLANA_VERIFY_CONFIG_MISSING',
+          status: 503
+        });
+      }
+      decoded = this.findDecodedPayInstruction(parsedTx, config.programId);
+    }
 
     let referenceHash: string | undefined;
     let paymentId: string | undefined;

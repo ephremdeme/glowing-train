@@ -3,64 +3,56 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════
-   CryptoPay Design System — Dual Mode
-   Light: Platinum surfaces with gold accents
-   Dark:  Deep obsidian surfaces with gold accents
+   CryptoPay Design System — Apple-Level Dual Mode
+   Light: Warm ivory / amber-gold — luminous depth
+   Dark:  Deep obsidian / amber-gold — glass depth
    ═══════════════════════════════════════════════ */
-
-@property --mesh-a {
-  syntax: '<color>';
-  inherits: false;
-  initial-value: hsl(42 80% 55% / 0.12);
-}
-
-@property --mesh-b {
-  syntax: '<color>';
-  inherits: false;
-  initial-value: hsl(220 60% 50% / 0.08);
-}
 
 @layer base {
   :root {
-    /* ── Light Mode (Platinum/Gold) ── */
-    --background: 210 20% 98%;
-    /* Very light cool gray */
-    --foreground: 220 14% 10%;
-    /* Deep slate text */
+    /* ── Light Mode ── */
+    /* Warm ivory background — Apple's "lit from above" feel */
+    --background: 40 25% 98.5%;
+    --foreground: 24 10% 10%;
 
-    --card: 0 0% 100%;
-    /* White cards */
-    --card-foreground: 220 14% 10%;
+    /* Cards: Pure white with warmth */
+    --card: 40 20% 99.5%;
+    --card-foreground: 24 10% 10%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 14% 10%;
+    --popover: 40 20% 99.5%;
+    --popover-foreground: 24 10% 10%;
 
-    --muted: 220 14% 96%;
-    /* Subtle gray surface */
-    --muted-foreground: 220 8% 46%;
+    /* Muted: Warm light gray, not cool */
+    --muted: 36 14% 95%;
+    --muted-foreground: 24 6% 44%;
 
-    --primary: 42 92% 50%;
-    /* Gold accent (slightly darker for contrast) */
+    /* Primary: Rich amber-gold — darker for WCAG AA on white */
+    --primary: 38 92% 44%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 94%;
-    --secondary-foreground: 220 14% 10%;
+    --secondary: 36 12% 93%;
+    --secondary-foreground: 24 10% 12%;
 
-    --accent: 42 80% 96%;
-    /* Very light gold wash */
-    --accent-foreground: 42 92% 40%;
+    /* Accent: Warm gold wash */
+    --accent: 38 60% 95%;
+    --accent-foreground: 38 80% 32%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 42 92% 50%;
+    /* Semantic colors */
+    --success: 152 69% 31%;
+    --warning: 38 92% 44%;
+
+    /* Borders: Warm, visible but refined */
+    --border: 36 12% 88%;
+    --input: 36 12% 88%;
+    --ring: 38 92% 44%;
 
     --radius: 0.875rem;
 
-    /* Shadows for light mode */
-    --shadow-glow: 0 0 20px hsl(42 92% 50% / 0.15), 0 0 40px hsl(42 92% 50% / 0.1);
+    /* Light mode glow is warm and golden */
+    --shadow-glow: 0 0 24px hsl(38 92% 50% / 0.12), 0 0 48px hsl(38 92% 50% / 0.06);
   }
 
   .dark {
@@ -89,11 +81,14 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
+    /* Semantic colors */
+    --success: 152 69% 40%;
+    --warning: 42 92% 56%;
+
     --border: 225 10% 15%;
     --input: 225 10% 13%;
     --ring: 42 92% 56%;
 
-    /* Shadows for dark mode */
     --shadow-glow: 0 0 20px hsl(42 92% 56% / 0.15), 0 0 60px hsl(42 92% 56% / 0.08);
   }
 }
@@ -125,33 +120,25 @@ body {
 }
 
 /* ── Noise texture overlay ── */
+/* Subtle in light, slightly more visible in dark */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: 9999;
   pointer-events: none;
-  opacity: 0.025;
+  opacity: 0.012;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-repeat: repeat;
   background-size: 128px 128px;
 }
 
-/* ── Mesh gradient ambient background ── */
-/* Only show in dark mode for maximum effect */
-.dark body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 70% 50% at 15% 15%, hsl(42 80% 55% / 0.06), transparent),
-    radial-gradient(ellipse 60% 40% at 85% 20%, hsl(220 60% 50% / 0.05), transparent),
-    radial-gradient(ellipse 50% 60% at 50% 80%, hsl(280 40% 50% / 0.03), transparent);
+.dark body::before {
+  opacity: 0.025;
 }
 
-/* Light mode gradient - subtle */
+/* ── Ambient body gradient — "Lit from above" ── */
+/* Light mode: Warm peach-gold wash from top, cool blue hint at bottom */
 body::after {
   content: '';
   position: fixed;
@@ -159,8 +146,17 @@ body::after {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, hsl(42 90% 60% / 0.04), transparent),
-    radial-gradient(ellipse 50% 50% at 50% 120%, hsl(220 60% 60% / 0.03), transparent);
+    radial-gradient(ellipse 90% 40% at 50% -10%, hsl(38 80% 65% / 0.08), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 20% 50%, hsl(38 60% 70% / 0.04), transparent 70%),
+    radial-gradient(ellipse 50% 50% at 80% 90%, hsl(220 50% 60% / 0.03), transparent 70%);
+}
+
+/* Dark mode: Deeper, moodier gradient */
+.dark body::after {
+  background:
+    radial-gradient(ellipse 70% 50% at 15% 15%, hsl(42 80% 55% / 0.06), transparent),
+    radial-gradient(ellipse 60% 40% at 85% 20%, hsl(220 60% 50% / 0.05), transparent),
+    radial-gradient(ellipse 50% 60% at 50% 80%, hsl(280 40% 50% / 0.03), transparent);
 }
 
 main {
@@ -214,10 +210,10 @@ select {
   @apply text-foreground;
 }
 
-/* ── Selection ── */
+/* ── Selection — tuned per mode ── */
 ::selection {
-  background: hsl(42 92% 56% / 0.25);
-  color: hsl(40 10% 95%);
+  background: hsl(38 92% 50% / 0.18);
+  color: hsl(24 10% 10%);
 }
 
 .dark ::selection {
@@ -225,42 +221,43 @@ select {
   color: hsl(40 10% 95%);
 }
 
-::selection {
-  background: hsl(42 92% 50% / 0.2);
-  color: hsl(220 14% 10%);
-}
-
-
-/* ── Glass utility ── */
+/* ── Glass utility — Apple-level refinement ── */
 .glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.03),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 12px -2px rgba(0, 0, 0, 0.06);
 }
 
 .dark .glass {
   background: hsl(225 16% 7% / 0.6);
   border: 1px solid hsl(225 10% 15% / 0.6);
+  box-shadow: none;
 }
 
+/* Apple-style multi-layer card shadow */
 .glass-card {
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(20px) saturate(1.3);
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(0, 0, 0, 0.05);
   box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.02),
-    0 4px 20px -8px rgba(0, 0, 0, 0.05);
+    0 0 0 0.5px rgba(0, 0, 0, 0.03),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 16px -4px rgba(0, 0, 0, 0.07);
 }
 
 .dark .glass-card {
   background: hsl(225 16% 8% / 0.5);
   border: 1px solid hsl(225 10% 18% / 0.4);
   box-shadow:
-    0 0 0 1px hsl(225 10% 20% / 0.1),
-    inset 0 1px 0 0 hsl(225 10% 25% / 0.08),
-    0 8px 40px -12px hsl(225 20% 4% / 0.5);
+    0 0 0 1px hsl(225 10% 20% / 0.08),
+    inset 0 1px 0 0 hsl(225 10% 25% / 0.06),
+    0 4px 24px -8px hsl(225 20% 4% / 0.4);
 }
 
 /* ── Gold glow ── */
@@ -272,7 +269,7 @@ select {
 
 /* ── Text gradient ── */
 .text-gradient-gold {
-  background: linear-gradient(135deg, hsl(42 92% 55%), hsl(35 85% 60%), hsl(42 92% 45%));
+  background: linear-gradient(135deg, hsl(38 85% 48%), hsl(28 80% 45%), hsl(38 90% 40%));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -280,6 +277,9 @@ select {
 
 .dark .text-gradient-gold {
   background: linear-gradient(135deg, hsl(42 92% 60%), hsl(35 85% 50%), hsl(42 92% 65%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 /* ── Stagger animation classes (CSS-only fallback) ── */
@@ -317,7 +317,7 @@ select {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(220 10% 80%);
+  background: hsl(36 10% 80%);
   border-radius: 999px;
 }
 
@@ -326,7 +326,7 @@ select {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(220 10% 70%);
+  background: hsl(36 10% 70%);
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {

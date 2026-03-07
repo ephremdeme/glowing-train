@@ -57,7 +57,7 @@ export function FlowProgress({ status, className = '' }: FlowProgressProps) {
                     ${isFailed && isCurrent
                       ? 'border-destructive bg-destructive/10 text-destructive'
                       : isPaid && step.key === 'PAID'
-                        ? 'border-green-500 bg-green-50 text-green-600 celebration-burst'
+                        ? 'border-green-500 bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400 celebration-burst'
                         : isComplete
                           ? 'border-primary bg-primary/10 text-primary'
                           : 'border-border bg-muted text-muted-foreground'
@@ -67,9 +67,8 @@ export function FlowProgress({ status, className = '' }: FlowProgressProps) {
                   <StepIcon className="h-4 w-4" />
                 </div>
                 <span
-                  className={`text-[10px] font-medium uppercase tracking-wider transition-colors ${
-                    isComplete ? 'text-foreground' : 'text-muted-foreground'
-                  }`}
+                  className={`text-[10px] font-medium uppercase tracking-wider transition-colors ${isComplete ? 'text-foreground' : 'text-muted-foreground'
+                    }`}
                 >
                   {step.label}
                 </span>
@@ -96,7 +95,7 @@ export function FlowProgress({ status, className = '' }: FlowProgressProps) {
                     ${isFailed && isCurrent
                       ? 'border-destructive bg-destructive/10 text-destructive'
                       : isPaid && step.key === 'PAID'
-                        ? 'border-green-500 bg-green-50 text-green-600 celebration-burst'
+                        ? 'border-green-500 bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400 celebration-burst'
                         : isComplete
                           ? 'border-primary bg-primary/10 text-primary'
                           : 'border-border bg-muted text-muted-foreground'
@@ -114,9 +113,8 @@ export function FlowProgress({ status, className = '' }: FlowProgressProps) {
               </div>
               <div className="pb-4">
                 <p
-                  className={`text-sm font-medium ${
-                    isComplete ? 'text-foreground' : 'text-muted-foreground'
-                  }`}
+                  className={`text-sm font-medium ${isComplete ? 'text-foreground' : 'text-muted-foreground'
+                    }`}
                 >
                   {step.label}
                 </p>

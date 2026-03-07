@@ -100,9 +100,9 @@ export function DepositInstructions({ transfer, onConfirmed }: DepositInstructio
 
       <CardContent className="grid gap-5">
         {/* Amount */}
-        <div className="grid gap-1.5 rounded-2xl border border-accent/25 bg-accent/5 p-5">
+        <div className="grid gap-1.5 rounded-2xl border border-primary/20 bg-primary/5 p-5 dark:border-accent/25 dark:bg-accent/5">
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Send amount</p>
-          <p className="text-3xl font-bold text-accent">
+          <p className="text-3xl font-bold text-primary dark:text-accent">
             {quote.sendAmountUsd} {quote.token}
           </p>
           <p className="text-sm text-muted-foreground">
@@ -130,10 +130,10 @@ export function DepositInstructions({ transfer, onConfirmed }: DepositInstructio
         <CountdownTimer expiresAt={quote.expiresAt} />
 
         {/* Safety alert */}
-        <Alert className="border-secondary/25 bg-secondary/5">
-          <ShieldAlert className="h-4 w-4 text-secondary" />
-          <AlertTitle className="text-secondary">Safety check</AlertTitle>
-          <AlertDescription className="text-sm text-muted-foreground">
+        <Alert className="border-orange-500/20 bg-orange-500/5 dark:border-orange-500/20 dark:bg-orange-500/10">
+          <ShieldAlert className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+          <AlertTitle className="text-orange-800 dark:text-orange-400">Safety check</AlertTitle>
+          <AlertDescription className="text-sm text-orange-800/80 dark:text-orange-200/70">
             Only send <strong>{quote.token}</strong> on the <strong>{quote.chain}</strong> network.
             Sending the wrong token or using the wrong chain may result in lost funds.
           </AlertDescription>
@@ -161,7 +161,7 @@ export function DepositInstructions({ transfer, onConfirmed }: DepositInstructio
               <div className="grid gap-3">
                 <CopyRow label={depositLabel} value={transfer.depositAddress} />
                 <Alert className="border-primary/20 bg-primary/5">
-                  <AlertTitle className="text-primary">Address funding enabled</AlertTitle>
+                  <AlertTitle className="text-primary dark:text-accent">Address funding enabled</AlertTitle>
                   <AlertDescription className="text-xs text-muted-foreground">
                     {isSolanaLegacyRoute
                       ? 'For this legacy Solana route, use Wallet pay for deterministic confirmation.'

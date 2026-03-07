@@ -79,10 +79,10 @@ function HistoryPageContent() {
   return (
     <div className="grid gap-6">
       <section>
-        <Card className="overflow-hidden border-border/70 bg-gradient-to-br from-background via-background to-primary/5">
+        <Card className="overflow-hidden border-border/50 bg-white shadow-apple dark:border-border/70 dark:bg-gradient-to-br dark:from-background dark:via-background dark:to-primary/5 dark:shadow-none">
           <CardContent className="relative p-6 md:p-7">
-            <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-primary/10 blur-2xl" />
-            <div className="pointer-events-none absolute -bottom-20 left-1/3 h-48 w-48 rounded-full bg-sky-500/10 blur-2xl" />
+            <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-primary/[0.12] blur-2xl dark:bg-primary/10" />
+            <div className="pointer-events-none absolute -bottom-20 left-1/3 h-48 w-48 rounded-full bg-sky-500/[0.08] blur-2xl dark:bg-sky-500/10" />
             <div className="relative flex flex-wrap items-center justify-between gap-4">
               <div className="grid gap-2">
                 <div className="flex items-center gap-3">
@@ -105,7 +105,7 @@ function HistoryPageContent() {
         </Card>
       </section>
 
-      <div className="rounded-2xl border border-border/70 bg-muted/20 p-3 md:p-4">
+      <div className="rounded-2xl border border-border/50 bg-white/80 p-3 shadow-sm dark:border-border/70 dark:bg-muted/20 dark:shadow-none md:p-4">
         <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-600 dark:text-zinc-400">
           <Filter className="h-3.5 w-3.5" />
           Filter by status
@@ -147,7 +147,7 @@ function HistoryPageContent() {
           const transferDate = new Date(row.createdAt);
           return (
             <Link key={row.transferId} href={`/transfers/${row.transferId}` as Route}>
-              <Card className="group cursor-pointer overflow-hidden border-border/70 bg-gradient-to-br from-card via-card to-muted/10 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg">
+              <Card className="group cursor-pointer overflow-hidden border-border/50 bg-white shadow-apple transition-[box-shadow,border-color,transform] duration-400 ease-[cubic-bezier(0.25,0.1,0.25,1)] hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-apple-hover dark:border-border/70 dark:bg-gradient-to-br dark:from-card dark:via-card dark:to-muted/10 dark:shadow-none dark:hover:border-border/50">
                 <CardContent className="grid gap-4 p-5 md:grid-cols-[1.1fr,1fr,auto] md:items-center">
                   <div className="grid gap-1.5">
                     <div className="flex flex-wrap items-center gap-2">
@@ -167,7 +167,7 @@ function HistoryPageContent() {
                     </p>
                   </div>
 
-                  <div className="grid gap-2 rounded-xl border border-border/60 bg-background/70 p-3">
+                  <div className="grid gap-2 rounded-xl border border-border/50 bg-muted/30 p-3 dark:border-border/60 dark:bg-background/70">
                     <div className="flex items-baseline justify-between gap-2">
                       <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-600 dark:text-zinc-400">Expected funding</p>
                       <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">

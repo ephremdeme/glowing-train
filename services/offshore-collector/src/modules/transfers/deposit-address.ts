@@ -319,6 +319,7 @@ export class Create2DepositStrategy implements DepositAddressStrategy {
 
             return derivedAddress.toBase58();
         } catch (error) {
+            if (error instanceof SolanaRouteProvisioningError) throw error;
             const message = error instanceof Error ? error.message : 'Unknown provisioning error';
             throw new SolanaRouteProvisioningError(
                 `Could not provision Solana unique deposit address: ${message}`

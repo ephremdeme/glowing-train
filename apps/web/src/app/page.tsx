@@ -52,12 +52,12 @@ function LiveRateTicker() {
           setSeconds(0);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     const interval = setInterval(() => {
       if (mounted) setSeconds((s) => s + 1);
     }, 1000);
-    
+
     return () => {
       mounted = false;
       clearInterval(interval);
@@ -71,16 +71,16 @@ function LiveRateTicker() {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.5, duration: 0.6 }}
-      className="inline-flex items-center gap-2.5 rounded-full border border-emerald-500/20 bg-emerald-500/[0.06] px-4 py-2 backdrop-blur-sm"
+      className="inline-flex items-center gap-2.5 rounded-full border border-emerald-500/25 bg-emerald-500/[0.08] px-4 py-2 shadow-sm dark:border-emerald-500/20 dark:bg-emerald-500/[0.06] dark:shadow-none backdrop-blur-sm"
     >
       <span className="relative flex h-2 w-2">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
         <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
       </span>
-      <span className="text-sm font-semibold text-emerald-300">
+      <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
         1 USDC = {rate.toFixed(2)} ETB
       </span>
-      <span className="text-xs text-emerald-500/60">· {ago}</span>
+      <span className="text-xs text-emerald-600/70 dark:text-emerald-500/60">· {ago}</span>
     </motion.div>
   );
 }
@@ -129,13 +129,13 @@ function FaqSection() {
         </p>
       </div>
 
-      <div className="mx-auto w-full max-w-2xl divide-y divide-border/30 rounded-2xl border border-border/30 bg-card/40 shadow-card backdrop-blur-xl">
+      <div className="mx-auto w-full max-w-2xl divide-y divide-border/30 rounded-2xl border border-border/40 bg-white shadow-apple dark:border-border/30 dark:bg-card/40 dark:shadow-card dark:backdrop-blur-xl">
         {faqs.map((faq, i) => (
           <div key={i}>
             <button
               type="button"
               onClick={() => setOpenIndex(openIndex === i ? null : i)}
-              className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition-colors hover:bg-white/[0.02]"
+              className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition-colors hover:bg-muted/40 dark:hover:bg-white/[0.02]"
             >
               <span className="text-sm font-semibold text-foreground">{faq.q}</span>
               <motion.div
@@ -210,7 +210,7 @@ function TestimonialsSection() {
         {testimonials.map((t, i) => (
           <FadeInItem
             key={i}
-            className="group relative rounded-2xl border border-border/30 bg-card/40 p-6 shadow-card backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:bg-card/60 hover:shadow-elevated hover:border-border/50"
+            className="group relative rounded-2xl border border-border/40 bg-white p-6 shadow-apple transition-[box-shadow,border-color,transform] duration-400 ease-[cubic-bezier(0.25,0.1,0.25,1)] hover:-translate-y-0.5 hover:shadow-apple-hover hover:border-border/50 dark:border-border/30 dark:bg-card/40 dark:shadow-card dark:backdrop-blur-xl dark:hover:bg-card/60 dark:hover:border-border/50"
           >
             <MessageSquare className="mb-4 h-8 w-8 text-primary/20" />
             <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
@@ -251,7 +251,7 @@ function RateAlertSection() {
 
   return (
     <FadeIn className="grid gap-8">
-      <div className="mx-auto w-full max-w-xl rounded-2xl border border-primary/15 bg-card/50 p-8 text-center shadow-card backdrop-blur-xl sm:p-10">
+      <div className="mx-auto w-full max-w-xl rounded-2xl border border-primary/20 bg-white p-8 text-center shadow-apple-lg sm:p-10 dark:border-primary/15 dark:bg-card/50 dark:shadow-card dark:backdrop-blur-xl">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
           <Bell className="h-6 w-6 text-primary" />
         </div>
@@ -261,7 +261,7 @@ function RateAlertSection() {
         </p>
 
         {submitted ? (
-          <div className="rounded-xl bg-emerald-500/10 px-6 py-4 text-sm font-medium text-emerald-400">
+          <div className="rounded-xl bg-emerald-500/10 px-6 py-4 text-sm font-medium text-emerald-700 dark:text-emerald-400">
             ✓ You&apos;re subscribed! We&apos;ll notify you at <strong>{email}</strong>.
           </div>
         ) : (
@@ -272,7 +272,7 @@ function RateAlertSection() {
               placeholder="you@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="h-11 flex-1 rounded-xl border border-border/50 bg-muted/30 px-4 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+              className="h-11 flex-1 rounded-xl border border-border/70 bg-muted/50 px-4 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-primary/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all dark:border-border/50 dark:bg-muted/30 dark:focus:bg-muted/50"
             />
             <Button type="submit" size="lg" className="shrink-0">
               Subscribe
@@ -409,7 +409,7 @@ export default function HomePage() {
         </Alert>
       )}
 
-        {/* ═══ HOW IT WORKS ═══ */}
+      {/* ═══ HOW IT WORKS ═══ */}
       <SmoothSection className="grid gap-16">
         <FadeIn className="grid gap-3 text-center">
           <h2 className="text-3xl font-semibold tracking-[-0.02em] text-foreground sm:text-4xl">
@@ -451,10 +451,10 @@ export default function HomePage() {
             return (
               <FadeInItem
                 key={item.step}
-                className={`group relative overflow-hidden rounded-2xl border border-border/30 bg-gradient-to-b ${item.glow} p-8 backdrop-blur-xl transition-all duration-500 hover:-translate-y-2 hover:shadow-elevated hover:border-border/50`}
+                className={`group relative overflow-hidden rounded-2xl border border-border/40 bg-white bg-gradient-to-b ${item.glow} p-8 shadow-apple transition-[box-shadow,border-color,transform] duration-400 ease-[cubic-bezier(0.25,0.1,0.25,1)] hover:-translate-y-0.5 hover:shadow-apple-hover hover:border-border/50 dark:border-border/30 dark:bg-transparent dark:shadow-none dark:backdrop-blur-xl dark:hover:border-border/50`}
               >
                 {/* Step number watermark */}
-                <div className="absolute -right-2 -top-4 text-[80px] font-extrabold leading-none text-white/[0.02] transition-all group-hover:text-white/[0.04]">
+                <div className="absolute -right-2 -top-4 text-[80px] font-extrabold leading-none text-foreground/[0.04] transition-all group-hover:text-foreground/[0.06] dark:text-white/[0.02] dark:group-hover:text-white/[0.04]">
                   {item.step}
                 </div>
                 <div className="relative">
@@ -517,7 +517,7 @@ export default function HomePage() {
             return (
               <FadeInItem
                 key={item.title}
-                className="group relative overflow-hidden rounded-2xl border border-border/30 bg-card/30 p-8 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:bg-card/50 hover:shadow-elevated hover:border-border/50"
+                className="group relative overflow-hidden rounded-2xl border border-border/40 bg-white/80 p-8 shadow-apple transition-[box-shadow,border-color,transform] duration-400 ease-[cubic-bezier(0.25,0.1,0.25,1)] hover:-translate-y-0.5 hover:shadow-apple-hover hover:border-border/50 dark:border-border/30 dark:bg-card/30 dark:shadow-none dark:backdrop-blur-xl dark:hover:bg-card/50 dark:hover:border-border/50"
               >
                 <div
                   className={`mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${item.iconGrad} shadow-lg transition-transform duration-300 group-hover:scale-110`}
@@ -546,7 +546,7 @@ export default function HomePage() {
       {/* ═══ FINAL CTA ═══ */}
       <FadeIn>
         {!hasSession ? (
-          <section className="relative overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-card/80 to-primary/[0.04] p-12 text-center shadow-depth backdrop-blur-xl">
+          <section className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-white to-primary/[0.06] p-12 text-center shadow-apple-lg dark:border-primary/15 dark:from-card/80 dark:to-primary/[0.04] dark:shadow-depth dark:backdrop-blur-xl">
             {/* Background glow */}
             <div className="absolute inset-0 -z-10">
               <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[100px]" />
@@ -576,7 +576,7 @@ export default function HomePage() {
             </div>
           </section>
         ) : (
-          <section className="relative overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-card/80 to-primary/[0.04] p-12 text-center shadow-depth backdrop-blur-xl">
+          <section className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-white to-primary/[0.06] p-12 text-center shadow-apple-lg dark:border-primary/15 dark:from-card/80 dark:to-primary/[0.04] dark:shadow-depth dark:backdrop-blur-xl">
             <div className="absolute inset-0 -z-10">
               <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[100px]" />
             </div>

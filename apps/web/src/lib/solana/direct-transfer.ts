@@ -126,9 +126,6 @@ export async function submitDirectTokenTransfer(input: SubmitDirectTransferInput
       explorerUrl: getSolanaExplorerTxUrl(signature, cluster)
     };
   } catch (error) {
-    if (error instanceof SendTransactionError) {
-      throw new Error(mapDirectTransferError(error));
-    }
     throw new Error(mapDirectTransferError(error));
   }
 }

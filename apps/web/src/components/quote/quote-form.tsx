@@ -72,7 +72,7 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
       .catch(() => {
         // Leave the fallback rate
       });
-      
+
     return () => { mounted = false; };
   }, [activeInitialQuote]);
 
@@ -134,7 +134,7 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
   }
 
   return (
-    <div className="rounded-2xl border border-border/50 bg-card p-6 shadow-lg sm:p-8">
+    <div className="rounded-2xl border border-border/50 bg-white p-6 shadow-apple-lg sm:p-8 dark:bg-card dark:shadow-lg">
       <h3 className="mb-5 text-xl font-semibold tracking-[-0.015em] text-foreground">Create quote</h3>
 
       <form className="grid gap-5" onSubmit={onSubmit}>
@@ -150,8 +150,8 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
                 key={c}
                 onClick={() => setForm((prev) => ({ ...prev, chain: c }))}
                 className={`rounded-lg px-3.5 py-2 text-xs font-medium capitalize transition-all ${form.chain === c
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
                   }`}
               >
                 {c}
@@ -165,7 +165,7 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
           <label htmlFor="sendAmountUsd" className="mb-2.5 block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
             You pay
           </label>
-          <div className="rounded-xl bg-muted/50 p-4 transition-colors focus-within:bg-muted focus-within:ring-0 focus-within:outline-none focus-within:border-transparent focus-within:shadow-none">
+          <div className="rounded-xl bg-muted/40 p-4 transition-colors focus-within:bg-muted/60 focus-within:ring-0 focus-within:outline-none focus-within:border-transparent focus-within:shadow-none dark:bg-muted/50 dark:focus-within:bg-muted">
             <div className="flex items-center justify-between gap-3">
               <input
                 id="sendAmountUsd"
@@ -228,7 +228,7 @@ export function QuoteForm({ token, initialQuote, onQuoteCreated, disabled, isAut
           <span className="mb-1 block text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/60">
             They receive
           </span>
-          <div className="group rounded-3xl bg-muted/80 p-5 transition-colors focus-within:bg-muted focus-within:ring-0 focus-within:outline-none focus-within:border-transparent focus-within:shadow-none">
+          <div className="group rounded-3xl bg-muted/40 p-5 transition-colors focus-within:bg-muted/60 focus-within:ring-0 focus-within:outline-none focus-within:border-transparent focus-within:shadow-none dark:bg-muted/80 dark:focus-within:bg-muted">
             <div className="flex items-center justify-between gap-3">
               <input
                 type="number"

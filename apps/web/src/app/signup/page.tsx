@@ -43,8 +43,8 @@ function SignupPageContent() {
     <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center py-12 sm:px-6 lg:px-8 relative">
       {/* Ambient glow */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute right-1/3 top-1/4 h-96 w-96 rounded-full bg-primary/[0.04] blur-[150px]" />
-        <div className="absolute left-1/4 bottom-1/3 h-72 w-72 rounded-full bg-emerald-500/[0.03] blur-[120px]" />
+        <div className="absolute right-1/3 top-1/4 h-96 w-96 rounded-full bg-primary/[0.08] blur-[150px] dark:bg-primary/[0.04]" />
+        <div className="absolute left-1/4 bottom-1/3 h-72 w-72 rounded-full bg-emerald-500/[0.06] blur-[120px] dark:bg-emerald-500/[0.03]" />
       </div>
 
       <motion.div
@@ -75,7 +75,7 @@ function SignupPageContent() {
         transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
         className="relative mt-8 sm:mx-auto sm:w-full sm:max-w-[400px]"
       >
-        <div className="rounded-2xl border border-border/30 bg-card/50 px-6 py-10 shadow-card backdrop-blur-xl sm:px-10">
+        <div className="rounded-2xl border border-border/30 bg-white px-6 py-10 shadow-apple-lg sm:px-10 dark:bg-card/50 dark:shadow-card dark:backdrop-blur-xl">
           <SignupForm nextPath={nextPath} />
 
           <p className="mt-8 text-center text-sm text-muted-foreground">
@@ -88,7 +88,7 @@ function SignupPageContent() {
             </Link>
           </p>
         </div>
-        <p className="mt-8 text-center text-xs text-muted-foreground/40">
+        <p className="mt-8 text-center text-xs text-muted-foreground/60">
           © {new Date().getFullYear()} CryptoPay. Secure & Compliant.
         </p>
       </motion.div>
